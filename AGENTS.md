@@ -66,8 +66,8 @@ by default it overwrites `AGENTS.md` and `CLAUDE.md`. So:
 
 1. Scaffold in a temporary directory outside the repo:
    `pnpm create next-app@16 /tmp/monitoring-scaffold --ts --tailwind --eslint --app --no-src-dir --import-alias "@/*" --use-pnpm --no-agents-md --no-react-compiler --disable-git`.
-   The last two flags matter: without them the command stops at a React Compiler prompt (cloud
-   sessions do not set `CI`), and it creates its own `.git`.
+   Explicit flags make every choice visible (any flag already skips the prompts). `--disable-git`
+   matters most: without it the scaffold runs `git init` and commits in its own `.git`.
 2. Copy everything except `.git`, `node_modules`, `README.md`, `AGENTS.md`, `CLAUDE.md` and
    `LICENSE` into the repo, then run `pnpm install` in the repo.
 3. `next dev` adds a managed `<!-- BEGIN:nextjs-agent-rules -->` block to `AGENTS.md` when it
@@ -167,6 +167,9 @@ whether the writer is alive. So:
   run, not "last success": a workflow can fail after its writer job already published (gardener's
   tree-status fails on purpose when a main commit lacks a post-submit result, and its `next` job
   fails when it cannot dispatch; perf fails when records are refused).
+  Fetch the last 10 completed runs (`per_page=10`, still one call) and skip any whose conclusion is
+  `cancelled` or `skipped`: every writer queues runs in a concurrency group, and GitHub cancels the
+  older pending one, so cancellation is routine. Judge the newest remaining run:
   - completed within the window with conclusion `success`: fresh;
   - completed within the window with any other conclusion: `red`, reason "<workflow> failed", with
     the run's link (the data may still be current; say so);
@@ -197,11 +200,16 @@ Targets, independent of visitor count: under 500 REST requests an hour (the toke
 requests).
 
 - One GraphQL query, cached 120 s, returns every repo's open PRs (with review requests, assignees
-  and latest reviews), recent merged PRs, default-branch head with its check rollup, and latest
-  deployment. Estimated at about 50 points, so about 1,500 points an hour.
+  and latest reviews), recent merged PRs, the default branch's last 10 commits with the head's
+  check rollup, and latest deployment. The same query also reads gardener's `tree-status` branch
+  history (`ref(qualifiedName: "refs/heads/tree-status")`, last 20 commits: the open/close log, with
+  times, for Today) and the entries of test-pipelines `results:failures` (raw cannot list a
+  directory), so Today and the Repo page need no extra calls. Estimated at about 50 points, so
+  about 1,500 points an hour.
 - One GraphQL issue search across the org for the `canary-report` and `qq-failure` labels, cached
   300 s. `qq-failure` issues are filed in more than one repo (release and test-pipelines today),
-  so search the org, not one repo. About 12 an hour.
+  so search the org, not one repo. Search can lag a newly filed issue by a few minutes, which is
+  fine here. About 12 an hour.
 - One REST call per writer workflow (9), cached 300 s: about 108 an hour.
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is a no-token cross-check:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
@@ -256,8 +264,10 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   title attribute; phones have no hover, so the repo page shows exact times.
 - One `StateBadge` component for every state, everywhere. It never uses shadcn's `destructive`
   variant. Stock shadcn Button and Badge hard-code `text-white` on `destructive`; when you copy
-  them, change that to `text-destructive-foreground` so the token below applies. Colors come from CSS variables, never hex in
-  components.
+  them, change that to `text-destructive-foreground`, drop the `dark:bg-destructive/60` overlay
+  (with it, dark text is only 3.5:1), and add `--color-destructive-foreground:
+  var(--destructive-foreground)` to the `@theme inline` block, or the class applies no color. Colors
+  come from CSS variables, never hex in components.
 - Numbers before charts. A chart only for a trend (canary strip, perf history), in plain SVG.
 - No popup, dialog or popover that scrolls; detail belongs on a page. A Sheet on a phone is fine
   only if it fits without scrolling.
