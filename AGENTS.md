@@ -65,8 +65,11 @@ especially how fetch caching and revalidation are declared, the async request AP
 by default it overwrites `AGENTS.md` and `CLAUDE.md`. So:
 
 1. Scaffold in a temporary directory outside the repo:
-   `pnpm create next-app@16 /tmp/monitoring-scaffold --ts --tailwind --eslint --app --no-src-dir --import-alias "@/*" --use-pnpm --no-agents-md`.
-2. Copy everything except `README.md`, `AGENTS.md`, `CLAUDE.md` and `LICENSE` into the repo.
+   `pnpm create next-app@16 /tmp/monitoring-scaffold --ts --tailwind --eslint --app --no-src-dir --import-alias "@/*" --use-pnpm --no-agents-md --no-react-compiler --disable-git`.
+   The last two flags matter: without them the command stops at a React Compiler prompt (cloud
+   sessions do not set `CI`), and it creates its own `.git`.
+2. Copy everything except `.git`, `node_modules`, `README.md`, `AGENTS.md`, `CLAUDE.md` and
+   `LICENSE` into the repo, then run `pnpm install` in the repo.
 3. `next dev` adds a managed `<!-- BEGIN:nextjs-agent-rules -->` block to `AGENTS.md` when it
    detects an agent. Keep that block at the top of this file, as innernet does, and commit it with
    your change; removing it only makes `next dev` add it again.
@@ -158,9 +161,16 @@ Several writers commit only when something changed (gardener's tree-status, perf
 and tree-status files carry no timestamp. A file's age says when the state last *changed*, not
 whether the writer is alive. So:
 
-- **Is it fresh?** comes from the writer workflow's last successful run on its default branch,
-  whatever triggered it (gardener's tree-status chains itself through dispatches, so do not filter
-  to `schedule`). That is one cached API call per writer.
+- **Is the writer alive?** comes from the writer workflow's last *completed* run on its default
+  branch (`status=completed`), whatever triggered it (gardener's tree-status chains itself through
+  dispatches, so do not filter to `schedule`). That is one cached API call per writer. Judge the
+  run, not "last success": a workflow can fail after its writer job already published (gardener's
+  tree-status fails on purpose when a main commit lacks a post-submit result, and its `next` job
+  fails when it cannot dispatch; perf fails when records are refused).
+  - completed within the window with conclusion `success`: fresh;
+  - completed within the window with any other conclusion: `red`, reason "<workflow> failed", with
+    the run's link (the data may still be current; say so);
+  - nothing completed within the window: `stale`, with the last run's link.
 - **Since when?** comes from `observedAt` when the data has one (`updated_at`, `generated_at`,
   `finished_at`), and otherwise is not shown. Do not fetch a file's commit time per file.
 - Windows per writer, in `config/freshness.ts`, each about two intervals plus slack:
@@ -172,25 +182,33 @@ whether the writer is alive. So:
 | perf `perf` | :17 and :47 | 90 min |
 | test-pipelines `scorecard` | every 6 h | 13 h |
 | release `canary` | daily, schedule from infra-config `channels.toml` | 26 h after the scheduled time (derived, not restated) |
+| release `canary-watchdog` | 09:43 and 13:43 daily | 26 h |
+| rollers `roll-toolchains` | weekly, Monday 06:23 (cadence in infra-config `rollers.toml`) | 8 days |
+| depot `e2e-sync` | daily 06:17 | 26 h |
+| installer `live-manifest` | every 6 h at :17 | 13 h |
 
 GitHub delays and sometimes drops scheduled runs on quiet repos, so `stale` means "look", not
 "broken". If a writer's schedule changes, update this table and `config/freshness.ts` in one PR.
 
 ### API budget
 
-Target: under 500 GitHub API requests an hour in total, independent of visitor count, against the
-5,000 limit of a token.
+Targets, independent of visitor count: under 500 REST requests an hour (the token's limit is
+5,000) and under 2,500 GraphQL points an hour (limit 5,000; GraphQL is metered in points, not
+requests).
 
 - One GraphQL query, cached 120 s, returns every repo's open PRs (with review requests, assignees
   and latest reviews), recent merged PRs, default-branch head with its check rollup, and latest
-  deployment. About 30 queries an hour.
-- One REST call per writer workflow (5), cached 120 s: about 150 an hour.
-- Labelled issues (`canary-report`, `qq-failure`), cached 300 s: about 24 an hour.
+  deployment. Estimated at about 50 points, so about 1,500 points an hour.
+- One GraphQL issue search across the org for the `canary-report` and `qq-failure` labels, cached
+  300 s. `qq-failure` issues are filed in more than one repo (release and test-pipelines today),
+  so search the org, not one repo. About 12 an hour.
+- One REST call per writer workflow (9), cached 300 s: about 108 an hour.
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is a no-token cross-check:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
-`lib/github.ts` logs the hourly count, and a test fails if one page render makes more than 3 API
-calls on a cold cache.
+`lib/github.ts` logs requests and GraphQL points per hour. Each page declares its sources, and a
+test fails if a cold render calls anything it did not declare or makes more than 12 API calls (the
+whole set above).
 
 ## Sources
 
@@ -215,18 +233,19 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | release `holds` | `release-state`: `canary/<repo>/held/<commit>.json` | hold record (none exist yet) |
 | release `reports` | `release-state`: `reports/<date>.md` | Markdown, rendered as text |
 | gardener `tree-status` | `tree-status`: `status/<repo>.json` | `qq-tree-status/1`: open, closed or unknown; red ranges; coverage |
-| gardener `ledger` | `ledger`: `reverts/<id>.json`, `landed/<id>.json` | branch absent today: return `unknown: ledger not started` on 404 |
+| gardener `ledger` | `ledger`: `reverts/<id>.json`, `landed/<id>.json`, `failures/` | branch absent today: return `unknown: ledger not started` on 404 |
 | test-pipelines `scorecard` | `results`: `scorecard.json` | no schema id; keep `not_measured` and `collect` visible |
 | test-pipelines `failures` | `results`: `failures/` | `quirq-results/1` |
 | perf `perf-data` | `perf-data`: `<repo>/<metric>.jsonl` | `qq-perf-record/1`, one per line |
 
 **GitHub API (token):** `pulls` and reviews, `checks`, `deployments` (Vercel's are expected to
 appear here; confirm per repo in M1), `workflow runs` of the writers above, `issues` labelled
-`canary-report` (in release, one per day) and `qq-failure`, and `org repos`.
+`canary-report` (in release, one per day) and `qq-failure` (in several repos), and `org repos`.
 
 Filter out demo records: the only failure record on `results` today is a planted demo
-(`canary-held-aefebec4c11f668b`, titled as a V0-TST-04 demo). Records marked as demos never count
-toward "waiting on you".
+(`canary-held-aefebec4c11f668b`). Records carry no demo flag; the demo is recognised by its
+`subject: planted-canary-demo-v0` (written by test-pipelines `failure-demo.yml`). Keep the list of
+demo subjects in one constant; demo records never count toward "waiting on you".
 
 ## Keeping it simple
 
@@ -236,7 +255,8 @@ toward "waiting on you".
   JetBrains Mono, linked to the full commit. Times read "4 min ago", with the exact UTC time in the
   title attribute; phones have no hover, so the repo page shows exact times.
 - One `StateBadge` component for every state, everywhere. It never uses shadcn's `destructive`
-  variant, which puts white text on `--destructive`. Colors come from CSS variables, never hex in
+  variant. Stock shadcn Button and Badge hard-code `text-white` on `destructive`; when you copy
+  them, change that to `text-destructive-foreground` so the token below applies. Colors come from CSS variables, never hex in
   components.
 - Numbers before charts. A chart only for a trend (canary strip, perf history), in plain SVG.
 - No popup, dialog or popover that scrolls; detail belongs on a page. A Sheet on a phone is fine
@@ -256,6 +276,8 @@ toward "waiting on you".
 |---|---|---|
 | `--background` | `--bg` | |
 | `--card`, `--popover` | `--bg-2` | |
+| `--card-foreground`, `--popover-foreground`, `--secondary-foreground`, `--accent-foreground` | `--ink` | |
+| `--accent` (shadcn's hover surface, not the brand accent) | `--bg-3` | |
 | `--muted`, `--secondary` | `--bg-3` | |
 | `--foreground` | `--ink` | |
 | `--muted-foreground` | `--ink-3` | 7.90:1 dark, 5.40:1 light |

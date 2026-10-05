@@ -55,7 +55,7 @@ The rows below add what is specific to each group.
 |---|---|---|
 | Products | `xo-space`, `innernet` | tree status, lkgr, canary channel, perf |
 | Products | `website` | latest Vercel production deploy |
-| qq infra | `infra-config`, `gate`, `test-pipelines`, `gardener`, `release`, `perf`, `rollers`, `toolchains`, `depot`, `sync`, `recipes`, `remote-build`, `installer` | whether their scheduled jobs ran on time; release, gardener, test-pipelines and perf also feed the Release and Health pages |
+| qq infra | `infra-config`, `gate`, `test-pipelines`, `gardener`, `release`, `perf`, `rollers`, `toolchains`, `depot`, `sync`, `recipes`, `remote-build`, `installer` | whether their 9 scheduled jobs (in 7 of these repos) ran on time; release, gardener, test-pipelines and perf also feed the Release and Health pages |
 | Apps in progress | `euler`, `galileo`, `instants`, `quitter` | latest deploy where one exists |
 | Knowledge | `research`, `wiki`, `docs`, `marketing`, `.github` | nothing extra |
 | Other | `monitoring`, `xo-cowork-api`, `environment`, `quirq_ai`, `quirqy` | nothing extra (`quirqy` has no commits) |
@@ -161,13 +161,15 @@ It decides from that, then works in the repo itself. It never acts through the d
    `/api/snapshot` serves the same model as JSON.
 
 - **Hosting.** Vercel, like `website`: a push to main deploys production and PRs get previews.
-- **Caching.** Each source declares how long it may be cached (one to two minutes). No database.
+- **Caching.** Each source declares how long it may be cached (two minutes for PRs and checks, up
+  to an hour for the repo list). No database.
 - **One read-only token.** `GITHUB_TOKEN`, a fine-grained token with public read access only, kept
   in Vercel's environment variables. Without it the state-branch tiles still work and API-backed
   tiles read `unknown: no token`.
-- **Budget.** A target of under 500 GitHub API requests an hour, whatever the number of visitors,
-  against a limit of 5,000. Shared caches, one GraphQL query for all repos' PRs and checks, and page
-  addresses checked against the registry before anything is fetched keep it there.
+- **Budget.** Under 500 GitHub REST requests and 2,500 GraphQL points an hour, whatever the
+  number of visitors, against limits of 5,000 each. Shared caches, one GraphQL query for all
+  repos' PRs and checks, and page addresses checked against the registry before anything is
+  fetched keep it there.
 
 ## Design
 
@@ -196,7 +198,7 @@ Nothing to do now. When the scaffold (M0) is merged:
 3. **Add the token.** In the project, go to Settings > Environment Variables, add `GITHUB_TOKEN` with
    the token for Production and Preview, then redeploy.
 4. **Rotate it.** Before the 90 days are up, repeat steps 1 and 3. When the token expires, the
-   dashboard shows `unknown: no token` on API tiles; it does not break.
+   dashboard shows `unknown: token rejected` on API tiles; it does not break.
 
 ## Build plan
 
