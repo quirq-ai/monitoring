@@ -1,0 +1,27 @@
+{
+  "total_count": 1,
+  "incomplete_results": false,
+  "items": [
+    {
+      "number": 77,
+      "title": "Inbox: poll connections every 30 s",
+      "html_url": "https://github.com/quirq-ai/xo-space/pull/77",
+      "state": "open",
+      "draft": false,
+      "user": {
+        "login": "quirq-gates"
+      },
+      "assignees": [],
+      "labels": [],
+      "created_at": "{{now-1d}}",
+      "updated_at": "{{now-2h}}",
+      "closed_at": null,
+      "repository_url": "https://api.github.com/repos/quirq-ai/xo-space",
+      "pull_request": {
+        "url": "https://api.github.com/repos/quirq-ai/xo-space/pulls/77",
+        "html_url": "https://github.com/quirq-ai/xo-space/pull/77",
+        "merged_at": null
+      }
+    }
+  ]
+}

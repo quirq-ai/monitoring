@@ -1,0 +1,24 @@
+{
+  "total_count": 1,
+  "workflow_runs": [
+    {
+      "id": 90000999,
+      "name": "perf",
+      "head_branch": "main",
+      "head_sha": "dd0e680b761429093de688446802256c18bfc540",
+      "run_number": 2,
+      "event": "schedule",
+      "status": "completed",
+      "conclusion": "success",
+      "workflow_id": 376520977,
+      "url": "https://api.github.com/repos/quirq-ai/monitoring/actions/runs/37502064462",
+      "html_url": "https://github.com/quirq-ai/perf/actions/runs/90000999",
+      "created_at": "2026-10-05T18:53:00Z",
+      "updated_at": "2026-10-05T18:53:00Z",
+      "run_started_at": "2026-10-05T18:53:00Z",
+      "jobs_url": "https://api.github.com/repos/quirq-ai/monitoring/actions/runs/37502064462/jobs",
+      "logs_url": "https://api.github.com/repos/quirq-ai/monitoring/actions/runs/37502064462/logs",
+      "path": ".github/workflows/perf.yml"
+    }
+  ]
+}

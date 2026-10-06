@@ -1,0 +1,22 @@
+[
+  {
+    "name": ".artifacts",
+    "path": "failures/.artifacts",
+    "type": "dir",
+    "size": 0,
+    "sha": "0000000000000000000000000000000000000000",
+    "url": "https://api.github.com/repos/quirq-ai/x/contents/failures/.artifacts",
+    "html_url": "https://github.com/quirq-ai/x/blob/main/failures/.artifacts",
+    "download_url": null
+  },
+  {
+    "name": "qq-failure-canary-held-aefebec4c11f668b",
+    "path": "failures/qq-failure-canary-held-aefebec4c11f668b",
+    "type": "dir",
+    "size": 0,
+    "sha": "0000000000000000000000000000000000000000",
+    "url": "https://api.github.com/repos/quirq-ai/x/contents/failures/qq-failure-canary-held-aefebec4c11f668b",
+    "html_url": "https://github.com/quirq-ai/x/blob/main/failures/qq-failure-canary-held-aefebec4c11f668b",
+    "download_url": null
+  }
+]

@@ -9,7 +9,8 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "live": "LIVE=1 vitest run"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",
@@ -19,7 +20,9 @@
     "radix-ui": "^1.4.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
-    "tailwind-merge": "^3.3.1"
+    "smol-toml": "^1.9.0",
+    "tailwind-merge": "^3.3.1",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
