@@ -1,0 +1,105 @@
+import { expect, test, type Page } from "@playwright/test";
+import { origin } from "./origin";
+
+const themes = ["light", "dark"] as const;
+const viewports = [
+  { name: "390", width: 390, height: 844 },
+  { name: "1280", width: 1280, height: 800 },
+] as const;
+
+const pages = [
+  { path: "/", slug: "today", heading: "Today" },
+  { path: "/waiting", slug: "waiting", heading: "Waiting on you" },
+  { path: "/board", slug: "board", heading: "Board" },
+  { path: "/release", slug: "release", heading: "Release" },
+  { path: "/health", slug: "health", heading: "Health" },
+  { path: "/repos/xo-space", slug: "repo-xo-space", heading: "xo-space" },
+] as const;
+
+async function openThemed(page: Page, path: string, theme: "light" | "dark") {
+  await page.context().addCookies([{ name: "theme", value: theme, url: origin }]);
+  await page.emulateMedia({ colorScheme: theme });
+  await page.goto(path);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+}
+
+test.describe("pages", () => {
+  for (const p of pages) {
+    for (const vp of viewports) {
+      for (const theme of themes) {
+        test(`${p.slug} ${vp.name} ${theme}`, async ({ page }) => {
+          await page.setViewportSize({ width: vp.width, height: vp.height });
+          await openThemed(page, p.path, theme);
+          await expect(page.getByRole("heading", { level: 1 })).toHaveText(p.heading);
+          await page.screenshot({ path: `test-results/screenshots/${p.slug}-${vp.name}-${theme}.png`, fullPage: true });
+          const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+          expect(overflow, "no horizontal page scroll").toBeLessThanOrEqual(0);
+        });
+      }
+    }
+  }
+});
+
+test.describe("content from the fixtures", () => {
+  test("Today shows the merged PR, the held canary, the tree close and the counts", async ({ page }) => {
+    await page.goto("/");
+    const list = page.getByRole("list").nth(1);
+    await expect(page.getByText("merged #117 Fix: sources page scroll on phones")).toHaveCount(1);
+    await expect(page.getByText(/canary held: held at verify/)).toHaveCount(1);
+    await expect(page.getByText("tree closed")).toHaveCount(1);
+    await expect(list).toBeVisible();
+    await expect(page.getByRole("link", { name: /waiting on you/ })).toContainText("4");
+  });
+
+  test("Waiting lists the review, the stale approval, the held canary and the failure once each", async ({ page }) => {
+    await page.goto("/waiting");
+    const items = page.locator("ol").getByRole("listitem");
+    await expect(items).toHaveCount(4);
+    await expect(page.getByText("review requested", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("approval on an older head", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("canary held", { exact: true })).toHaveCount(1);
+    await expect(page.getByText("open failure", { exact: true })).toHaveCount(1);
+    await expect(page.getByText(/Planted/)).toHaveCount(0);
+  });
+
+  test("Board lists every registry repo once with the planted red CI and failed deploy", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/board");
+    for (const repo of ["innernet", "xo-space", "website", "gate", "release", "gardener", "monitoring", "wiki", "euler"]) {
+      await expect(page.getByRole("link", { name: repo, exact: true })).toHaveCount(1);
+    }
+    const xo = page.getByRole("row").filter({ has: page.getByRole("link", { name: "xo-space", exact: true }) });
+    await expect(xo.getByText("1 of 2 failed: presubmit")).toBeVisible();
+    const website = page.getByRole("row").filter({ has: page.getByRole("link", { name: "website", exact: true }) });
+    await expect(website.getByText(/failure 7f3b1a2/)).toBeVisible();
+  });
+
+  test("Release shows the channels in file order and a held canary with its hold", async ({ page }) => {
+    await page.goto("/release");
+    await expect(page.getByText(/Channels in order: canary .* then dev .* then stable/)).toBeVisible();
+    await expect(page.getByText(/held at verify since/)).toBeVisible();
+    await expect(page.getByRole("img", { name: /xo-space canary, last 14 days/ })).toBeVisible();
+  });
+
+  test("Health shows a stale-free writer set with one red writer and the ledger not started", async ({ page }) => {
+    await page.goto("/health");
+    await expect(page.getByText("ledger not started").first()).toBeVisible();
+    await expect(page.getByText(/scorecard failure .*the data may still be current/)).toBeVisible();
+  });
+
+  test("an unknown repo is a 404", async ({ page }) => {
+    const response = await page.goto("/repos/no-such-repo");
+    expect(response?.status()).toBe(404);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Not found");
+  });
+
+  test("the snapshot route answers JSON that carries no token", async ({ request }) => {
+    const res = await request.get("/api/snapshot");
+    expect(res.status()).toBe(200);
+    const text = await res.text();
+    expect(text).not.toContain("fixture-token-never-real");
+    const json = JSON.parse(text);
+    expect(json.schema).toBe("qq-monitoring-snapshot/1");
+    expect(json.counts.waiting).toBe(4);
+  });
+});
