@@ -363,7 +363,9 @@ pnpm e2e           # playwright: 390x844 and 1280x800, light and dark
   against `--background`, `--card` and `--muted`. The e2e suite checks all of these from the
   computed CSS variables. Never lower a limit to pass.
 - **Screenshots.** For any UI change, attach phone and desktop screenshots in light and dark. suraj
-  reads on his phone, so the phone shots matter most.
+  reads on his phone, so the phone shots matter most. `pnpm e2e` writes them to the ignored
+  `test-results/screenshots/`, and CI uploads that folder as the `screenshots` artifact; never
+  commit them.
 - **Real data.** Before calling a source done, run it once against the live branch and show a
   summary in the PR (counts and states, not whole files).
 - **Adversarial reread.** Before pushing, reread the diff and ask: does anything write, leak a

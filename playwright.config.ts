@@ -7,13 +7,12 @@ export default defineConfig({
   testDir: "tests/e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: origin,
     launchOptions: chromiumPath ? { executablePath: chromiumPath } : undefined,
   },
   webServer: {
-    command: "corepack pnpm exec next start -p 3010 -H 127.0.0.1",
+    command: "pnpm exec next start -p 3010 -H 127.0.0.1",
     url: origin,
     reuseExistingServer: false,
     timeout: 120_000,

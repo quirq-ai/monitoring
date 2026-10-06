@@ -67,7 +67,7 @@ test.describe("empty shell", () => {
         expect(failures).toEqual([]);
 
         await page.screenshot({
-          path: `tests/screenshots/today-${viewport.name}-${theme}.png`,
+          path: `test-results/screenshots/today-${viewport.name}-${theme}.png`,
         });
       });
     }
