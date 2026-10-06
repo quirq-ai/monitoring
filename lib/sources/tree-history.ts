@@ -41,10 +41,10 @@ export async function readTreeHistory(): Promise<Signal<TreeChange[]>> {
   });
   if (!api.ok) {
     const why = api.status === 404 ? "tree-status branch not found" : api.reason;
-    return failSignal(source, sourceUrl, `gardener: ${why}`);
+    return failSignal(source, sourceUrl, `gardener: ${why}`, api);
   }
   const parsed = parseValue(z.array(CommitSchema), api.data, "gardener: tree-status commits");
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
   const oldestFirst = [...parsed.value].reverse();
   const changes: TreeChange[] = [];
   let previous: Record<string, string> = {};
@@ -61,7 +61,7 @@ export async function readTreeHistory(): Promise<Signal<TreeChange[]>> {
     previous = { ...previous, ...states };
   }
   changes.reverse();
-  return okSignal(source, sourceUrl, changes, changes[0]?.at || undefined);
+  return okSignal(source, sourceUrl, changes, changes[0]?.at || undefined, api);
 }
 
 /** `tree-status: innernet open, xo-space closed` to `{ innernet: "open", xo-space: "closed" }`. */

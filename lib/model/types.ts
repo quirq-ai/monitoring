@@ -8,9 +8,15 @@ export const SNAPSHOT_SCHEMA = "qq-monitoring-snapshot/1";
 
 const StateSchema = z.enum(states);
 
-/** One thing on screen: a state word, the detail, where it came from and where to go. */
+/**
+ * One thing on screen: a state word, the detail, where it came from and where to go. `none` is a
+ * known fact with no health in it ("nothing merged in 7 days", "no deployments"): the pages show
+ * it as plain text with no badge, and it is never counted as unknown.
+ */
+export const CellStateSchema = z.enum([...states, "none"]);
+
 export const CellSchema = z.object({
-  state: StateSchema,
+  state: CellStateSchema,
   text: z.string(),
   url: z.string(),
   at: z.string().optional(),
@@ -21,6 +27,7 @@ export const SourceStatusSchema = z.object({
   source: z.string(),
   sourceUrl: z.string(),
   fetchedAt: z.string(),
+  maxAge: z.number().optional(),
   observedAt: z.string().optional(),
   ok: z.boolean(),
   reason: z.string().optional(),
@@ -56,11 +63,15 @@ export const BoardRowSchema = z.object({
   registered: z.boolean(),
   ci: CellSchema,
   openPulls: z.number(),
+  /** True when the open-PR search was cut at its page size, so the count is a floor. */
+  openPullsLowerBound: z.boolean(),
   lastMerge: CellSchema,
   tree: CellSchema.optional(),
   lkgr: CellSchema.optional(),
   canary: CellSchema.optional(),
   deploy: CellSchema.optional(),
+  /** The worst state among the row's health cells, for ordering: red and held first, green last. */
+  worst: StateSchema,
 });
 
 export const BoardGroupSchema = z.object({ id: z.string(), title: z.string(), repos: z.array(BoardRowSchema) });
@@ -119,7 +130,11 @@ export const SnapshotSchema = z.object({
     redOrHeld: z.number(),
     redOrHeldComplete: z.boolean(),
     unknownOrStale: z.number(),
+    /** False when a source feeding the Today list could not be read, so the list may be short. */
+    todayComplete: z.boolean(),
   }),
+  /** The oldest read among the sources that answered: the data on screen is at least this old. */
+  dataAsOf: z.string(),
   today: z.array(TodayItemSchema),
   waiting: z.array(WaitingItemSchema),
   board: z.array(BoardGroupSchema),
@@ -127,6 +142,8 @@ export const SnapshotSchema = z.object({
   release: z.object({
     channels: z.array(z.object({ name: z.string(), cadence: z.string(), audience: z.array(z.string()) })),
     repos: z.array(ReleaseRepoSchema),
+    /** Why there are no repos, when the product registry could not be read. */
+    reposReason: z.string().optional(),
     report: z.object({ date: z.string(), markdown: z.string(), url: z.string() }).optional(),
     reportReason: z.string().optional(),
   }),
@@ -137,6 +154,12 @@ export const SnapshotSchema = z.object({
     ledger: CellSchema,
     tokenPresent: z.boolean(),
     apiRequestsThisHour: z.number(),
+    /** The GitHub API as a whole: one line the pages show as a banner when it is not `ok`. */
+    api: z.object({
+      state: z.enum(["ok", "no-token", "rate-limited", "token-rejected", "down"]),
+      text: z.string(),
+      until: z.string().optional(),
+    }),
   }),
   sources: z.array(SourceStatusSchema),
 });

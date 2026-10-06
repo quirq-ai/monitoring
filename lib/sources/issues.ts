@@ -48,9 +48,9 @@ export async function readIssues(label: IssueLabel, state: "open" | "all" = "ope
     revalidate: REVALIDATE,
     params: { q, sort: "created", order: "desc", per_page: 50 },
   });
-  if (!api.ok) return failSignal(source, sourceUrl, api.reason);
+  if (!api.ok) return failSignal(source, sourceUrl, api.reason, api);
   const parsed = parseValue(SearchSchema, api.data, `issue search (${label})`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
   const issues: Issue[] = parsed.value.items
     .filter((i) => !i.pull_request)
     .map((i) => ({
@@ -64,5 +64,5 @@ export async function readIssues(label: IssueLabel, state: "open" | "all" = "ope
       updatedAt: i.updated_at,
       closedAt: i.closed_at,
     }));
-  return okSignal(source, sourceUrl, issues, issues[0]?.updatedAt);
+  return okSignal(source, sourceUrl, issues, issues[0]?.updatedAt, api);
 }

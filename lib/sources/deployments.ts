@@ -48,19 +48,19 @@ export async function readLatestDeployment(repo: string): Promise<Signal<Deploym
     revalidate: REVALIDATE,
     params: { per_page: 10, environment: "Production" },
   });
-  if (!api.ok) return failSignal(source, sourceUrl, api.reason);
+  if (!api.ok) return failSignal(source, sourceUrl, api.reason, api);
   const parsed = parseValue(z.array(DeploymentSchema), api.data, `${repo} deployments`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
   // Vercel names its environment "Production"; a preview deploy never answers "did my merge ship?".
   const production = parsed.value.find((d) => /^production$/i.test(d.environment));
-  if (!production) return okSignal(source, sourceUrl, null);
+  if (!production) return okSignal(source, sourceUrl, null, undefined, api);
   const statuses = await ghGet<unknown>(repoPath(repo, `deployments/${production.id}/statuses`), {
     revalidate: REVALIDATE,
     params: { per_page: 1 },
   });
-  if (!statuses.ok) return failSignal(source, sourceUrl, statuses.reason);
+  if (!statuses.ok) return failSignal(source, sourceUrl, statuses.reason, statuses);
   const parsedStatus = parseValue(z.array(StatusSchema), statuses.data, `${repo} deployment statuses`);
-  if (!parsedStatus.ok) return failSignal(source, sourceUrl, parsedStatus.reason);
+  if (!parsedStatus.ok) return failSignal(source, sourceUrl, parsedStatus.reason, statuses);
   const latest = parsedStatus.value[0];
   const status = latest?.state ?? "no status";
   return okSignal(
@@ -77,6 +77,7 @@ export async function readLatestDeployment(repo: string): Promise<Signal<Deploym
       url: latest?.environment_url || latest?.target_url || latest?.log_url || sourceUrl,
     },
     latest?.created_at ?? production.updated_at,
+    statuses,
   );
 }
 

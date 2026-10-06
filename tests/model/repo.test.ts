@@ -22,12 +22,22 @@ describe("repo view", () => {
     await withFixtures();
     const view = await buildRepoView("xo-space");
     expect(view).not.toBeNull();
-    if (!view) return;
+    if (!view || "unavailable" in view) throw new Error("expected a repo view");
     expect(view.row.ci.state).toBe("red");
     expect(view.pulls.ok && view.pulls.value.map((p) => p.number)).toEqual([77]);
     expect(view.checks.ok && view.checks.value.checks.length).toBe(2);
     expect(view.tree?.ok && view.tree.value.state).toBe("open");
     expect(view.perf.map((m) => m.metric)).toEqual(["xo-space-server-start"]);
     expect(view.release?.days.length).toBe(14);
+  });
+
+  it("is unavailable, not a 404, when the registries cannot be read", async () => {
+    await withFixtures([
+      { raw: "infra-config/main/config/repos.toml", status: 502, body: "" },
+      { raw: "gate/main/settings/github.toml", status: 502, body: "" },
+    ]);
+    const view = await buildRepoView("innernet");
+    expect(view).toMatchObject({ unavailable: expect.stringContaining("502") });
+    expect(await buildRepoView("monitoring"), "a repo this repo's own config names is still found").not.toBeNull();
   });
 });

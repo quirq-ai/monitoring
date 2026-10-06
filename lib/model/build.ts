@@ -1,8 +1,8 @@
 import { WRITERS } from "@/config/freshness";
 import { OWNER } from "@/config/owner";
 import { ORG, blobUrl, treeUrl } from "@/lib/fetch";
-import { hasToken, requestsThisHour, web } from "@/lib/github";
-import type { Signal } from "@/lib/signal";
+import { hasToken, RATE_LIMIT_REASON, rateLimitedUntil, requestsThisHour, web } from "@/lib/github";
+import type { Signal, State } from "@/lib/signal";
 import { judgeWriter } from "@/lib/model/freshness";
 import { ago, WINDOWS, within, type Window } from "@/lib/model/time";
 import {
@@ -16,6 +16,7 @@ import {
   type SourceStatus,
   type TodayItem,
   type WaitingItem,
+  type WriterHealth,
 } from "@/lib/model/types";
 import { readLatestCanaryReport } from "@/lib/sources/canary-report";
 import { readCanaryDays, type CanaryRun } from "@/lib/sources/canary-runs";
@@ -55,14 +56,68 @@ function status<T>(signal: Signal<T>): SourceStatus {
     source: signal.source,
     sourceUrl: signal.sourceUrl,
     fetchedAt: signal.fetchedAt,
+    maxAge: signal.maxAge,
     observedAt: signal.observedAt,
     ok: signal.ok,
     reason: signal.ok ? undefined : signal.reason,
   };
 }
 
+/** The reasons the API banner explains, so a cell can say them in two words. */
+export function shortReason(reason: string): string {
+  if (reason === "no token") return "no token";
+  if (reason.startsWith(RATE_LIMIT_REASON)) return "rate limited";
+  if (reason === "token rejected") return "token rejected";
+  return reason;
+}
+
 function unknownCell(signal: Signal<unknown>, text?: string): Cell {
-  return { state: "unknown", text: text ?? (signal.ok ? "no data" : signal.reason), url: signal.sourceUrl, source: signal.source };
+  return { state: "unknown", text: text ?? (signal.ok ? "no data" : shortReason(signal.reason)), url: signal.sourceUrl, source: signal.source };
+}
+
+/** A known fact with no health in it: shown as plain text, never counted. */
+function noneCell(text: string, url: string, source: string, at?: string): Cell {
+  return { state: "none", text, url, source, at };
+}
+
+const WRITER_WORDS: Record<string, string> = { "gardener/tree-status": "gardener", "release/lkgr": "the lkgr job", "release/canary": "the canary job" };
+
+/**
+ * A cell built from a state file is only as current as the job that writes the file. When that
+ * writer is not green, a green or pending cell becomes stale (the writer missed its window) or
+ * unknown (the writer's state could not be read); red and held stay, since the file's alarm is
+ * real whatever happened since (rule 3). Tree-status files carry no timestamp, so this is the only
+ * freshness signal they have.
+ */
+export function gateByWriter(cell: Cell, writer: WriterHealth | undefined): Cell {
+  if (!writer || writer.state === "green") return cell;
+  if (cell.state === "red" || cell.state === "held" || cell.state === "none") return cell;
+  const who = WRITER_WORDS[writer.id] ?? writer.id;
+  const state: Cell["state"] = writer.state === "stale" || writer.state === "red" ? "stale" : "unknown";
+  const text = cell.state === "unknown" ? cell.text : `${cell.text} as of the last run; ${who} ${writer.state}, ${writer.reason}`;
+  return { ...cell, state, text };
+}
+
+/**
+ * The data cache serves an expired entry once while it refreshes, so after an idle night the
+ * first render shows last night's data. A cell whose source was read more than twice its cache
+ * window ago is marked stale rather than shown as current.
+ */
+export function gateByAge(cell: Cell, source: SourceStatus | undefined, now: Date): Cell {
+  if (!source || !source.maxAge || !source.ok) return cell;
+  if (cell.state !== "green" && cell.state !== "pending") return cell;
+  const ageSeconds = (now.getTime() - new Date(source.fetchedAt).getTime()) / 1000;
+  if (!(ageSeconds > 2 * source.maxAge)) return cell;
+  return { ...cell, state: "stale", text: `${cell.text}; read ${ago(source.fetchedAt, now)}, not refreshed yet` };
+}
+
+const WORST_ORDER: State[] = ["red", "held", "stale", "unknown", "pending", "green"];
+
+/** The worst state among a row's health cells; a `none` cell carries no state. */
+export function worstOf(cells: (Cell | undefined)[]): State {
+  const present = cells.filter((c): c is Cell => Boolean(c) && c!.state !== "none").map((c) => c.state as State);
+  for (const state of WORST_ORDER) if (present.includes(state)) return state;
+  return "green";
 }
 
 export type BuildOptions = { window?: Window; now?: Date };
@@ -114,6 +169,9 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     Promise.all(WRITERS.map((w) => readWriterRuns(w).then(track))),
   ]);
 
+  const writers = WRITERS.map((w, i) => judgeWriter(w, writerRuns[i], now));
+  const writerById = new Map(writers.map((w) => [w.id, w]));
+
   // Phase 2: per product and per board repo.
   const productList: Product[] = products.ok ? products.value : [];
   const rows = boardRows(productList, gateRepos, orgRepos);
@@ -162,25 +220,34 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       ? { state: check.value.state, text: check.value.summary, url: check.sourceUrl, at: check.observedAt, source: check.source }
       : unknownCell(check);
     const newest = merged.filter((p) => p.repo === row.name).sort((a, b) => (b.mergedAt ?? "").localeCompare(a.mergedAt ?? ""))[0];
+    // A merge is a fact, not a health state: plain text, no badge.
     const lastMerge: Cell = mergedPulls.ok
       ? newest
-        ? { state: "green", text: `#${newest.number} ${newest.title}`, url: newest.url, at: newest.mergedAt ?? undefined, source: mergedPulls.source }
-        : { state: "unknown", text: "nothing merged in 7 days", url: web.pulls(row.name), source: mergedPulls.source }
+        ? noneCell(`#${newest.number} ${newest.title}`, newest.url, mergedPulls.source, newest.mergedAt ?? undefined)
+        : noneCell(mergedPulls.value.incomplete ? "none among the newest merges" : "nothing merged in 7 days", web.pulls(row.name), mergedPulls.source)
       : unknownCell(mergedPulls);
     const base: BoardRow = {
       ...row,
       ci,
       openPulls: openPulls.ok ? pulls.filter((p) => p.repo === row.name).length : -1,
+      openPullsLowerBound: openPulls.ok && openPulls.value.incomplete,
       lastMerge,
+      worst: worstOf([ci]),
     };
     const p = productIndex.get(row.name);
     if (!p) return base;
-    const tree: Cell = p.tree.ok
-      ? { state: p.tree.value.state === "open" ? "green" : p.tree.value.state === "closed" ? "red" : "unknown", text: p.tree.value.reason || p.tree.value.state, url: p.tree.sourceUrl, source: p.tree.source }
-      : unknownCell(p.tree);
-    const lkgr: Cell = p.lkgr.ok
-      ? { state: p.lkgr.value.pending ? "pending" : "green", text: `${short(p.lkgr.value.commit)}${p.lkgr.value.pending ? ` pending ${short(p.lkgr.value.pending)}` : ""}`, url: web.commit(row.name, p.lkgr.value.commit), at: p.lkgr.value.updated_at, source: p.lkgr.source }
-      : unknownCell(p.lkgr);
+    const tree: Cell = gateByWriter(
+      p.tree.ok
+        ? { state: p.tree.value.state === "open" ? "green" : p.tree.value.state === "closed" ? "red" : "unknown", text: p.tree.value.reason || p.tree.value.state, url: p.tree.sourceUrl, source: p.tree.source }
+        : unknownCell(p.tree),
+      writerById.get("gardener/tree-status"),
+    );
+    const lkgr: Cell = gateByWriter(
+      p.lkgr.ok
+        ? { state: p.lkgr.value.pending ? "pending" : "green", text: `${short(p.lkgr.value.commit)}${p.lkgr.value.pending ? ` pending ${short(p.lkgr.value.pending)}` : ""}`, url: web.commit(row.name, p.lkgr.value.commit), at: p.lkgr.value.updated_at, source: p.lkgr.source }
+        : unknownCell(p.lkgr),
+      writerById.get("release/lkgr"),
+    );
     const latest = latestRun(p.days);
     const unreadable = newestUnreadable(p.days);
     const runsDown = unreadable !== undefined && (!latest || unreadable.date > latest.date);
@@ -188,8 +255,8 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     const runsUrl = treeUrl("release", "release-state", `canary/${row.name}/runs`);
     // The cell is how the last canary run went; the channel pointer is what it shipped. No run
     // inside the strip's window is stale, never green, whatever channels.json says (rule 3).
-    const canary: Cell = p.product.channels.length === 0
-      ? { state: "unknown", text: "no channels configured", url: products.sourceUrl, source: products.source }
+    const canary: Cell = gateByWriter(p.product.channels.length === 0
+      ? noneCell("no channels configured", products.sourceUrl, products.source)
       : runsDown
       ? unknownCell(unreadable.run)
       : latest && latest.outcome === "held"
@@ -201,17 +268,26 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
             : canaryEntry
               ? { state: "green", text: `${latest.outcome}, canary at ${short(canaryEntry.commit)}`, url: web.commit(row.name, canaryEntry.commit), at: canaryEntry.updated_at, source: releaseChannels.source }
               : releaseChannels.ok
-                ? { state: "unknown", text: `${latest.outcome}, nothing promoted yet`, url: releaseChannels.sourceUrl, source: releaseChannels.source }
-                : unknownCell(releaseChannels);
+                ? { state: "green", text: `${latest.outcome}, nothing promoted yet`, url: releaseChannels.sourceUrl, source: releaseChannels.source }
+                : unknownCell(releaseChannels), writerById.get("release/canary"));
     const deploy: Cell | undefined = !p.deploy
       ? undefined
       : p.deploy.ok
         ? p.deploy.value
           ? { state: p.deploy.value.state, text: `${p.deploy.value.status} ${short(p.deploy.value.sha)}`, url: p.deploy.value.url, at: p.deploy.value.createdAt, source: p.deploy.source }
-          : { state: "unknown", text: "no deployments", url: p.deploy.sourceUrl, source: p.deploy.source }
+          : noneCell("no deployments", p.deploy.sourceUrl, p.deploy.source)
         : unknownCell(p.deploy);
-    return { ...base, tree, lkgr, canary, deploy };
+    return { ...base, tree, lkgr, canary, deploy, worst: worstOf([ci, tree, lkgr, canary, deploy]) };
   });
+  const sourceById = new Map(sources.map((s) => [s.source, s]));
+  for (const row of boardRowsFull) {
+    row.ci = gateByAge(row.ci, sourceById.get(row.ci.source), now);
+    if (row.tree) row.tree = gateByAge(row.tree, sourceById.get(row.tree.source), now);
+    if (row.lkgr) row.lkgr = gateByAge(row.lkgr, sourceById.get(row.lkgr.source), now);
+    if (row.canary) row.canary = gateByAge(row.canary, sourceById.get(row.canary.source), now);
+    if (row.deploy) row.deploy = gateByAge(row.deploy, sourceById.get(row.deploy.source), now);
+    row.worst = worstOf([row.ci, row.tree, row.lkgr, row.canary, row.deploy]);
+  }
   const board = groupRows(boardRowsFull);
   const unregistered = boardRowsFull.filter((r) => !r.registered).map((r) => r.name);
 
@@ -313,8 +389,9 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
         channels[name] = entry
           ? { state: "green", text: `${short(entry.commit)} gen ${entry.generation}`, url: web.commit(p.product.name, entry.commit), at: entry.updated_at, source: releaseChannels.source }
           : releaseChannels.ok
-            ? { state: "unknown", text: "nothing promoted yet", url: releaseChannels.sourceUrl, source: releaseChannels.source }
+            ? noneCell("nothing promoted yet", releaseChannels.sourceUrl, releaseChannels.source)
             : unknownCell(releaseChannels);
+        channels[name] = gateByAge(channels[name], sourceById.get(channels[name].source), now);
       }
       const days = p.days.map(toCanaryDay);
       const latest = [...days].reverse().find((d) => d.outcome !== "none");
@@ -322,7 +399,6 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     });
 
   // --- health --------------------------------------------------------------------------------
-  const writers = WRITERS.map((w, i) => judgeWriter(w, writerRuns[i], now));
   const ledgerCell: Cell = ledger.ok
     ? { state: ledger.value.reverts === 0 ? "green" : "pending", text: `${ledger.value.reverts} reverts, ${ledger.value.landed} landed`, url: ledger.sourceUrl, source: ledger.source }
     : unknownCell(ledger);
@@ -339,7 +415,10 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     redOrHeld: boardRowsFull.reduce((n, r) => n + [r.ci, r.tree, r.canary, r.deploy].filter((c) => c && (c.state === "red" || c.state === "held")).length, 0),
     redOrHeldComplete: checks.every((c) => c.ok) && perProduct.every((p) => p.deploy?.ok ?? true) && releaseChannels.ok && runsRead,
     unknownOrStale: sources.filter((s) => !s.ok).length + writers.filter((w) => w.state === "stale").length,
+    todayComplete: mergedPulls.ok && treeHistory.ok && failures.ok && failureIssues.ok && releaseChannels.ok && perProduct.every((p) => p.lkgr.ok && (p.deploy?.ok ?? true)) && runsRead,
   };
+  const dataAsOf = sources.filter((s) => s.ok).map((s) => s.fetchedAt).sort()[0] ?? now.toISOString();
+  const api = apiState(sources);
 
   return {
     schema: SNAPSHOT_SCHEMA,
@@ -348,6 +427,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     owner: OWNER,
     window,
     counts,
+    dataAsOf,
     today,
     waiting,
     board,
@@ -355,6 +435,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     release: {
       channels: channelsConfig.ok ? channelsConfig.value.channels.map((c) => ({ name: c.name, cadence: c.cadence, audience: c.audience })) : [],
       repos: releaseRepos,
+      reposReason: products.ok ? undefined : products.reason,
       report: report.ok ? { date: report.value.date, markdown: report.value.markdown, url: report.sourceUrl } : undefined,
       reportReason: report.ok ? undefined : report.reason,
     },
@@ -372,22 +453,42 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       ledger: ledgerCell,
       tokenPresent: hasToken(),
       apiRequestsThisHour: requestsThisHour(),
+      api,
     },
     sources,
   };
 }
 
+/** The GitHub API as a whole, from the first reason that explains every API cell at once. */
+export function apiState(sources: SourceStatus[]): Snapshot["health"]["api"] {
+  if (!hasToken()) return { state: "no-token", text: "GitHub token not set, so PRs, CI, deploys, issues and writer health are hidden; the state-branch files still show" };
+  const reasons = sources.filter((s) => !s.ok && s.source.startsWith("github/")).map((s) => s.reason ?? "");
+  const limited = rateLimitedUntil() ?? reasons.find((r) => r.startsWith(RATE_LIMIT_REASON))?.slice(RATE_LIMIT_REASON.length + 1);
+  if (limited) return { state: "rate-limited", text: `GitHub API rate limit until ${limited.slice(11, 16)} UTC; the API cells are unknown until then`, until: limited };
+  if (reasons.includes("token rejected")) return { state: "token-rejected", text: "GitHub rejected the token (expired or revoked); PRs, CI, deploys, issues and writer health are hidden until it is replaced" };
+  const apiSources = sources.filter((s) => s.source.startsWith("github/") || s.source.startsWith("writer/"));
+  if (apiSources.length && apiSources.every((s) => !s.ok)) return { state: "down", text: `GitHub API not answering: ${reasons[0] ?? "no reason"}` };
+  return { state: "ok", text: "" };
+}
+
 // --- helpers -----------------------------------------------------------------------------------
 
-/** Reads the three registries (raw files, no token) and says whether a name is one of their repos. */
-export async function isRegisteredRepo(name: string): Promise<boolean> {
+/**
+ * Reads the three registries (raw files, no token) and says whether a name is one of their repos:
+ * `true`, `null` when none names it, or the reason when a registry could not be read and the
+ * answer is therefore not known.
+ */
+export async function isRegisteredRepo(name: string): Promise<true | null | { unavailable: string }> {
   const [products, gate] = await Promise.all([readProducts(), readGateRepos()]);
   if (products.ok && products.value.some((p) => p.name === name)) return true;
   if (gate.ok && gate.value.some((r) => r.name === name)) return true;
-  return localGroups().some((g) => Object.hasOwn(g.repos, name));
+  if (localGroups().some((g) => Object.hasOwn(g.repos, name))) return true;
+  if (!products.ok) return { unavailable: products.reason };
+  if (!gate.ok) return { unavailable: gate.reason };
+  return null;
 }
 
-type RowSeed = Omit<BoardRow, "ci" | "openPulls" | "lastMerge">;
+type RowSeed = Omit<BoardRow, "ci" | "openPulls" | "openPullsLowerBound" | "lastMerge" | "worst">;
 
 /** Every repo once: products, then the gate's infra repos, then this repo's own groups, then any public repo none of them names. */
 export function boardRows(
@@ -428,10 +529,12 @@ const GROUP_TITLES: Record<string, string> = {
   unregistered: "Not in any registry",
 };
 
+/** Groups in registry order; inside a group, the repos that need a look come first (stable otherwise). */
 function groupRows(rows: BoardRow[]): BoardGroup[] {
   const order = ["products", "infra", ...localGroups().map((g) => g.id), "unregistered"];
+  const rank = (r: BoardRow) => WORST_ORDER.indexOf(r.worst);
   return order
-    .map((id) => ({ id, title: GROUP_TITLES[id] ?? id, repos: rows.filter((r) => r.group === id) }))
+    .map((id) => ({ id, title: GROUP_TITLES[id] ?? id, repos: rows.filter((r) => r.group === id).sort((a, b) => rank(a) - rank(b)) }))
     .filter((g) => g.repos.length > 0);
 }
 
@@ -449,7 +552,7 @@ function latestRun(days: { date: string; run: Signal<CanaryRun | null> }[]): Can
   return undefined;
 }
 
-export function outcomeState(outcome: string): Cell["state"] {
+export function outcomeState(outcome: string): State {
   switch (outcome) {
     case "shipped":
       return "green";

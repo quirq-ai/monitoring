@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { ApiBanner } from "@/components/api-banner";
 import { CanaryStrip } from "@/components/canary-strip";
 import { CellView } from "@/components/cell";
 import { PageTitle } from "@/components/page-title";
@@ -6,6 +7,7 @@ import { Sha } from "@/components/sha";
 import { SourceLink } from "@/components/source-link";
 import { StateBadge } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
+import { Card } from "@/components/ui/card";
 import { web } from "@/lib/github";
 import { buildRepoView } from "@/lib/model/repo";
 import { exactUtc } from "@/lib/model/time";
@@ -14,6 +16,17 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
   const { repo } = await params;
   const view = await buildRepoView(repo);
   if (!view) notFound();
+  if ("unavailable" in view) {
+    // Not a 404: the registries that would name the repo could not be read, so nothing is known.
+    return (
+      <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+        <PageTitle title={repo} lead="Could not be looked up." />
+        <p className="flex flex-wrap items-center gap-2 text-sm">
+          <StateBadge state="unknown" /> The registries could not be read: {view.unavailable}
+        </p>
+      </div>
+    );
+  }
   const { row, release, pulls, checks, tree, perf } = view;
   const now = new Date(view.snapshot.generatedAt);
 
@@ -24,21 +37,22 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
           open on GitHub
         </a>
       </PageTitle>
+      <ApiBanner api={view.snapshot.health.api} />
 
-      <section className="grid grid-cols-2 gap-4 rounded-lg border border-border bg-card p-4 sm:grid-cols-3 lg:grid-cols-6">
+      <Card className="grid grid-cols-2 gap-4 rounded-lg px-4 py-4 shadow-none sm:grid-cols-3 lg:grid-cols-6">
         <CellView title={`CI on ${row.defaultBranch}`} cell={row.ci} now={now} exact />
         <CellView title="last merge" cell={row.lastMerge} now={now} exact />
         {row.tree ? <CellView title="tree" cell={row.tree} now={now} /> : null}
         {row.lkgr ? <CellView title="lkgr" cell={row.lkgr} now={now} exact /> : null}
         {row.canary ? <CellView title="canary" cell={row.canary} now={now} exact /> : null}
         {row.deploy ? <CellView title="deploy" cell={row.deploy} now={now} exact /> : null}
-      </section>
+      </Card>
 
       <section className="flex flex-col gap-2">
         <h2 className="text-xl">Open pull requests</h2>
         {pulls.ok ? (
           pulls.value.length ? (
-            <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+            <ul className="divide-y divide-border rounded-lg border bg-card text-card-foreground">
               {pulls.value.map((pr) => (
                 <li key={pr.number} className="flex flex-col gap-0.5 px-3 py-2 text-sm">
                   <a href={pr.url} className="underline-offset-2 hover:underline" rel="noreferrer">
@@ -73,7 +87,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
               </p>
             ) : null}
             {checks.value.checks.length ? (
-              <ul className="divide-y divide-border rounded-lg border border-border bg-card">
+              <ul className="divide-y divide-border rounded-lg border bg-card text-card-foreground">
                 {checks.value.checks.map((c, i) => (
                   <li key={`${c.name}-${i}`} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
                     <StateBadge state={c.conclusion === "success" ? "green" : c.status !== "completed" ? "pending" : c.conclusion === "neutral" || c.conclusion === "skipped" ? "unknown" : "red"} />
@@ -161,7 +175,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {perf.map((m) => (
-                <li key={m.metric} className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3 text-sm">
+                <li key={m.metric} className="flex flex-col gap-1 rounded-lg border bg-card p-3 text-sm text-card-foreground">
                   <a href={m.url} className="font-medium underline-offset-2 hover:underline" rel="noreferrer">
                     {m.metric}
                   </a>

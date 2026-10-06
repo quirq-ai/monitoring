@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { ChevronDown } from "lucide-react";
+import { ApiBanner } from "@/components/api-banner";
 import { CellInline } from "@/components/cell";
 import { PageTitle } from "@/components/page-title";
+import { StateBadge } from "@/components/state-badge";
+import { Card } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildSnapshot } from "@/lib/model/build";
 import type { BoardRow, Cell } from "@/lib/model/types";
@@ -18,11 +23,12 @@ export default async function BoardPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-      <PageTitle title="Board" lead="One row per repo: main CI, open PRs, last merge, and for products the tree, lkgr, canary and deploy." />
+      <PageTitle title="Board" lead="One row per repo, the ones that need a look first: main CI, open PRs, last merge, and for products the tree, lkgr, canary and deploy." />
+      <ApiBanner api={snapshot.health.api} />
       {snapshot.unregistered.length ? (
-        <p className="rounded-lg border border-border bg-card p-3 text-sm">
+        <Card className="rounded-lg p-3 text-sm shadow-none">
           Not in any registry: {snapshot.unregistered.join(", ")}. Add them to infra-config, the gate or this repo&apos;s config/repos.json.
-        </p>
+        </Card>
       ) : null}
       {snapshot.board.map((group) => (
         <section key={group.id} className="flex flex-col gap-3">
@@ -63,36 +69,66 @@ export default async function BoardPage() {
               </TableBody>
             </Table>
           </div>
-          <ul className="flex flex-col gap-3 md:hidden">
-            {group.repos.map((row) => (
-              <li key={row.name} className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
-                <RepoName row={row} />
-                <dl className="grid grid-cols-2 gap-3">
-                  <Field label="CI on main">
-                    <CellInline cell={row.ci} now={now} />
-                  </Field>
-                  <Field label="Open PRs">
-                    <span className="font-mono text-sm">{openPulls(row)}</span>
-                  </Field>
-                  <Field label="Last merge" wide>
-                    <CellInline cell={row.lastMerge} now={now} />
-                  </Field>
-                  {group.id === "products"
-                    ? productColumns.map((c) =>
-                        row[c.key] ? (
-                          <Field key={c.key} label={c.label}>
-                            <CellInline cell={row[c.key] as Cell} now={now} />
-                          </Field>
-                        ) : null,
-                      )
-                    : null}
-                </dl>
-              </li>
-            ))}
+          {/* On a phone, a green non-product repo is one line that opens on tap; anything else is a card. */}
+          <ul className="flex flex-col gap-2 md:hidden">
+            {group.repos.map((row) =>
+              row.worst === "green" && group.id !== "products" ? (
+                <li key={row.name}>
+                  <Collapsible>
+                    <Card className="gap-0 rounded-lg py-0 shadow-none">
+                      <div className="flex items-center gap-2 px-3">
+                        <Link href={`/repos/${row.name}`} className="min-h-11 flex-1 py-2 text-sm font-medium underline-offset-2 hover:underline">
+                          <span className="flex min-h-7 items-center">{row.name}</span>
+                        </Link>
+                        <StateBadge state="green" />
+                        <CollapsibleTrigger className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180" aria-label={`Details for ${row.name}`}>
+                          <ChevronDown className="size-5 transition-transform" aria-hidden="true" />
+                        </CollapsibleTrigger>
+                      </div>
+                      <CollapsibleContent>
+                        <Fields row={row} now={now} product={false} />
+                      </CollapsibleContent>
+                    </Card>
+                  </Collapsible>
+                </li>
+              ) : (
+                <li key={row.name}>
+                  <Card className="gap-3 rounded-lg px-3 py-3 shadow-none">
+                    <RepoName row={row} />
+                    <Fields row={row} now={now} product={group.id === "products"} />
+                  </Card>
+                </li>
+              ),
+            )}
           </ul>
         </section>
       ))}
     </div>
+  );
+}
+
+function Fields({ row, now, product }: { row: BoardRow; now: Date; product: boolean }) {
+  return (
+    <dl className="grid grid-cols-2 gap-3 px-0 pb-3 md:pb-0 [[data-slot=collapsible-content]_&]:px-3 [[data-slot=collapsible-content]_&]:pt-1">
+      <Field label="CI on main">
+        <CellInline cell={row.ci} now={now} />
+      </Field>
+      <Field label="Open PRs">
+        <span className="font-mono text-sm">{openPulls(row)}</span>
+      </Field>
+      <Field label="Last merge" wide>
+        <CellInline cell={row.lastMerge} now={now} />
+      </Field>
+      {product
+        ? productColumns.map((c) =>
+            row[c.key] ? (
+              <Field key={c.key} label={c.label}>
+                <CellInline cell={row[c.key] as Cell} now={now} />
+              </Field>
+            ) : null,
+          )
+        : null}
+    </dl>
   );
 }
 
@@ -114,7 +150,8 @@ function RepoName({ row }: { row: BoardRow }) {
 }
 
 function openPulls(row: BoardRow): string {
-  return row.openPulls < 0 ? "?" : String(row.openPulls);
+  if (row.openPulls < 0) return "?";
+  return row.openPullsLowerBound ? `${row.openPulls}+` : String(row.openPulls);
 }
 
 function Field({ label, wide, children }: { label: string; wide?: boolean; children: React.ReactNode }) {

@@ -52,8 +52,8 @@ export type Scorecard = z.infer<typeof ScorecardSchema>;
 export async function readScorecard(): Promise<Signal<Scorecard>> {
   const sourceUrl = blobUrl(REPO, BRANCH, PATH);
   const raw = await fetchRaw(REPO, BRANCH, PATH, REVALIDATE);
-  if (!raw.ok) return failSignal(SOURCE, sourceUrl, `results: ${raw.reason}`);
+  if (!raw.ok) return failSignal(SOURCE, sourceUrl, `results: ${raw.reason}`, raw);
   const parsed = parseJson(ScorecardSchema, raw.text, "results: scorecard.json");
-  if (!parsed.ok) return failSignal(SOURCE, sourceUrl, parsed.reason);
-  return okSignal(SOURCE, sourceUrl, parsed.value, parsed.value.generated_at);
+  if (!parsed.ok) return failSignal(SOURCE, sourceUrl, parsed.reason, raw);
+  return okSignal(SOURCE, sourceUrl, parsed.value, parsed.value.generated_at, raw);
 }

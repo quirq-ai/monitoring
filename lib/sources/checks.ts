@@ -7,6 +7,7 @@ import { failSignal, okSignal, type Signal, type State } from "@/lib/signal";
 // the registry, never from a visitor.
 
 const REVALIDATE = 600;
+const PER_PAGE = 50;
 
 const CheckSchema = z
   .object({
@@ -37,14 +38,14 @@ export async function readBranchChecks(repo: string, branch: string): Promise<Si
   const sourceUrl = web.commits(repo, branch);
   const api = await ghGet<unknown>(repoPath(repo, `commits/${encodeURIComponent(branch)}/check-runs`), {
     revalidate: REVALIDATE,
-    params: { per_page: 50 },
+    params: { per_page: PER_PAGE },
   });
   if (!api.ok) {
     const why = api.status === 404 ? `no branch ${branch}` : api.reason;
-    return failSignal(source, sourceUrl, why);
+    return failSignal(source, sourceUrl, why, api);
   }
   const parsed = parseValue(ResponseSchema, api.data, `${repo} check runs`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
   const checks: CheckRun[] = parsed.value.check_runs.map((c) => ({
     name: c.name,
     status: c.status,
@@ -53,7 +54,11 @@ export async function readBranchChecks(repo: string, branch: string): Promise<Si
     completedAt: c.completed_at,
   }));
   const headSha = parsed.value.check_runs[0]?.head_sha ?? "";
-  return okSignal(source, sourceUrl, { headSha, ...rollup(checks), checks }, newest(checks));
+  const verdict =
+    parsed.value.total_count > checks.length
+      ? { state: "unknown" as const, summary: `more than ${PER_PAGE} check runs on the head commit (${parsed.value.total_count}); only ${checks.length} read` }
+      : rollup(checks);
+  return okSignal(source, sourceUrl, { headSha, ...verdict, checks }, newest(checks), api);
 }
 
 function newest(checks: CheckRun[]): string | undefined {

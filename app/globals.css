@@ -192,23 +192,51 @@
   filter: brightness(0);
 }
 
-.state-badge {
-  display: inline-flex;
-  width: fit-content;
-  align-items: center;
-  gap: 0.25rem;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 0.125rem 0.5rem;
-  font-family: var(--font-sans);
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.25rem;
+/* Fetched Markdown (the canary report), rendered by react-markdown as text only. */
+.markdown > * + * {
+  margin-top: 0.75rem;
 }
-
-.state-badge svg {
-  width: 0.875rem;
-  height: 0.875rem;
+.markdown h3,
+.markdown h4,
+.markdown h5 {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.markdown h3 {
+  font-size: 1.25rem;
+}
+.markdown h4 {
+  font-size: 1.05rem;
+}
+.markdown table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown th {
+  background: var(--muted);
+}
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+}
+.markdown a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown ul,
+.markdown ol {
+  padding-left: 1.25rem;
+  list-style: disc;
 }
 
 .state-green {

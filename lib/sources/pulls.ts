@@ -80,15 +80,16 @@ async function searchPulls(id: string, query: string, sort: string): Promise<Sig
     revalidate: REVALIDATE,
     params: { q, sort, order: "desc", per_page: PER_PAGE },
   });
-  if (!api.ok) return failSignal(source, sourceUrl, api.reason);
+  if (!api.ok) return failSignal(source, sourceUrl, api.reason, api);
   const parsed = parseValue(SearchSchema, api.data, `pull request search (${id})`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
   const pulls = parsed.value.items.map(toPull);
   return okSignal(
     source,
     sourceUrl,
-    { pulls, total: parsed.value.total_count, incomplete: parsed.value.incomplete_results },
+    { pulls, total: parsed.value.total_count, incomplete: parsed.value.incomplete_results || parsed.value.total_count > pulls.length },
     pulls[0]?.updatedAt,
+    api,
   );
 }
 
@@ -153,12 +154,12 @@ export async function readReviewStatus(repo: string, number: number, owner = OWN
     ghGet<unknown>(repoPath(repo, `pulls/${number}`), { revalidate: REVALIDATE_REVIEWS }),
     ghGet<unknown>(repoPath(repo, `pulls/${number}/reviews`), { revalidate: REVALIDATE_REVIEWS, params: { per_page: 100 } }),
   ]);
-  if (!detail.ok) return failSignal(source, sourceUrl, detail.reason);
-  if (!reviews.ok) return failSignal(source, sourceUrl, reviews.reason);
+  if (!detail.ok) return failSignal(source, sourceUrl, detail.reason, detail);
+  if (!reviews.ok) return failSignal(source, sourceUrl, reviews.reason, reviews);
   const parsedDetail = parseValue(PullDetailSchema, detail.data, `${repo}#${number}`);
-  if (!parsedDetail.ok) return failSignal(source, sourceUrl, parsedDetail.reason);
+  if (!parsedDetail.ok) return failSignal(source, sourceUrl, parsedDetail.reason, detail);
   const parsedReviews = parseValue(z.array(ReviewSchema), reviews.data, `${repo}#${number} reviews`);
-  if (!parsedReviews.ok) return failSignal(source, sourceUrl, parsedReviews.reason);
+  if (!parsedReviews.ok) return failSignal(source, sourceUrl, parsedReviews.reason, reviews);
   const headSha = parsedDetail.value.head.sha;
   const own = parsedReviews.value
     .filter((r) => r.user?.login === owner && r.state !== "COMMENTED")
@@ -174,5 +175,6 @@ export async function readReviewStatus(repo: string, number: number, owner = OWN
       approvalStale: latest?.state === "APPROVED" && Boolean(latest.commit_id) && latest.commit_id !== headSha,
     },
     latest?.submitted_at ?? undefined,
+    detail,
   );
 }

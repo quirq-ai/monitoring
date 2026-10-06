@@ -49,10 +49,10 @@ export async function readWriterRuns(writer: Writer): Promise<Signal<WorkflowRun
   });
   if (!api.ok) {
     const why = api.status === 404 ? `${writer.workflow} not found in ${writer.repo}` : api.reason;
-    return failSignal(source, sourceUrl, why);
+    return failSignal(source, sourceUrl, why, api);
   }
   const parsed = parseValue(ResponseSchema, api.data, `${writer.repo} ${writer.workflow} runs`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
   const runs = parsed.value.workflow_runs
     .filter((r) => r.conclusion !== "cancelled" && r.conclusion !== "skipped" && (r.head_branch ?? writer.branch) === writer.branch)
     .map((r) => ({
@@ -65,5 +65,5 @@ export async function readWriterRuns(writer: Writer): Promise<Signal<WorkflowRun
       completedAt: r.updated_at,
     }))
     .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
-  return okSignal(source, sourceUrl, runs, runs[0]?.completedAt);
+  return okSignal(source, sourceUrl, runs, runs[0]?.completedAt, api);
 }

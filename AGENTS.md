@@ -113,7 +113,9 @@ app/
   api/snapshot/route.ts  GET only: the model as JSON
 components/
   ui/                    shadcn, unmodified where possible
-  state-badge.tsx        the one way to show a state
+  state-badge.tsx        the one way to show a state (a shadcn Badge)
+  api-banner.tsx         one Alert when the GitHub API as a whole is out
+  markdown.tsx           react-markdown with raw HTML off, for the canary report
   source-link.tsx        "from <source>, <age> ago"
 lib/
   sources/               one module per source
@@ -166,6 +168,25 @@ export type Signal<T> = {
   id, refuse a different one (for example `qq-channels/2`) with a reason that says the dashboard
   needs updating. `scorecard.json` has no `schema` field: validate its shape only.
 - **Timeouts.** 10 s per request. One failing source never breaks a page; its tiles show `unknown`.
+- **Read times.** `fetchedAt` is the response's own `Date` header, which the data cache keeps, not
+  the render time: Next serves an expired entry once while it refreshes in the background, so after
+  a quiet night the first render carries last night's data. Every signal also carries `maxAge` (its
+  cache window); the model marks a green or pending cell `stale` when its source was read more than
+  twice its window ago, and Today shows "data as of" the oldest read.
+- **Facts are not states.** A cell whose text is a known fact with no health in it ("nothing merged
+  in 7 days", "no deployments", "nothing promoted yet") has state `none`: plain text, no badge,
+  never counted. `green` means healthy, not "a thing exists".
+- **Writers gate their files.** A tree, lkgr or canary cell is only as current as the job that
+  writes the file (`gateByWriter` in `lib/model/build.ts`): when gardener `tree-status`, release
+  `lkgr` or release `canary` is stale, red or unknown, a green or pending cell becomes stale or
+  unknown and says so. Red and held cells stay, since the file's alarm is real whatever happened
+  since.
+- **Back-off.** `lib/github.ts` keeps the rate-limit reset time in module memory and answers
+  "rate limit" without calling until then; both clients remember a 404 for the source's window,
+  since Next caches only 200s. Tests call `forgetBackoff()` between cases (`withFixtures` does).
+- **One banner.** `health.api` says whether the API as a whole answers (`ok`, `no-token`,
+  `rate-limited`, `token-rejected`, `down`); every page shows it as one Alert, and API cells then
+  say just `unknown: no token` or `rate limited`.
 - **GitHub API.** Always go through `lib/github.ts`. It sends the token only to `api.github.com`,
   reads the rate-limit headers, counts requests per hour, and returns
   `ok: false, reason: "GitHub API rate limit, resets at <time>"` instead of throwing. With no token
@@ -237,6 +258,9 @@ cloud session, and REST with the issue search covers the same questions in a han
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is the no-token fallback:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
+Lists are cut at their page size and say so: an open-PR count is a floor ("3+") when the search
+had more than 100 results, and a head with more than 50 check runs rolls up `unknown`.
+
 `lib/github.ts` counts the client's calls per hour (`requestsThisHour`, per server process, and a
 call the Data Cache answers is counted too) and the Health page shows the count. A model test
 asserts that one cold render of every page makes at most 70 API requests against the fixture
@@ -298,6 +322,12 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - Numbers before charts. A chart only for a trend (canary strip, perf history), in plain SVG.
 - No popup, dialog or popover that scrolls; detail belongs on a page. A Sheet on a phone is fine
   only if it fits without scrolling.
+- Phone first: what needs a look comes first (Today's "Needs a look", the Board's row order by
+  worst state), and a green non-product repo on the Board is one line that opens on tap
+  (Collapsible). Every page segment has a `loading.tsx` (Skeleton) except the repo page, where a
+  Suspense boundary would stream a 200 before `notFound()` can answer 404; `app/error.tsx` shows
+  what it can and offers a retry.
+- Tap targets are at least 44 px tall on a phone (nav links, the theme toggle, the window links).
 - Do not reuse PostHog's site design or assets (website was derived from it and its UI is being
   replaced). The look comes from the quirq brand below.
 

@@ -5,6 +5,8 @@ export type FixtureRoute = {
   file?: string;
   body?: string;
   status?: number;
+  /** Extra response headers, tokens rendered: `date` backdates a read, `x-ratelimit-*` fakes a limit. */
+  headers?: Record<string, string>;
 };
 
 export type FixtureLog = { requests: number; api: number; nonGet: number; authorizationOnRaw: number; misses: string[] };

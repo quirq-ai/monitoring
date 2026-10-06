@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
-/** @typedef {{ path?: string, raw?: string, query?: Record<string, string>, file?: string, body?: string, status?: number }} Route */
+/** @typedef {{ path?: string, raw?: string, query?: Record<string, string>, file?: string, body?: string, status?: number, headers?: Record<string, string> }} Route */
 
 const UNIT_MS = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
 
@@ -93,8 +93,11 @@ export function createFixtureServer(options = {}) {
     return null;
   }
 
-  function respond(res, status, body, type) {
-    res.writeHead(status, { "content-type": type, "cache-control": "max-age=300" });
+  // Extra headers a route asks for (`date` to backdate a read, `x-ratelimit-*` for a limit), with
+  // tokens rendered, so a test can say "this answer was read an hour ago".
+  function respond(res, status, body, type, headers = {}, now = new Date()) {
+    const extra = Object.fromEntries(Object.entries(headers).map(([k, v]) => [k, renderTokens(v, now)]));
+    res.writeHead(status, { "content-type": type, "cache-control": "max-age=300", ...extra });
     res.end(body);
   }
 
@@ -118,7 +121,7 @@ export function createFixtureServer(options = {}) {
       const route = routes.find((r) => r.raw && matchPath(renderTokens(r.raw, now), rawPath));
       if (route) {
         const body = route.body ?? (route.file ? readFileSync(join(root, route.file), "utf8") : "");
-        return respond(res, route.status ?? 200, renderTokens(body, now), "text/plain; charset=utf-8");
+        return respond(res, route.status ?? 200, renderTokens(body, now), "text/plain; charset=utf-8", route.headers, now);
       }
       const text = rawFile(rawPath, now);
       if (text === null) {
@@ -138,7 +141,7 @@ export function createFixtureServer(options = {}) {
       }
       const body = route.body ?? (route.file ? readFileSync(join(root, route.file), "utf8") : "");
       res.setHeader("x-ratelimit-remaining", "4999");
-      return respond(res, route.status ?? 200, renderTokens(body, now), "application/json; charset=utf-8");
+      return respond(res, route.status ?? 200, renderTokens(body, now), "application/json; charset=utf-8", route.headers, now);
     }
 
     respond(res, 404, "404: Not Found", "text/plain");

@@ -31,19 +31,16 @@ export type ChannelsConfig = { sourceRef: string; channels: ChannelConfig[] };
 export async function readChannelsConfig(): Promise<Signal<ChannelsConfig>> {
   const sourceUrl = blobUrl(REPO, "main", PATH);
   const raw = await fetchRaw(REPO, "main", PATH, REVALIDATE);
-  if (!raw.ok) return failSignal(SOURCE, sourceUrl, `infra-config: ${raw.reason}`);
+  if (!raw.ok) return failSignal(SOURCE, sourceUrl, `infra-config: ${raw.reason}`, raw);
   let data: unknown;
   try {
     data = parseToml(raw.text);
   } catch (error) {
-    return failSignal(SOURCE, sourceUrl, `infra-config: channels.toml is not TOML (${String(error)})`);
+    return failSignal(SOURCE, sourceUrl, `infra-config: channels.toml is not TOML (${String(error)})`, raw);
   }
   const parsed = parseValue(FileSchema, data, "infra-config: channels.toml");
-  if (!parsed.ok) return failSignal(SOURCE, sourceUrl, parsed.reason);
-  return okSignal(SOURCE, sourceUrl, {
-    sourceRef: parsed.value.source.ref,
-    channels: parsed.value.channel,
-  });
+  if (!parsed.ok) return failSignal(SOURCE, sourceUrl, parsed.reason, raw);
+  return okSignal(SOURCE, sourceUrl, { sourceRef: parsed.value.source.ref, channels: parsed.value.channel }, undefined, raw);
 }
 
 /** The UTC hour and minute a daily cron like "17 6 * * *" fires, or undefined for anything else. */

@@ -27,11 +27,15 @@ export function isRepoName(name: string): boolean {
   return isSafeName(name, 100);
 }
 
-export async function buildRepoView(name: string): Promise<RepoView | null> {
+/** `null` is a 404: no registry names the repo. `unavailable` is not: the registries could not be read. */
+export type RepoLookup = RepoView | null | { unavailable: string };
+
+export async function buildRepoView(name: string): Promise<RepoLookup> {
   if (!isRepoName(name)) return null;
   // The registries are three raw files, cached and read without a token; an unknown name stops
   // here, before the snapshot's API calls (rule 7).
-  if (!(await isRegisteredRepo(name))) return null;
+  const known = await isRegisteredRepo(name);
+  if (known !== true) return known;
   const snapshot = await buildSnapshot();
   const row = snapshot.board.flatMap((g) => g.repos).find((r) => r.name === name && r.registered);
   if (!row) return null;

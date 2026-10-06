@@ -1,4 +1,6 @@
+import "server-only";
 import { z } from "zod";
+import { readAt } from "@/lib/signal";
 
 // Every network read in the app goes through this file or lib/github.ts. Pages never fetch.
 
@@ -30,8 +32,30 @@ export function treeUrl(repo: string, branch: string, path = ""): string {
 }
 
 export type RawResult =
-  | { ok: true; text: string; status: number }
-  | { ok: false; status?: number; reason: string };
+  | { ok: true; text: string; status: number; fetchedAt: string; maxAge: number }
+  | { ok: false; status?: number; reason: string; fetchedAt: string; maxAge: number };
+
+// Next caches only 200s, so a missing file would be fetched again on every render. A 404 is
+// remembered here for the same window instead (per server process; on Vercel, per instance).
+const missing = new Map<string, number>();
+
+export function rememberMissing(url: string, seconds: number): void {
+  missing.set(url, Date.now() + seconds * 1000);
+  if (missing.size > 500) for (const [key, until] of missing) if (until < Date.now()) missing.delete(key);
+}
+
+export function isRememberedMissing(url: string): boolean {
+  const until = missing.get(url);
+  if (until === undefined) return false;
+  if (until > Date.now()) return true;
+  missing.delete(url);
+  return false;
+}
+
+/** Tests call this between cases; nothing else should. */
+export function forgetMissing(): void {
+  missing.clear();
+}
 
 /**
  * Read a file from a state branch or main. `revalidate` is the Next.js data-cache window in
@@ -45,18 +69,24 @@ export async function fetchRaw(
   revalidate: number,
 ): Promise<RawResult> {
   const url = rawUrl(repo, branch, path);
+  const maxAge = revalidate;
+  if (isRememberedMissing(url)) {
+    return { ok: false, status: 404, reason: `${repo}:${branch} ${path} returned 404`, fetchedAt: new Date().toISOString(), maxAge };
+  }
   try {
     const res = await fetch(url, {
       method: "GET",
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       next: { revalidate },
     });
+    const fetchedAt = readAt(res.headers);
     if (!res.ok) {
-      return { ok: false, status: res.status, reason: `${repo}:${branch} ${path} returned ${res.status}` };
+      if (res.status === 404) rememberMissing(url, revalidate);
+      return { ok: false, status: res.status, reason: `${repo}:${branch} ${path} returned ${res.status}`, fetchedAt, maxAge };
     }
-    return { ok: true, text: await res.text(), status: res.status };
+    return { ok: true, text: await res.text(), status: res.status, fetchedAt, maxAge };
   } catch (error) {
-    return { ok: false, reason: `${repo}:${branch} ${path}: ${describeError(error)}` };
+    return { ok: false, reason: `${repo}:${branch} ${path}: ${describeError(error)}`, fetchedAt: new Date().toISOString(), maxAge };
   }
 }
 

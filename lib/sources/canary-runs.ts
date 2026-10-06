@@ -52,15 +52,15 @@ export async function readCanaryRun(repo: string, date: string): Promise<Signal<
   const sourceUrl = blobUrl(REPO, BRANCH, path);
   const raw = await fetchRaw(REPO, BRANCH, path, REVALIDATE);
   if (!raw.ok) {
-    if (raw.status === 404) return okSignal(source, treeUrl(REPO, BRANCH, `canary/${repo}/runs`), null);
-    return failSignal(source, sourceUrl, `release-state: ${raw.reason}`);
+    if (raw.status === 404) return okSignal(source, treeUrl(REPO, BRANCH, `canary/${repo}/runs`), null, undefined, raw);
+    return failSignal(source, sourceUrl, `release-state: ${raw.reason}`, raw);
   }
   const parsed = parseJson(RunSchema, raw.text, `release-state: ${path}`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, raw);
   if (parsed.value.schema !== SCHEMA) {
-    return failSignal(source, sourceUrl, schemaReason(`release-state: ${path}`, parsed.value.schema, SCHEMA));
+    return failSignal(source, sourceUrl, schemaReason(`release-state: ${path}`, parsed.value.schema, SCHEMA), raw);
   }
-  return okSignal(source, sourceUrl, parsed.value, parsed.value.finished_at || undefined);
+  return okSignal(source, sourceUrl, parsed.value, parsed.value.finished_at || undefined, raw);
 }
 
 /** The last `days` UTC dates ending today, oldest first. */

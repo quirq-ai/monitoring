@@ -1,4 +1,5 @@
 import { afterEach } from "vitest";
+import { forgetBackoff } from "@/lib/github";
 import { createFixtureServer, type FixtureLog, type FixtureRoute } from "../fixtures/server.mjs";
 
 // Start a fixture server for one test and point the sources at it through the same environment
@@ -11,6 +12,7 @@ export type Fixtures = { url: string; log: FixtureLog; close: () => Promise<void
 const open: Fixtures[] = [];
 
 export async function withFixtures(routes: FixtureRoute[] = []): Promise<Fixtures> {
+  forgetBackoff();
   const server = createFixtureServer({ routes });
   const url = await server.listen(0);
   process.env.MONITORING_RAW_BASE = `${url}/raw`;

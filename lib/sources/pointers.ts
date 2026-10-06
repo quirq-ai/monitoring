@@ -50,12 +50,12 @@ export async function readPointer(repo: string, ref: PointerRef): Promise<Signal
   const raw = await fetchRaw(REPO, BRANCH, path, REVALIDATE);
   if (!raw.ok) {
     const why = raw.status === 404 ? `no ${ref} pointer for ${repo} yet` : raw.reason;
-    return failSignal(source, sourceUrl, `release-state: ${why}`);
+    return failSignal(source, sourceUrl, `release-state: ${why}`, raw);
   }
   const parsed = parseJson(PointerSchema, raw.text, `release-state: ${path}`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, raw);
   if (parsed.value.schema !== SCHEMA) {
-    return failSignal(source, sourceUrl, schemaReason(`release-state: ${path}`, parsed.value.schema, SCHEMA));
+    return failSignal(source, sourceUrl, schemaReason(`release-state: ${path}`, parsed.value.schema, SCHEMA), raw);
   }
-  return okSignal(source, sourceUrl, parsed.value, parsed.value.updated_at);
+  return okSignal(source, sourceUrl, parsed.value, parsed.value.updated_at, raw);
 }

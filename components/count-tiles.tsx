@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { Card } from "@/components/ui/card";
 import type { Snapshot } from "@/lib/model/types";
 
 /**
  * The three numbers at the top of Today, each a link to where the items are. A count whose
- * sources were not all read is shown in the unknown tone with a note, never as a green zero.
+ * sources were not all read is a floor ("3+"), and a zero built from no data is "?", never a
+ * green zero.
  */
 export function CountTiles({ counts }: { counts: Snapshot["counts"] }) {
   const tiles = [
@@ -15,14 +17,15 @@ export function CountTiles({ counts }: { counts: Snapshot["counts"] }) {
     <ul className="grid grid-cols-3 gap-3">
       {tiles.map((t) => (
         <li key={t.label}>
-          <Link href={t.href} className="flex h-full flex-col gap-1 rounded-lg border border-border bg-card p-3 hover:bg-muted sm:p-4">
-            <span className={`font-mono text-3xl font-semibold ${t.complete ? t.tone : "text-state-unknown"}`}>
-              {t.value}
-              {t.complete ? "" : "+"}
-            </span>
-            <span className="text-sm text-card-foreground">{t.label}</span>
-            {t.complete ? null : <span className="text-xs text-muted-foreground">some sources unread</span>}
-          </Link>
+          <Card className="h-full gap-1 rounded-lg py-0 shadow-none">
+            <Link href={t.href} className="flex h-full flex-col gap-1 p-3 hover:bg-muted sm:p-4">
+              <span className={`font-mono text-3xl font-semibold ${t.complete ? t.tone : "text-state-unknown"}`}>
+                {t.complete ? t.value : t.value === 0 ? "?" : `${t.value}+`}
+              </span>
+              <span className="text-sm text-card-foreground">{t.label}</span>
+              {t.complete ? null : <span className="text-xs text-muted-foreground">some sources unread</span>}
+            </Link>
+          </Card>
         </li>
       ))}
     </ul>

@@ -49,11 +49,11 @@ export async function readProducts(): Promise<Signal<Product[]>> {
   const source = "infra-config/repos";
   const sourceUrl = blobUrl("infra-config", "main", "config/repos.toml");
   const raw = await fetchRaw("infra-config", "main", "config/repos.toml", REVALIDATE_CONFIG);
-  if (!raw.ok) return failSignal(source, sourceUrl, `infra-config: ${raw.reason}`);
+  if (!raw.ok) return failSignal(source, sourceUrl, `infra-config: ${raw.reason}`, raw);
   const toml = parseTomlSafe(raw.text, "infra-config: repos.toml");
-  if (!toml.ok) return failSignal(source, sourceUrl, toml.reason);
+  if (!toml.ok) return failSignal(source, sourceUrl, toml.reason, raw);
   const parsed = parseValue(ProductsFileSchema, toml.value, "infra-config: repos.toml");
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, raw);
   const products = parsed.value.repo.map((r) => ({
     name: r.name,
     description: r.description,
@@ -62,7 +62,7 @@ export async function readProducts(): Promise<Signal<Product[]>> {
     channels: r.channels,
     deployTarget: r.deploy?.target ?? "",
   }));
-  return okSignal(source, sourceUrl, products);
+  return okSignal(source, sourceUrl, products, undefined, raw);
 }
 
 // --- gate settings/github.toml --------------------------------------------------------------
@@ -83,15 +83,17 @@ export async function readGateRepos(): Promise<Signal<GateRepo[]>> {
   const source = "gate/settings";
   const sourceUrl = blobUrl("gate", "main", "settings/github.toml");
   const raw = await fetchRaw("gate", "main", "settings/github.toml", REVALIDATE_CONFIG);
-  if (!raw.ok) return failSignal(source, sourceUrl, `gate: ${raw.reason}`);
+  if (!raw.ok) return failSignal(source, sourceUrl, `gate: ${raw.reason}`, raw);
   const toml = parseTomlSafe(raw.text, "gate: github.toml");
-  if (!toml.ok) return failSignal(source, sourceUrl, toml.reason);
+  if (!toml.ok) return failSignal(source, sourceUrl, toml.reason, raw);
   const parsed = parseValue(GateFileSchema, toml.value, "gate: github.toml");
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, raw);
   return okSignal(
     source,
     sourceUrl,
     parsed.value.repo.map((r) => ({ name: r.name, kind: r.kind, stateBranches: r.state_branches })),
+    undefined,
+    raw,
   );
 }
 
@@ -155,6 +157,8 @@ export async function readOrgRepos(): Promise<Signal<OrgRepo[]>> {
             fork: r.fork,
             description: r.description ?? "",
           })),
+        undefined,
+        api,
       );
     }
   }
@@ -187,9 +191,9 @@ export async function readWikiManifest(apiReason?: string): Promise<Signal<OrgRe
   const sourceUrl = blobUrl("wiki", "main", ".quirq-wiki-manifest.json");
   const raw = await fetchRaw("wiki", "main", ".quirq-wiki-manifest.json", REVALIDATE_ORG);
   const prefix = apiReason ? `GitHub API: ${apiReason}; wiki manifest: ` : "wiki manifest: ";
-  if (!raw.ok) return failSignal(source, sourceUrl, `${prefix}${raw.reason}`);
+  if (!raw.ok) return failSignal(source, sourceUrl, `${prefix}${raw.reason}`, raw);
   const parsed = parseJson(ManifestSchema, raw.text, "wiki: .quirq-wiki-manifest.json");
-  if (!parsed.ok) return failSignal(source, sourceUrl, `${prefix}${parsed.reason}`);
+  if (!parsed.ok) return failSignal(source, sourceUrl, `${prefix}${parsed.reason}`, raw);
   const repos: OrgRepo[] = parsed.value.repos.map((r) => ({
     name: r.name,
     url: r.html_url,
@@ -213,7 +217,7 @@ export async function readWikiManifest(apiReason?: string): Promise<Signal<OrgRe
       });
     }
   }
-  return okSignal(source, sourceUrl, repos, parsed.value.generated_at);
+  return okSignal(source, sourceUrl, repos, parsed.value.generated_at, raw);
 }
 
 function parseTomlSafe(text: string, what: string): { ok: true; value: unknown } | { ok: false; reason: string } {

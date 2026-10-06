@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { ApiBanner } from "@/components/api-banner";
 import { PageTitle } from "@/components/page-title";
 import { StateBadge } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
+import { Card } from "@/components/ui/card";
 import { buildSnapshot } from "@/lib/model/build";
 
 const kindWords: Record<string, string> = {
@@ -20,35 +22,41 @@ export default async function WaitingPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <PageTitle title="Waiting on you" lead={`PRs that need ${snapshot.owner}, held canaries and open failures.`} />
-      {down.length ? (
-        <p className="rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
+      <ApiBanner api={snapshot.health.api} />
+      {down.length && snapshot.health.api.state === "ok" ? (
+        <p className="text-sm text-muted-foreground">
           {down.length} of the PR and issue sources could not be read, so this list may be short: {down[0].reason}.
         </p>
       ) : null}
       {snapshot.waiting.length === 0 ? (
-        <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">Nothing is waiting on you.</p>
+        <Card className="rounded-lg p-4 text-sm text-muted-foreground shadow-none">
+          {snapshot.counts.waitingComplete ? "Nothing is waiting on you." : "Nothing is waiting on you in the sources that could be read."}
+        </Card>
       ) : (
-        <ol className="divide-y divide-border rounded-lg border border-border bg-card">
-          {snapshot.waiting.map((item, i) => (
-            <li key={`${item.kind}-${item.url}-${i}`} className="flex flex-col gap-1 px-3 py-3">
-              <span className="flex flex-wrap items-center gap-2">
-                <StateBadge state={item.state} />
-                <span className="text-xs text-muted-foreground">{kindWords[item.kind]}</span>
-                <Link href={`/repos/${item.repo}`} className="text-sm font-medium underline-offset-2 hover:underline">
-                  {item.repo}
-                </Link>
-              </span>
-              <a href={item.url} className="text-base underline-offset-2 hover:underline" rel="noreferrer">
-                {item.title}
-              </a>
-              <span className="text-sm text-muted-foreground">
-                {item.detail}
-                {" · "}
-                <TimeAgo iso={item.since} now={now} />
-              </span>
-            </li>
-          ))}
-        </ol>
+        <Card className="gap-0 divide-y divide-border rounded-lg py-0 shadow-none">
+          <ol>
+            {snapshot.waiting.map((item, i) => (
+              <li key={`${item.kind}-${item.url}-${i}`} className="flex flex-col gap-1 px-3 py-3">
+                <span className="flex flex-wrap items-center gap-2">
+                  <StateBadge state={item.state} />
+                  <span className="text-xs text-muted-foreground">{kindWords[item.kind]}</span>
+                  <Link href={`/repos/${item.repo}`} className="text-sm font-medium underline-offset-2 hover:underline">
+                    {item.repo}
+                  </Link>
+                </span>
+                <a href={item.url} className="text-base underline-offset-2 hover:underline" rel="noreferrer">
+                  {item.title}
+                </a>
+                <span className="text-sm text-muted-foreground">
+                  {item.detail}
+                  {" · "}
+                  {item.kind === "held" || item.kind === "failure" ? "since " : "last activity "}
+                  <TimeAgo iso={item.since} now={now} />
+                </span>
+              </li>
+            ))}
+          </ol>
+        </Card>
       )}
     </div>
   );

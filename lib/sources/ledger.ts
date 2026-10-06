@@ -13,26 +13,22 @@ const REVALIDATE = 300;
 
 const EntrySchema = z.object({ name: z.string(), type: z.string(), download_url: z.string().nullable().optional() }).loose();
 
-export type LedgerSummary = { reverts: number; landed: number; newest: string[] };
+export type LedgerSummary = { reverts: number; landed: number };
 
 export async function readLedger(): Promise<Signal<LedgerSummary>> {
   const source = "gardener/ledger";
   const sourceUrl = treeUrl(REPO, BRANCH);
   const [reverts, landed] = await Promise.all([listDir("reverts"), listDir("landed")]);
   if (!reverts.ok) {
-    if (reverts.status === 404) return failSignal(source, sourceUrl, "ledger not started");
-    return failSignal(source, sourceUrl, `ledger: ${reverts.reason}`);
+    if (reverts.status === 404) return failSignal(source, sourceUrl, "ledger not started", reverts);
+    return failSignal(source, sourceUrl, `ledger: ${reverts.reason}`, reverts);
   }
   const revertNames = parseNames(reverts.data);
-  if (!revertNames.ok) return failSignal(source, sourceUrl, revertNames.reason);
-  if (!landed.ok && landed.status !== 404) return failSignal(source, sourceUrl, `ledger: landed/: ${landed.reason}`);
+  if (!revertNames.ok) return failSignal(source, sourceUrl, revertNames.reason, reverts);
+  if (!landed.ok && landed.status !== 404) return failSignal(source, sourceUrl, `ledger: landed/: ${landed.reason}`, landed);
   const landedNames = landed.ok ? parseNames(landed.data) : { ok: true as const, value: [] as string[] };
-  if (!landedNames.ok) return failSignal(source, sourceUrl, landedNames.reason);
-  return okSignal(source, sourceUrl, {
-    reverts: revertNames.value.length,
-    landed: landedNames.value.length,
-    newest: revertNames.value.slice(-5).reverse(),
-  });
+  if (!landedNames.ok) return failSignal(source, sourceUrl, landedNames.reason, landed);
+  return okSignal(source, sourceUrl, { reverts: revertNames.value.length, landed: landedNames.value.length }, undefined, reverts);
 }
 
 function listDir(dir: string) {

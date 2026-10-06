@@ -59,12 +59,12 @@ export async function readTreeStatus(repo: string): Promise<Signal<TreeStatus>> 
   const raw = await fetchRaw(REPO, BRANCH, path, REVALIDATE);
   if (!raw.ok) {
     const why = raw.status === 404 ? `the gardener does not watch ${repo}` : raw.reason;
-    return failSignal(source, sourceUrl, `tree-status: ${why}`);
+    return failSignal(source, sourceUrl, `tree-status: ${why}`, raw);
   }
   const parsed = parseJson(TreeStatusSchema, raw.text, `tree-status: ${path}`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, raw);
   if (parsed.value.schema !== SCHEMA) {
-    return failSignal(source, sourceUrl, schemaReason(`tree-status: ${path}`, parsed.value.schema, SCHEMA));
+    return failSignal(source, sourceUrl, schemaReason(`tree-status: ${path}`, parsed.value.schema, SCHEMA), raw);
   }
-  return okSignal(source, sourceUrl, parsed.value);
+  return okSignal(source, sourceUrl, parsed.value, undefined, raw);
 }

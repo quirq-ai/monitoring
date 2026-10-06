@@ -49,6 +49,9 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByRole("link", { name: /waiting on you/ })).toContainText("4");
     await expect(page.getByRole("link", { name: /red or held/ })).toContainText("3");
     await expect(page.getByText("some sources unread")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Needs a look" })).toBeVisible();
+    await expect(page.locator("[data-slot=alert]"), "no API banner with a token and the API answering").toHaveCount(0);
+    await expect(page.getByText(/^Data as of/)).toBeVisible();
   });
 
   test("Waiting lists the review, the stale approval, the held canary and the failure once each", async ({ page }) => {
@@ -83,7 +86,10 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByText(/Channels in order: canary .* then dev .* then stable/)).toBeVisible();
     await expect(page.getByText(/held at verify since/)).toBeVisible();
     await expect(page.locator("figure").getByRole("link", { name: /^\d{4}-\d{2}-\d{2}: held, held at verify/ })).toHaveCount(1);
-    await expect(page.getByText(/^# Canary report \d{4}-\d{2}-\d{2}/)).toBeVisible();
+    // The report is Markdown rendered as elements: a heading and a table, never raw pipes.
+    await expect(page.getByRole("heading", { level: 3, name: /^Canary report \d{4}-\d{2}-\d{2}/ })).toBeVisible();
+    await expect(page.locator(".markdown table").first()).toBeVisible();
+    await expect(page.locator(".markdown").getByText("|---|")).toHaveCount(0);
   });
 
   test("Health shows eight fresh writers, one red writer and the ledger not started", async ({ page }) => {
@@ -91,6 +97,25 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByText("ledger not started").first()).toBeVisible();
     await expect(page.getByText(/scorecard failure .*the data may still be current/)).toBeVisible();
     await expect(page.getByText(/^stale$/)).toHaveCount(0);
+  });
+
+  test("on a phone the Board folds green repos into one line each and stays short", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/board");
+    // A green infra repo is a collapsed row: its fields are hidden until the chevron is tapped.
+    const details = page.getByRole("button", { name: "Details for depot" });
+    await expect(details).toBeVisible();
+    const fields = page.getByText("CI on main", { exact: true });
+    const before = await fields.count();
+    expect(before, "the products and the repos that need a look are open cards").toBeGreaterThanOrEqual(4);
+    await details.click();
+    await expect(fields).toHaveCount(before + 1);
+    const height = await page.evaluate(() => document.documentElement.scrollHeight);
+    expect(height, "under five phone screens, down from ten").toBeLessThan(4200);
+    // The rows that need a look come first in each group.
+    const names = await page.locator("main a[href^='/repos/']").evaluateAll((els) => els.map((e) => e.textContent?.trim()));
+    expect(names.indexOf("xo-space")).toBeLessThan(names.indexOf("innernet"));
+    expect(names.indexOf("gate")).toBeLessThan(names.indexOf("depot"));
   });
 
   test("an unknown repo is a 404", async ({ page }) => {

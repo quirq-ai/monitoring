@@ -1,9 +1,12 @@
 import Link from "next/link";
+import { ApiBanner } from "@/components/api-banner";
 import { CanaryStrip } from "@/components/canary-strip";
 import { CellView } from "@/components/cell";
+import { Markdown } from "@/components/markdown";
 import { PageTitle } from "@/components/page-title";
 import { SourceLink } from "@/components/source-link";
 import { StateBadge } from "@/components/state-badge";
+import { Card } from "@/components/ui/card";
 import { buildSnapshot, outcomeState } from "@/lib/model/build";
 
 export default async function ReleasePage() {
@@ -14,6 +17,7 @@ export default async function ReleasePage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       <PageTitle title="Release" lead="Where lkgr and each channel point, and how the daily canary went." />
+      <ApiBanner api={snapshot.health.api} />
 
       {release.channels.length ? (
         <p className="text-sm text-muted-foreground">
@@ -24,11 +28,19 @@ export default async function ReleasePage() {
       )}
 
       {release.repos.length === 0 ? (
-        <p className="rounded-lg border border-border bg-card p-4 text-sm text-muted-foreground">No product with channels was found in infra-config.</p>
+        <Card className="rounded-lg p-4 text-sm shadow-none">
+          {release.reposReason ? (
+            <span className="flex flex-wrap items-center gap-2">
+              <StateBadge state="unknown" /> The product registry could not be read: {release.reposReason}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">No product with channels is listed in infra-config.</span>
+          )}
+        </Card>
       ) : null}
 
       {release.repos.map((r) => (
-        <section key={r.repo} className="flex flex-col gap-4 rounded-lg border border-border bg-card p-4">
+        <Card key={r.repo} className="gap-4 rounded-lg px-4 py-4 shadow-none">
           <h2 className="text-xl">
             <Link href={`/repos/${r.repo}`} className="underline-offset-2 hover:underline">
               {r.repo}
@@ -53,7 +65,7 @@ export default async function ReleasePage() {
                 </>
               ) : (
                 <>
-                  <StateBadge state="unknown" />
+                  <StateBadge state="stale" />
                   <span>no run in the last {r.days.length} days</span>
                 </>
               )}
@@ -76,7 +88,7 @@ export default async function ReleasePage() {
               </p>
             ) : null}
           </div>
-        </section>
+        </Card>
       ))}
 
       <section className="flex flex-col gap-2">
@@ -84,7 +96,9 @@ export default async function ReleasePage() {
         {release.report ? (
           <>
             <SourceLink source={`release-state reports/${release.report.date}.md`} url={release.report.url} now={now} />
-            <pre className="overflow-x-auto whitespace-pre-wrap rounded-lg border border-border bg-card p-4 font-sans text-sm">{release.report.markdown}</pre>
+            <Card className="rounded-lg px-4 py-4 shadow-none">
+              <Markdown text={release.report.markdown} />
+            </Card>
           </>
         ) : (
           <p className="text-sm text-muted-foreground">

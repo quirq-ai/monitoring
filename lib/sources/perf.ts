@@ -43,15 +43,15 @@ export async function listPerfMetrics(repo: string): Promise<Signal<string[]>> {
   });
   if (!api.ok) {
     const why = api.status === 404 ? `no perf data for ${repo}` : api.reason;
-    return failSignal(source, sourceUrl, `perf-data: ${why}`);
+    return failSignal(source, sourceUrl, `perf-data: ${why}`, api);
   }
   const parsed = parseValue(z.array(EntrySchema), api.data, `perf-data: ${repo}/`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
   const metrics = parsed.value
     .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
     .map((e) => e.name.slice(0, -".jsonl".length))
     .filter((name) => isSafeName(name, 100));
-  return okSignal(source, sourceUrl, metrics);
+  return okSignal(source, sourceUrl, metrics, undefined, api);
 }
 
 export type PerfSeries = { metric: string; records: PerfRecord[]; skipped: number };
@@ -63,7 +63,7 @@ export async function readPerfSeries(repo: string, metric: string): Promise<Sign
   const source = `perf/${repo}/${metric}`;
   const sourceUrl = blobUrl(REPO, BRANCH, path);
   const raw = await fetchRaw(REPO, BRANCH, path, REVALIDATE_SERIES);
-  if (!raw.ok) return failSignal(source, sourceUrl, `perf-data: ${raw.reason}`);
+  if (!raw.ok) return failSignal(source, sourceUrl, `perf-data: ${raw.reason}`, raw);
   const records: PerfRecord[] = [];
   let skipped = 0;
   for (const line of raw.text.split("\n")) {
@@ -83,8 +83,8 @@ export async function readPerfSeries(repo: string, metric: string): Promise<Sign
     records.push(parsed.data);
   }
   if (records.length === 0) {
-    return failSignal(source, sourceUrl, `perf-data: ${path} has no ${SCHEMA} records (${skipped} line(s) skipped)`);
+    return failSignal(source, sourceUrl, `perf-data: ${path} has no ${SCHEMA} records (${skipped} line(s) skipped)`, raw);
   }
   records.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
-  return okSignal(source, sourceUrl, { metric, records, skipped }, records.at(-1)?.recorded_at);
+  return okSignal(source, sourceUrl, { metric, records, skipped }, records.at(-1)?.recorded_at, raw);
 }

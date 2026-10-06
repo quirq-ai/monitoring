@@ -43,10 +43,10 @@ export async function readHold(repo: string, commit: string): Promise<Signal<Hol
   const sourceUrl = blobUrl(REPO, BRANCH, path);
   const raw = await fetchRaw(REPO, BRANCH, path, REVALIDATE);
   if (!raw.ok) {
-    if (raw.status === 404) return okSignal(source, sourceUrl, null);
-    return failSignal(source, sourceUrl, `release-state: ${raw.reason}`);
+    if (raw.status === 404) return okSignal(source, sourceUrl, null, undefined, raw);
+    return failSignal(source, sourceUrl, `release-state: ${raw.reason}`, raw);
   }
   const parsed = parseJson(HoldSchema, raw.text, `release-state: ${path}`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
-  return okSignal(source, sourceUrl, parsed.value);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, raw);
+  return okSignal(source, sourceUrl, parsed.value, undefined, raw);
 }

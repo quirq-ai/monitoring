@@ -1,12 +1,36 @@
-import { describeError, ORG, REQUEST_TIMEOUT_MS } from "@/lib/fetch";
+import "server-only";
+import { describeError, forgetMissing, isRememberedMissing, ORG, rememberMissing, REQUEST_TIMEOUT_MS } from "@/lib/fetch";
+import { readAt } from "@/lib/signal";
 
 // The only GitHub API client. GET only: the dashboard never writes. The token is sent only to
 // api.github.com (or to a loopback fixture server under test), never anywhere else, and it is
 // never logged or returned.
 
 export type ApiResult<T> =
-  | { ok: true; data: T; url: string; fetchedAt: string; status: number }
-  | { ok: false; reason: string; url: string; status?: number; fetchedAt: string };
+  | { ok: true; data: T; url: string; fetchedAt: string; maxAge: number; status: number }
+  | { ok: false; reason: string; url: string; status?: number; fetchedAt: string; maxAge: number };
+
+// Once GitHub answers with the rate limit, every further call until the reset would be refused
+// too, so the reset time is kept here and calls are skipped until then (per server process).
+let limitedUntil: number | undefined;
+
+/** The ISO time the rate limit resets, while one is in force. */
+export function rateLimitedUntil(): string | undefined {
+  if (limitedUntil === undefined) return undefined;
+  if (limitedUntil <= Date.now()) {
+    limitedUntil = undefined;
+    return undefined;
+  }
+  return new Date(limitedUntil).toISOString();
+}
+
+/** Tests call this between cases; nothing else should. */
+export function forgetBackoff(): void {
+  limitedUntil = undefined;
+  forgetMissing();
+}
+
+export const RATE_LIMIT_REASON = "GitHub API rate limit, resets at";
 
 export function apiBase(): string {
   return (process.env.MONITORING_API_BASE?.trim() || "https://api.github.com").replace(/\/+$/, "");
@@ -62,9 +86,12 @@ export type ApiOptions = {
 export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiResult<T>> {
   const base = apiBase();
   const url = buildUrl(base, path, options.params);
-  const fetchedAt = new Date().toISOString();
+  const maxAge = options.revalidate;
   const token = tokenFor(base);
-  if (!token) return { ok: false, reason: "no token", url, fetchedAt };
+  if (!token) return { ok: false, reason: "no token", url, fetchedAt: new Date().toISOString(), maxAge };
+  const limited = rateLimitedUntil();
+  if (limited) return { ok: false, reason: `${RATE_LIMIT_REASON} ${limited}`, url, status: 403, fetchedAt: new Date().toISOString(), maxAge };
+  if (isRememberedMissing(url)) return { ok: false, reason: "GitHub API returned 404", url, status: 404, fetchedAt: new Date().toISOString(), maxAge };
 
   const headers: Record<string, string> = {
     Accept: options.accept ?? "application/vnd.github+json",
@@ -79,25 +106,28 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       next: { revalidate: options.revalidate },
     });
+    const fetchedAt = readAt(res.headers);
     if (res.status === 403 || res.status === 429) {
       const remaining = res.headers.get("x-ratelimit-remaining");
       const reset = res.headers.get("x-ratelimit-reset");
       if (remaining === "0" || res.status === 429) {
-        const at = reset ? new Date(Number(reset) * 1000).toISOString() : "an unknown time";
-        return { ok: false, reason: `GitHub API rate limit, resets at ${at}`, url, status: res.status, fetchedAt };
+        const resetAt = reset && /^\d+$/.test(reset) ? Number(reset) * 1000 : Date.now() + 5 * 60_000;
+        limitedUntil = Math.max(limitedUntil ?? 0, resetAt);
+        return { ok: false, reason: `${RATE_LIMIT_REASON} ${new Date(resetAt).toISOString()}`, url, status: res.status, fetchedAt, maxAge };
       }
-      return { ok: false, reason: `GitHub API refused (${res.status})`, url, status: res.status, fetchedAt };
+      return { ok: false, reason: `GitHub API refused (${res.status})`, url, status: res.status, fetchedAt, maxAge };
     }
     if (res.status === 401) {
-      return { ok: false, reason: "token rejected", url, status: 401, fetchedAt };
+      return { ok: false, reason: "token rejected", url, status: 401, fetchedAt, maxAge };
     }
     if (!res.ok) {
-      return { ok: false, reason: `GitHub API returned ${res.status}`, url, status: res.status, fetchedAt };
+      if (res.status === 404) rememberMissing(url, options.revalidate);
+      return { ok: false, reason: `GitHub API returned ${res.status}`, url, status: res.status, fetchedAt, maxAge };
     }
     const data = (await res.json()) as T;
-    return { ok: true, data, url, fetchedAt, status: res.status };
+    return { ok: true, data, url, fetchedAt, maxAge, status: res.status };
   } catch (error) {
-    return { ok: false, reason: `GitHub API: ${describeError(error)}`, url, fetchedAt };
+    return { ok: false, reason: `GitHub API: ${describeError(error)}`, url, fetchedAt: new Date().toISOString(), maxAge };
   }
 }
 

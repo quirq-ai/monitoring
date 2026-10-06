@@ -188,7 +188,10 @@ describe("snapshot", () => {
     expect(xo?.canary?.state).toBe("held");
     expect(board[0].repos.find((r) => r.name === "website")?.deploy?.state).toBe("red");
     expect(xo?.deploy, "xo-space deploys through the installer channel, not Vercel").toBeUndefined();
-    expect(board[0].repos.find((r) => r.name === "website")?.canary).toMatchObject({ state: "unknown", text: "no channels configured" });
+    expect(board[0].repos.find((r) => r.name === "website")?.canary).toMatchObject({ state: "none", text: "no channels configured" });
+    expect(board[0].repos.map((r) => r.name), "the repos that need a look come first").toEqual(["xo-space", "website", "innernet"]);
+    expect(board[0].repos.find((r) => r.name === "innernet")?.lastMerge.state).toBe("none");
+    expect(board.find((g) => g.id === "infra")?.repos[0].name, "the pending gate CI sorts above green rows").toBe("gate");
   });
 
   it("judges writers: fresh, failed inside the window, and stale", async () => {
@@ -209,10 +212,88 @@ describe("snapshot", () => {
     delete process.env.GITHUB_TOKEN;
     const snapshot = await buildSnapshot();
     expect(snapshot.health.tokenPresent).toBe(false);
+    expect(snapshot.health.api.state).toBe("no-token");
     const innernet = snapshot.board[0].repos.find((r) => r.name === "innernet");
     expect(innernet?.ci).toMatchObject({ state: "unknown", text: "no token" });
-    expect(innernet?.tree?.state).toBe("green");
-    expect(innernet?.lkgr?.state).toBe("green");
+    // The files still read, but their writers' runs cannot, so the cells are unknown, never green.
+    expect(innernet?.tree).toMatchObject({ state: "unknown", text: expect.stringContaining("every post-submit builder") });
+    expect(innernet?.lkgr?.state).toBe("unknown");
     expect(snapshot.release.repos.length).toBe(2);
+    expect(snapshot.counts.waitingComplete).toBe(false);
+    expect(snapshot.counts.todayComplete).toBe(false);
+  });
+
+  it("never shows a file-backed cell green while its writer is stale, red or unknown", async () => {
+    await withFixtures([
+      { path: "/repos/quirq-ai/gardener/actions/workflows/tree-status.yml/runs", file: "api/runs_stale.json" },
+      { path: "/repos/quirq-ai/release/actions/workflows/canary.yml/runs", file: "api/runs_test-pipelines_scorecard.json" },
+    ]);
+    const { board, health } = await buildSnapshot();
+    expect(health.writers.find((w) => w.id === "gardener/tree-status")?.state).toBe("stale");
+    expect(health.writers.find((w) => w.id === "release/canary")?.state).toBe("red");
+    const innernet = board[0].repos.find((r) => r.name === "innernet");
+    expect(innernet?.tree).toMatchObject({ state: "stale", text: expect.stringContaining("gardener stale") });
+    expect(innernet?.canary?.state).toBe("stale");
+    expect(innernet?.lkgr?.state).toBe("green");
+    for (const row of board[0].repos) for (const cell of [row.tree, row.canary]) expect(cell?.state).not.toBe("green");
+  });
+
+  it("dates a read by the response, and marks a cell stale when its cache window is long past", async () => {
+    await withFixtures([{ raw: "release/release-state/channels.json", file: "raw/release/release-state/channels.json", headers: { date: "{{now-1h}}" } }]);
+    const snapshot = await buildSnapshot();
+    const channels = snapshot.sources.find((s) => s.source === "release/channels");
+    const age = (Date.now() - new Date(channels?.fetchedAt ?? 0).getTime()) / 60_000;
+    expect(age, "fetchedAt comes from the Date header").toBeGreaterThan(55);
+    expect(channels?.maxAge).toBe(120);
+    expect(snapshot.release.repos[0].channels.canary).toMatchObject({ state: "stale", text: expect.stringContaining("not refreshed yet") });
+    expect(new Date(snapshot.dataAsOf).getTime()).toBeLessThanOrEqual(new Date(channels?.fetchedAt ?? 0).getTime());
+  });
+
+  it("explains a rate limit once, in the API state, and stops calling until it resets", async () => {
+    const reset = String(Math.floor(Date.now() / 1000) + 600);
+    const fixtures = await withFixtures([{ path: "/search/issues", status: 403, body: "{}", headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": reset } }]);
+    const first = await buildSnapshot();
+    expect(first.health.api.state).toBe("rate-limited");
+    expect(first.health.api.until).toBeDefined();
+    expect(first.board[0].repos[0].ci).toMatchObject({ state: "unknown", text: "rate limited" });
+    const calls = fixtures.log.api;
+    await buildSnapshot();
+    expect(fixtures.log.api, "no API call while the limit is in force").toBe(calls);
+  });
+
+  it("names a rejected token in the API state", async () => {
+    await withFixtures([{ path: "/*", status: 401, body: "{}" }, { path: "/*/*", status: 401, body: "{}" }]);
+    const { health } = await buildSnapshot();
+    expect(health.api.state).toBe("token-rejected");
+  });
+
+  it("remembers a 404 for the cache window instead of asking again", async () => {
+    const fixtures = await withFixtures();
+    await buildSnapshot();
+    const calls = fixtures.log.api;
+    const misses = fixtures.log.misses.length;
+    await buildSnapshot();
+    expect(fixtures.log.misses.length, "no repeated 404s").toBe(misses);
+    expect(fixtures.log.api).toBeGreaterThanOrEqual(calls);
+  });
+
+  it("says when an open-PR count or a check rollup is cut at the page size", async () => {
+    const search = JSON.parse(fixture("api/search_pulls_merged.json")) as { total_count: number };
+    const open = { ...search, total_count: 250 };
+    await withFixtures([
+      { path: "/search/issues", query: { q: "org:quirq-ai is:pr is:open" }, body: JSON.stringify(open) },
+      { path: "/repos/quirq-ai/monitoring/commits/main/check-runs", body: JSON.stringify({ ...JSON.parse(fixture("api/monitoring_check-runs.json")), total_count: 80 }) },
+    ]);
+    const { board } = await buildSnapshot();
+    const monitoring = board.flatMap((g) => g.repos).find((r) => r.name === "monitoring");
+    expect(monitoring?.openPullsLowerBound).toBe(true);
+    expect(monitoring?.ci).toMatchObject({ state: "unknown", text: expect.stringContaining("more than 50 check runs") });
+  });
+
+  it("says why the product list is empty when infra-config cannot be read", async () => {
+    await withFixtures([{ raw: "infra-config/main/config/repos.toml", status: 502, body: "bad gateway" }]);
+    const { release } = await buildSnapshot();
+    expect(release.repos).toEqual([]);
+    expect(release.reposReason).toContain("502");
   });
 });

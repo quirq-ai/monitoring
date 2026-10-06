@@ -32,6 +32,5 @@ describe("ledger", () => {
     if (!signal.ok) return;
     expect(signal.value.reverts).toBe(1);
     expect(signal.value.landed).toBe(0);
-    expect(signal.value.newest[0]).toContain("innernet");
   });
 });
