@@ -1,7 +1,17 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildSnapshot } from "@/lib/model/build";
+import { buildSnapshot, short } from "@/lib/model/build";
 import { SnapshotSchema } from "@/lib/model/types";
 import { FIXTURE_TOKEN, withFixtures } from "../helpers/fixtures";
+
+const fixture = (path: string) => readFileSync(new URL(`../fixtures/${path}`, import.meta.url), "utf8");
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** The fixture repos.toml with its [[repo]] blocks in another order, or one renamed. */
+function reposToml(edit: (blocks: string[]) => string[]): string {
+  const [head, ...blocks] = fixture("raw/infra-config/main/config/repos.toml").split("\n[[repo]]\n");
+  return [head, ...edit(blocks)].join("\n[[repo]]\n");
+}
 
 const lkgrMoved = JSON.stringify({
   schema: "qq-pointer/1",
@@ -44,6 +54,98 @@ describe("snapshot", () => {
     ]);
     expect(counts.waiting).toBe(waiting.length);
     expect(counts.waiting).toBe(4);
+    expect(counts.waitingComplete).toBe(true);
+    expect(counts.redOrHeld).toBe(3);
+    expect(counts.redOrHeldComplete).toBe(true);
+  });
+
+  it("marks a count incomplete, never a green zero, when a source behind it is down", async () => {
+    await withFixtures([
+      { path: "/search/issues", status: 500, body: "{}" },
+      { path: "/repos/quirq-ai/*/commits/main/check-runs", status: 500, body: "{}" },
+    ]);
+    const { counts, waiting } = await buildSnapshot();
+    expect(counts.waitingComplete).toBe(false);
+    expect(counts.redOrHeldComplete).toBe(false);
+    expect(waiting.map((w) => w.kind)).toEqual(["held"]);
+  });
+
+  it("links a held item to the run file when the run has no url and no hold record", async () => {
+    const held = JSON.parse(fixture("raw/release/release-state/canary/xo-space/runs/{{today}}.json"));
+    held.run_url = "";
+    await withFixtures([
+      { raw: `release/release-state/canary/xo-space/runs/${today()}.json`, body: JSON.stringify(held) },
+      { raw: `release/release-state/canary/xo-space/held/${held.commit}.json`, status: 404, body: "" },
+    ]);
+    const { waiting, release } = await buildSnapshot();
+    const item = waiting.find((w) => w.kind === "held");
+    expect(item?.title).toBe("canary held at verify");
+    expect(item?.url).toBe(`https://github.com/quirq-ai/release/blob/release-state/canary/xo-space/runs/${today()}.json`);
+    expect(release.repos.find((r) => r.repo === "xo-space")?.hold).toBeUndefined();
+  });
+
+  it("keeps each product's own hold when infra-config lists the products in another order", async () => {
+    await withFixtures([{ raw: "infra-config/main/config/repos.toml", body: reposToml((b) => [b[1], b[0], b[2]]) }]);
+    const { release } = await buildSnapshot();
+    expect(release.repos.map((r) => `${r.repo} ${r.hold?.commit ?? "-"} ${r.latest?.outcome}`)).toEqual([
+      "xo-space 14b21a41668bc8124b4cf5cf9cd59fb44dc7d419 held",
+      "innernet - shipped",
+    ]);
+  });
+
+  it("turns the registry unknown, not the page into a 500, when a product name is not a repo name", async () => {
+    await withFixtures([{ raw: "infra-config/main/config/repos.toml", body: reposToml((b) => b.map((x) => x.replace('name = "website"', 'name = "web/site"'))) }]);
+    const snapshot = await buildSnapshot();
+    expect(snapshot.sources.find((s) => s.source === "infra-config/repos")?.reason).toContain("not a repo name");
+    expect(snapshot.board.map((g) => g.id)).toContain("infra");
+    expect(snapshot.board.find((g) => g.id === "products")).toBeUndefined();
+  });
+
+  it("shows the canary stale, never green, when no run file exists in the window", async () => {
+    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/xo-space/runs", body: "[]" }]);
+    const { board, release } = await buildSnapshot();
+    const xo = board[0].repos.find((r) => r.name === "xo-space");
+    expect(xo?.canary).toMatchObject({ state: "stale", text: "no run in 14 days, canary at 14b21a4" });
+    expect(release.repos.find((r) => r.repo === "xo-space")?.latest).toBeUndefined();
+  });
+
+  it("shows the canary unknown with the reason when the run files cannot be read", async () => {
+    await withFixtures([{ raw: "release/release-state/canary/xo-space/runs/*", status: 500, body: "boom" }]);
+    const { board } = await buildSnapshot();
+    const xo = board[0].repos.find((r) => r.name === "xo-space");
+    expect(xo?.canary?.state).toBe("unknown");
+    expect(xo?.canary?.text).toContain("500");
+  });
+
+  it("matches the channel cells to channels.json and the strip to the run files", async () => {
+    await withFixtures();
+    const { release } = await buildSnapshot();
+    const channels = JSON.parse(fixture("raw/release/release-state/channels.json")) as Record<string, Record<string, { commit: string; generation: number }>>;
+    for (const r of release.repos) {
+      for (const [name, entry] of Object.entries(channels[r.repo] ?? {})) {
+        expect(r.channels[name], `${r.repo} ${name}`).toMatchObject({ state: "green", text: `${short(entry.commit)} gen ${entry.generation}` });
+      }
+    }
+    const xo = release.repos.find((r) => r.repo === "xo-space");
+    const byDate = Object.fromEntries((xo?.days ?? []).map((d) => [d.date, d.outcome]));
+    // The templated file for the request day wins over a captured file of the same date.
+    const files = new Map([["2026-10-05", "2026-10-05"], ["2026-10-06", "2026-10-06"], [today(), "{{today}}"]]);
+    for (const [date, file] of files) {
+      const run = JSON.parse(fixture(`raw/release/release-state/canary/xo-space/runs/${file}.json`));
+      expect(byDate[date], date).toBe(run.outcome === "later" ? "noop" : run.outcome);
+    }
+    expect(Object.values(byDate).filter((o) => o === "none").length, JSON.stringify(byDate)).toBe(14 - files.size);
+    expect(release.report?.date).toBe(today());
+  });
+
+  it("names a public repo no registry knows", async () => {
+    const org = JSON.parse(fixture("api/org_repos.json")) as Record<string, unknown>[];
+    const extra = { ...org[0], name: "zz-not-registered", full_name: "quirq-ai/zz-not-registered", description: "synthetic", archived: false };
+    await withFixtures([{ path: "/orgs/quirq-ai/repos", body: JSON.stringify([...org, extra]) }]);
+    const { board, unregistered } = await buildSnapshot();
+    expect(unregistered).toEqual(["zz-not-registered"]);
+    expect(board.at(-1)?.id).toBe("unregistered");
+    expect(board.at(-1)?.repos[0]).toMatchObject({ name: "zz-not-registered", registered: false });
   });
 
   it("makes at most 70 API requests for one cold render", async () => {
@@ -85,6 +187,8 @@ describe("snapshot", () => {
     expect(xo?.tree?.state).toBe("green");
     expect(xo?.canary?.state).toBe("held");
     expect(board[0].repos.find((r) => r.name === "website")?.deploy?.state).toBe("red");
+    expect(xo?.deploy, "xo-space deploys through the installer channel, not Vercel").toBeUndefined();
+    expect(board[0].repos.find((r) => r.name === "website")?.canary).toMatchObject({ state: "unknown", text: "no channels configured" });
   });
 
   it("judges writers: fresh, failed inside the window, and stale", async () => {

@@ -1,4 +1,5 @@
-import { buildSnapshot } from "@/lib/model/build";
+import { buildSnapshot, isRegisteredRepo } from "@/lib/model/build";
+import { isSafeName } from "@/lib/github";
 import type { BoardRow, ReleaseRepo, Snapshot } from "@/lib/model/types";
 import type { Signal } from "@/lib/signal";
 import { readBranchChecks, type BranchChecks } from "@/lib/sources/checks";
@@ -23,11 +24,14 @@ export type RepoView = {
 };
 
 export function isRepoName(name: string): boolean {
-  return /^[A-Za-z0-9_.-]{1,100}$/.test(name);
+  return isSafeName(name, 100);
 }
 
 export async function buildRepoView(name: string): Promise<RepoView | null> {
   if (!isRepoName(name)) return null;
+  // The registries are three raw files, cached and read without a token; an unknown name stops
+  // here, before the snapshot's API calls (rule 7).
+  if (!(await isRegisteredRepo(name))) return null;
   const snapshot = await buildSnapshot();
   const row = snapshot.board.flatMap((g) => g.repos).find((r) => r.name === name && r.registered);
   if (!row) return null;

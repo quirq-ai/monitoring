@@ -51,13 +51,13 @@ export default async function HealthPage() {
         <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3">
           <span className="text-xs text-muted-foreground">GitHub token</span>
           <StateBadge state={health.tokenPresent ? "green" : "unknown"} />
-          <span className="text-sm">{health.tokenPresent ? "present, read only" : "absent: every API tile reads no token"}</span>
+          <span className="text-sm">{health.tokenPresent ? "present" : "absent: every API tile reads no token"}</span>
         </div>
         <div className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3">
           <span className="text-xs text-muted-foreground">API budget</span>
           <span className="font-mono text-2xl">{health.apiRequestsThisHour}</span>
           <span className="text-sm text-muted-foreground">
-            calls this process made this hour, cached answers included. A cold render makes at most 70 (a test holds that); the target is under 500 an hour.
+            calls this server process made this hour, cached answers included (on Vercel, per instance). A test holds one cold snapshot to at most 70; the target is under 500 an hour.
           </span>
         </div>
       </section>

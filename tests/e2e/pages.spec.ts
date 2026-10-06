@@ -43,12 +43,12 @@ test.describe("pages", () => {
 test.describe("content from the fixtures", () => {
   test("Today shows the merged PR, the held canary, the tree close and the counts", async ({ page }) => {
     await page.goto("/");
-    const list = page.getByRole("list").nth(1);
     await expect(page.getByText("merged #117 Fix: sources page scroll on phones")).toHaveCount(1);
     await expect(page.getByText(/canary held: held at verify/)).toHaveCount(1);
     await expect(page.getByText("tree closed")).toHaveCount(1);
-    await expect(list).toBeVisible();
     await expect(page.getByRole("link", { name: /waiting on you/ })).toContainText("4");
+    await expect(page.getByRole("link", { name: /red or held/ })).toContainText("3");
+    await expect(page.getByText("some sources unread")).toHaveCount(0);
   });
 
   test("Waiting lists the review, the stale approval, the held canary and the failure once each", async ({ page }) => {
@@ -72,19 +72,25 @@ test.describe("content from the fixtures", () => {
     await expect(xo.getByText("1 of 2 failed: presubmit")).toBeVisible();
     const website = page.getByRole("row").filter({ has: page.getByRole("link", { name: "website", exact: true }) });
     await expect(website.getByText(/failure 7f3b1a2/)).toBeVisible();
+    await expect(xo.getByText(/held: held at verify/)).toBeVisible();
+    // Every column is in view: no table hides columns behind its wrapper's horizontal scroll.
+    const hidden = await page.locator("[data-slot=table-container]").evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth));
+    expect(hidden, "table columns hidden behind a scroll").toEqual(hidden.map(() => 0));
   });
 
   test("Release shows the channels in file order and a held canary with its hold", async ({ page }) => {
     await page.goto("/release");
     await expect(page.getByText(/Channels in order: canary .* then dev .* then stable/)).toBeVisible();
     await expect(page.getByText(/held at verify since/)).toBeVisible();
-    await expect(page.getByRole("img", { name: /xo-space canary, last 14 days/ })).toBeVisible();
+    await expect(page.locator("figure").getByRole("link", { name: /^\d{4}-\d{2}-\d{2}: held, held at verify/ })).toHaveCount(1);
+    await expect(page.getByText(/^# Canary report \d{4}-\d{2}-\d{2}/)).toBeVisible();
   });
 
-  test("Health shows a stale-free writer set with one red writer and the ledger not started", async ({ page }) => {
+  test("Health shows eight fresh writers, one red writer and the ledger not started", async ({ page }) => {
     await page.goto("/health");
     await expect(page.getByText("ledger not started").first()).toBeVisible();
     await expect(page.getByText(/scorecard failure .*the data may still be current/)).toBeVisible();
+    await expect(page.getByText(/^stale$/)).toHaveCount(0);
   });
 
   test("an unknown repo is a 404", async ({ page }) => {

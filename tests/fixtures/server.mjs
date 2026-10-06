@@ -64,7 +64,8 @@ function matchQuery(wanted, params) {
 /**
  * @param {{ root?: string, routes?: Route[], org?: string }} options
  *   routes are tried before routes.json; a route with `raw` matches a raw path (relative to
- *   the raw directory, e.g. release/release-state/channels.json), one with `path` an API path.
+ *   the raw directory, e.g. release/release-state/channels.json; a `*` segment matches any one
+ *   segment, as in API paths), one with `path` an API path.
  */
 export function createFixtureServer(options = {}) {
   const root = options.root ?? here;
@@ -114,7 +115,7 @@ export function createFixtureServer(options = {}) {
       const [repo, refs, heads, branch, ...rest] = pathname.slice(prefix.length).split("/");
       if (refs !== "refs" || heads !== "heads" || !repo || !branch) return respond(res, 404, "404: Not Found", "text/plain");
       const rawPath = `${repo}/${branch}/${rest.join("/")}`;
-      const route = routes.find((r) => r.raw && renderTokens(r.raw, now) === rawPath);
+      const route = routes.find((r) => r.raw && matchPath(renderTokens(r.raw, now), rawPath));
       if (route) {
         const body = route.body ?? (route.file ? readFileSync(join(root, route.file), "utf8") : "");
         return respond(res, route.status ?? 200, renderTokens(body, now), "text/plain; charset=utf-8");

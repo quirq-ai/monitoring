@@ -41,19 +41,19 @@ export default async function BoardPage() {
               <TableBody>
                 {group.repos.map((row) => (
                   <TableRow key={row.name}>
-                    <TableCell className="align-top">
+                    <TableCell className="max-w-56 whitespace-normal align-top">
                       <RepoName row={row} />
                     </TableCell>
-                    <TableCell className="align-top">
+                    <TableCell className="whitespace-normal align-top">
                       <CellInline cell={row.ci} now={now} />
                     </TableCell>
-                    <TableCell className="align-top font-mono">{openPulls(row)}</TableCell>
-                    <TableCell className="max-w-64 align-top">
+                    <TableCell className="whitespace-normal align-top font-mono">{openPulls(row)}</TableCell>
+                    <TableCell className="min-w-40 whitespace-normal align-top">
                       <CellInline cell={row.lastMerge} now={now} />
                     </TableCell>
                     {group.id === "products"
                       ? productColumns.map((c) => (
-                          <TableCell key={c.key} className="max-w-56 align-top">
+                          <TableCell key={c.key} className="min-w-32 whitespace-normal align-top">
                             {row[c.key] ? <CellInline cell={row[c.key] as Cell} now={now} /> : null}
                           </TableCell>
                         ))

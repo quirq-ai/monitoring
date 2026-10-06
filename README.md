@@ -1,7 +1,8 @@
 # monitoring
 
 The quirq-ai monitoring dashboard: one page that says **what changed across the org and what state
-everything is in**, on a phone or a desktop. Live at [monitoring.quirq.dev](https://monitoring.quirq.dev/).
+everything is in**, on a phone or a desktop. suraj's Vercel project serves it at
+[monitoring.quirq.dev](https://monitoring.quirq.dev/).
 
 It is read-only. It reads the state the other repos already publish, shows it with the word
 (`green`, `red`, `held`, `pending`, `unknown`, `stale`) before the color, and links every value to
@@ -86,7 +87,8 @@ guide for the agents that build this. A PR that changes a source updates both fi
 
 ## Deploy
 
-Vercel builds `main` on every push and previews every PR. The project needs one environment
+Vercel's GitHub app builds `main` into the production deployment and every PR into a preview (both
+show up in the repo's deployments and on the PR). The project needs one environment
 variable, `GITHUB_TOKEN`, set in Vercel under Settings > Environment Variables for Production and
 Preview; `MONITORING_OWNER` (default `sharmasuraj0123`) says whose "waiting on you" it is. Rotate the
 token before it expires: an expired one shows as `unknown: token rejected` on the API tiles and

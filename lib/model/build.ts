@@ -124,7 +124,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
           readPointer(p.name, "lkgr").then(track),
           readTreeStatus(p.name).then(track),
           readCanaryDays(p.name, CANARY_DAYS, now),
-          readLatestDeployment(p.name).then(track),
+          p.deployTarget === "vercel" ? readLatestDeployment(p.name).then(track) : Promise.resolve(undefined),
         ]);
         for (const d of days) if (!d.run.ok) track(d.run);
         return { product: p, lkgr, tree, days, deploy };
@@ -182,19 +182,34 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       ? { state: p.lkgr.value.pending ? "pending" : "green", text: `${short(p.lkgr.value.commit)}${p.lkgr.value.pending ? ` pending ${short(p.lkgr.value.pending)}` : ""}`, url: web.commit(row.name, p.lkgr.value.commit), at: p.lkgr.value.updated_at, source: p.lkgr.source }
       : unknownCell(p.lkgr);
     const latest = latestRun(p.days);
+    const unreadable = newestUnreadable(p.days);
+    const runsDown = unreadable !== undefined && (!latest || unreadable.date > latest.date);
     const canaryEntry = channelMap[row.name]?.canary;
-    const canary: Cell = latest && latest.outcome === "held"
-      ? { state: "held", text: `held: ${tidy(latest.reason)}`, url: latest.run_url || treeUrl("release", "release-state", `canary/${row.name}/runs`), at: latest.finished_at || undefined, source: `release/canary/${row.name}` }
-      : canaryEntry
-        ? { state: latest?.outcome === "error" ? "red" : "green", text: short(canaryEntry.commit), url: web.commit(row.name, canaryEntry.commit), at: canaryEntry.updated_at, source: releaseChannels.source }
-        : releaseChannels.ok
-          ? { state: "unknown", text: "no canary yet", url: releaseChannels.sourceUrl, source: releaseChannels.source }
-          : unknownCell(releaseChannels);
-    const deploy: Cell = p.deploy.ok
-      ? p.deploy.value
-        ? { state: p.deploy.value.state, text: `${p.deploy.value.status} ${short(p.deploy.value.sha)}`, url: p.deploy.value.url, at: p.deploy.value.createdAt, source: p.deploy.source }
-        : { state: "unknown", text: "no deployments", url: p.deploy.sourceUrl, source: p.deploy.source }
-      : unknownCell(p.deploy);
+    const runsUrl = treeUrl("release", "release-state", `canary/${row.name}/runs`);
+    // The cell is how the last canary run went; the channel pointer is what it shipped. No run
+    // inside the strip's window is stale, never green, whatever channels.json says (rule 3).
+    const canary: Cell = p.product.channels.length === 0
+      ? { state: "unknown", text: "no channels configured", url: products.sourceUrl, source: products.source }
+      : runsDown
+      ? unknownCell(unreadable.run)
+      : latest && latest.outcome === "held"
+        ? { state: "held", text: `held: ${tidy(latest.reason)}`, url: latest.run_url || runsUrl, at: latest.finished_at || undefined, source: `release/canary/${row.name}` }
+        : latest && latest.outcome === "error"
+          ? { state: "red", text: `error: ${tidy(latest.reason) || "see the run"}`, url: latest.run_url || runsUrl, at: latest.finished_at || undefined, source: `release/canary/${row.name}` }
+          : !latest
+            ? { state: "stale", text: `no run in ${CANARY_DAYS} days${canaryEntry ? `, canary at ${short(canaryEntry.commit)}` : ""}`, url: runsUrl, at: canaryEntry?.updated_at, source: `release/canary/${row.name}` }
+            : canaryEntry
+              ? { state: "green", text: `${latest.outcome}, canary at ${short(canaryEntry.commit)}`, url: web.commit(row.name, canaryEntry.commit), at: canaryEntry.updated_at, source: releaseChannels.source }
+              : releaseChannels.ok
+                ? { state: "unknown", text: `${latest.outcome}, nothing promoted yet`, url: releaseChannels.sourceUrl, source: releaseChannels.source }
+                : unknownCell(releaseChannels);
+    const deploy: Cell | undefined = !p.deploy
+      ? undefined
+      : p.deploy.ok
+        ? p.deploy.value
+          ? { state: p.deploy.value.state, text: `${p.deploy.value.status} ${short(p.deploy.value.sha)}`, url: p.deploy.value.url, at: p.deploy.value.createdAt, source: p.deploy.source }
+          : { state: "unknown", text: "no deployments", url: p.deploy.sourceUrl, source: p.deploy.source }
+        : unknownCell(p.deploy);
     return { ...base, tree, lkgr, canary, deploy };
   });
   const board = groupRows(boardRowsFull);
@@ -221,7 +236,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       if (!within(at, hours, now)) continue;
       today.push({ kind: "canary", repo: p.product.name, title: `canary ${run.outcome}${run.reason ? `: ${tidy(run.reason)}` : ""}`, at, url: run.run_url || d.run.sourceUrl, state: outcomeState(run.outcome) });
     }
-    if (p.deploy.ok && p.deploy.value && within(p.deploy.value.createdAt, hours, now)) {
+    if (p.deploy?.ok && p.deploy.value && within(p.deploy.value.createdAt, hours, now)) {
       today.push({ kind: "deploy", repo: p.product.name, title: `deploy ${p.deploy.value.status} ${short(p.deploy.value.sha)}`, at: p.deploy.value.createdAt, url: p.deploy.value.url, state: p.deploy.value.state });
     }
   }
@@ -275,7 +290,9 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     const latest = latestRun(p.days);
     if (!latest || latest.outcome !== "held") return;
     const hold = holds[i];
-    waiting.push({ kind: "held", repo: p.product.name, title: `canary held at ${hold?.stage || "a stage"}`, detail: tidy(latest.reason) || `commit ${short(latest.commit)}`, since: latest.finished_at || `${latest.date}T00:00:00Z`, url: hold?.url ?? latest.run_url, state: "held" });
+    const stage = hold?.stage || latest.stages.find((s) => !s.ok)?.name || "a stage";
+    const runFile = blobUrl("release", "release-state", `canary/${p.product.name}/runs/${latest.date}.json`);
+    waiting.push({ kind: "held", repo: p.product.name, title: `canary held at ${stage}`, detail: tidy(latest.reason) || `commit ${short(latest.commit)}`, since: latest.finished_at || `${latest.date}T00:00:00Z`, url: hold?.url || latest.run_url || runFile, state: "held" });
   });
   if (failureIssues.ok) {
     for (const issue of failureIssues.value) {
@@ -288,7 +305,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
   const channelNames = channelsConfig.ok ? channelsConfig.value.channels.map((c) => c.name) : Object.keys(channelMap[productList[0]?.name ?? ""] ?? {});
   const releaseRepos: ReleaseRepo[] = perProduct
     .filter((p) => p.product.channels.length > 0)
-    .map((p, i) => {
+    .map((p) => {
       const row = boardRowsFull.find((r) => r.name === p.product.name);
       const channels: Record<string, Cell> = {};
       for (const name of channelNames) {
@@ -301,7 +318,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       }
       const days = p.days.map(toCanaryDay);
       const latest = [...days].reverse().find((d) => d.outcome !== "none");
-      return { repo: p.product.name, lkgr: row?.lkgr ?? unknownCell(p.lkgr), channels, days, latest, hold: holds[perProduct.indexOf(p)] ?? holds[i] };
+      return { repo: p.product.name, lkgr: row?.lkgr ?? unknownCell(p.lkgr), channels, days, latest, hold: holds[perProduct.indexOf(p)] };
     });
 
   // --- health --------------------------------------------------------------------------------
@@ -310,11 +327,17 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     ? { state: ledger.value.reverts === 0 ? "green" : "pending", text: `${ledger.value.reverts} reverts, ${ledger.value.landed} landed`, url: ledger.sourceUrl, source: ledger.source }
     : unknownCell(ledger);
 
+  // A count is `complete` only when every source feeding it was read; a 0 with a source down is
+  // not "nothing", and the tile says so (rule 3). The counts are of what their tiles link to:
+  // board cells for red or held, so a failed writer run is on Health, not in a count. A product
+  // the gardener does not watch yet has no tree-status file by design, so the tree cell is not
+  // in the completeness check; the API-backed cells and the run files are.
+  const runsRead = perProduct.every((p) => p.days.every((d) => d.run.ok));
   const counts = {
     waiting: waiting.length,
-    redOrHeld:
-      boardRowsFull.reduce((n, r) => n + [r.ci, r.tree, r.canary, r.deploy].filter((c) => c && (c.state === "red" || c.state === "held")).length, 0) +
-      writers.filter((w) => w.state === "red").length,
+    waitingComplete: reviewRequested.ok && openPulls.ok && reviewedBy.ok && failureIssues.ok && staleApprovals.every((s) => s.review.ok) && runsRead,
+    redOrHeld: boardRowsFull.reduce((n, r) => n + [r.ci, r.tree, r.canary, r.deploy].filter((c) => c && (c.state === "red" || c.state === "held")).length, 0),
+    redOrHeldComplete: checks.every((c) => c.ok) && perProduct.every((p) => p.deploy?.ok ?? true) && releaseChannels.ok && runsRead,
     unknownOrStale: sources.filter((s) => !s.ok).length + writers.filter((w) => w.state === "stale").length,
   };
 
@@ -355,6 +378,14 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
 }
 
 // --- helpers -----------------------------------------------------------------------------------
+
+/** Reads the three registries (raw files, no token) and says whether a name is one of their repos. */
+export async function isRegisteredRepo(name: string): Promise<boolean> {
+  const [products, gate] = await Promise.all([readProducts(), readGateRepos()]);
+  if (products.ok && products.value.some((p) => p.name === name)) return true;
+  if (gate.ok && gate.value.some((r) => r.name === name)) return true;
+  return localGroups().some((g) => Object.hasOwn(g.repos, name));
+}
 
 type RowSeed = Omit<BoardRow, "ci" | "openPulls" | "lastMerge">;
 
@@ -402,6 +433,12 @@ function groupRows(rows: BoardRow[]): BoardGroup[] {
   return order
     .map((id) => ({ id, title: GROUP_TITLES[id] ?? id, repos: rows.filter((r) => r.group === id) }))
     .filter((g) => g.repos.length > 0);
+}
+
+/** The newest day whose run file could not be read: newer than the last readable run, it hides the real state. */
+function newestUnreadable(days: { date: string; run: Signal<CanaryRun | null> }[]): { date: string; run: Signal<CanaryRun | null> } | undefined {
+  for (let i = days.length - 1; i >= 0; i -= 1) if (!days[i].run.ok) return days[i];
+  return undefined;
 }
 
 function latestRun(days: { date: string; run: Signal<CanaryRun | null> }[]): CanaryRun | undefined {

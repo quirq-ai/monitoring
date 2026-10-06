@@ -15,6 +15,7 @@ describe("repo view", () => {
     const fixtures = await withFixtures();
     expect(await buildRepoView("no-such-repo")).toBeNull();
     expect(fixtures.log.misses.filter((m) => m.includes("no-such-repo"))).toEqual([]);
+    expect(fixtures.log.api, "no API call for an unknown repo").toBe(0);
   });
 
   it("carries the row, the PRs, the checks, the tree and the perf metrics of a product", async () => {

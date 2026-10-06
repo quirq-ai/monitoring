@@ -11,13 +11,21 @@ import { failSignal, okSignal, type Signal } from "@/lib/signal";
 // manifest as a no-token cross-check) catches any repo none of them knows.
 
 const REVALIDATE_CONFIG = 600;
+
+// A name that could not be a repo (a slash, a space, `..`) fails the whole file with a reason
+// rather than throwing inside the model, so one bad entry turns the registry unknown, not the
+// pages into 500s. Same rule as isSafeName in lib/github.ts.
+const RepoNameSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_.-]{1,100}$/, "not a repo name")
+  .refine((n) => n !== "." && n !== "..", "not a repo name");
 const REVALIDATE_ORG = 3600;
 
 // --- infra-config config/repos.toml ---------------------------------------------------------
 
 const ProductSchema = z
   .object({
-    name: z.string().min(1),
+    name: RepoNameSchema,
     description: z.string().default(""),
     default_branch: z.string().default("main"),
     kinds: z.array(z.string()).default([]),
@@ -61,7 +69,7 @@ export async function readProducts(): Promise<Signal<Product[]>> {
 
 const GateRepoSchema = z
   .object({
-    name: z.string().min(1),
+    name: RepoNameSchema,
     kind: z.string().default(""),
     state_branches: z.array(z.string()).default([]),
   })

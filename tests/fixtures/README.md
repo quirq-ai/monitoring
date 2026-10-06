@@ -24,6 +24,7 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `raw/release/release-state/canary/xo-space/runs/2026-10-06.json` | captured from release `release-state` at 1ffbf26403e00165fe9642590c4df06d23d8e30a |
 | `raw/release/release-state/reports/2026-10-05.md` | captured from release `release-state` at 1ffbf26403e00165fe9642590c4df06d23d8e30a |
 | `raw/release/release-state/reports/2026-10-06.md` | captured from release `release-state` at 1ffbf26403e00165fe9642590c4df06d23d8e30a |
+| `raw/release/release-state/reports/{{today}}.md` | synthetic: the captured 2026-10-06 report with the request day in its title, so the Release page has a report whatever the date |
 | `raw/gardener/tree-status/status/innernet.json` | captured from gardener `tree-status` at ea5544df11ac35cdb9573edc8bbdce0d8dc03255 |
 | `raw/gardener/tree-status/status/xo-space.json` | captured from gardener `tree-status` at ea5544df11ac35cdb9573edc8bbdce0d8dc03255 |
 | `raw/test-pipelines/results/scorecard.json` | captured from test-pipelines `results` at 5959080f0d02e8efaf8f6728bef4d366dee41425 |
@@ -59,7 +60,7 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `api/gardener_tree-status_commits.json` | built from the git log of gardener `tree-status` at ea5544df11ac35cdb9573edc8bbdce0d8dc03255: real shas and messages, except the newest three whose times are set relative to the request and the second of which says innernet closed, so a close and a reopen appear |
 | `api/runs_gardener_tree-status.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-4m}}, then a cancelled one (routine), then an older success |
 | `api/runs_release_lkgr.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-7m}}, then a cancelled one (routine), then an older success |
-| `api/runs_perf_perf.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-3h}}, then a cancelled one (routine), then an older success |
+| `api/runs_perf_perf.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-30m}} (inside the 90-minute window, so the default story has no stale writer), then a cancelled one (routine), then an older success |
 | `api/runs_test-pipelines_scorecard.json` | synthetic, in the captured ci.yml runs shape: the newest run is failure at {{now-2h}}, then a cancelled one (routine), then an older success |
 | `api/runs_release_canary.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-7h}}, then a cancelled one (routine), then an older success |
 | `api/runs_release_canary-watchdog.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-5h}}, then a cancelled one (routine), then an older success |

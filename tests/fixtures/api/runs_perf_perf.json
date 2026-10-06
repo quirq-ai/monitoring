@@ -13,9 +13,9 @@
       "workflow_id": 376520977,
       "url": "https://api.github.com/repos/quirq-ai/monitoring/actions/runs/37502064462",
       "html_url": "https://github.com/quirq-ai/perf/actions/runs/90000020",
-      "created_at": "{{now-3h}}",
-      "updated_at": "{{now-3h}}",
-      "run_started_at": "{{now-3h}}",
+      "created_at": "{{now-30m}}",
+      "updated_at": "{{now-30m}}",
+      "run_started_at": "{{now-30m}}",
       "jobs_url": "https://api.github.com/repos/quirq-ai/monitoring/actions/runs/37502064462/jobs",
       "logs_url": "https://api.github.com/repos/quirq-ai/monitoring/actions/runs/37502064462/logs",
       "path": ".github/workflows/perf.yml"
