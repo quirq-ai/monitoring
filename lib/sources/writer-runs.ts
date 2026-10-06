@@ -41,10 +41,11 @@ export type WorkflowRun = {
 export async function readWriterRuns(writer: Writer): Promise<Signal<WorkflowRun[]>> {
   if (!/^[A-Za-z0-9_.-]+\.ya?ml$/.test(writer.workflow)) throw new Error(`not a workflow file: ${writer.workflow}`);
   const source = `writer/${writer.id}`;
+  if (!/^[A-Za-z0-9_.\/-]{1,200}$/.test(writer.branch)) throw new Error(`not a branch name: ${writer.branch}`);
   const sourceUrl = web.actions(writer.repo, writer.workflow);
   const api = await ghGet<unknown>(repoPath(writer.repo, `actions/workflows/${writer.workflow}/runs`), {
     revalidate: REVALIDATE,
-    params: { status: "completed", per_page: 10 },
+    params: { status: "completed", branch: writer.branch, per_page: 10 },
   });
   if (!api.ok) {
     const why = api.status === 404 ? `${writer.workflow} not found in ${writer.repo}` : api.reason;
@@ -53,7 +54,7 @@ export async function readWriterRuns(writer: Writer): Promise<Signal<WorkflowRun
   const parsed = parseValue(ResponseSchema, api.data, `${writer.repo} ${writer.workflow} runs`);
   if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
   const runs = parsed.value.workflow_runs
-    .filter((r) => r.conclusion !== "cancelled" && r.conclusion !== "skipped")
+    .filter((r) => r.conclusion !== "cancelled" && r.conclusion !== "skipped" && (r.head_branch ?? writer.branch) === writer.branch)
     .map((r) => ({
       id: r.id,
       event: r.event,

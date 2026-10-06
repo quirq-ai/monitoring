@@ -10,6 +10,18 @@ describe("ledger", () => {
     if (!signal.ok) expect(signal.reason).toBe("ledger not started");
   });
 
+  it("is unknown, never zero, when a listing fails for another reason", async () => {
+    await withFixtures([
+      { path: "/repos/quirq-ai/gardener/contents/reverts", file: "api/gardener_contents_reverts.json" },
+      { path: "/repos/quirq-ai/gardener/contents/landed", status: 500, body: "{}" },
+    ]);
+    const signal = await readLedger();
+    expect(signal.ok).toBe(false);
+    if (!signal.ok) expect(signal.reason).toContain("landed/");
+    await withFixtures([{ path: "/repos/quirq-ai/gardener/contents/reverts", body: '{"not":"a list"}' }]);
+    expect((await readLedger()).ok).toBe(false);
+  });
+
   it("counts records once the branch exists", async () => {
     await withFixtures([
       { path: "/repos/quirq-ai/gardener/contents/reverts", file: "api/gardener_contents_reverts.json" },

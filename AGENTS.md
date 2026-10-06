@@ -186,6 +186,8 @@ whether the writer is alive. So:
   Fetch the last 10 completed runs (`per_page=10`, still one call) and skip any whose conclusion is
   `cancelled` or `skipped`: every writer queues runs in a concurrency group, and GitHub cancels the
   older pending one, so cancellation is routine. Judge the newest remaining run:
+  - only runs on the writer's default branch count (`branch=main` in the request, and the run's
+    `head_branch` checked again), so a pull-request run of depot `e2e-sync` never reads as alive;
   - completed within the window with conclusion `success`: fresh;
   - completed within the window with any other conclusion: `red`, reason "<workflow> failed", with
     the run's link (the data may still be current; say so);
@@ -229,13 +231,18 @@ cloud session, and REST with the issue search covers the same questions in a han
   hour.
 - Directory listings through the contents API, cached 300 s: test-pipelines `results` failures/
   (raw cannot list a directory), gardener `ledger` reverts/ and landed/, perf `perf-data` per
-  product. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
+  product, and release `canary/<repo>/runs/` per product, so only the days that have a file are
+  read (raw answers 404 for the rest, which Next never caches). Without a token the days are
+  probed one by one instead. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is the no-token fallback:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
-`lib/github.ts` counts requests per hour (`requestsThisHour`) and the Health page shows the count.
-Every request carries `per_page`; nothing paginates, so a list longer than a page is cut, which is
-fine for a dashboard that shows the newest items.
+`lib/github.ts` counts the client's calls per hour (`requestsThisHour`, per server process, and a
+call the Data Cache answers is counted too) and the Health page shows the count. A model test
+asserts that one cold render of every page makes at most 70 API requests against the fixture
+server, so a new per-repo call cannot slip in unnoticed. Every request carries `per_page`; nothing
+paginates, so a list longer than a page is cut, which is fine for a dashboard that shows the newest
+items.
 
 ## Sources
 
@@ -266,8 +273,8 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | perf `perf-data` | `perf-data`: `<repo>/<metric>.jsonl` | `qq-perf-record/1`, one per line |
 
 **GitHub API (token):** `search/issues` for PRs and for the `canary-report` and `qq-failure`
-labels, `pulls/<n>` and its reviews, `check-runs`, `deployments` (Vercel's appear here: confirmed
-on monitoring and innernet in M1), `workflow runs` of the writers above, `contents` listings and
+labels, `pulls/<n>` and its reviews, `check-runs`, `deployments` (Vercel's appear here as environment `Production`:
+confirmed with `pnpm live` on monitoring and innernet in M1), `workflow runs` of the writers above, `contents` listings and
 `org repos`.
 
 Filter out demo records: the only failure record on `results` today is a planted demo

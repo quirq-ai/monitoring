@@ -18,6 +18,11 @@ describe("channels config", () => {
     expect(dailyCronTime(undefined)).toBeUndefined();
   });
 
+  it("is unknown on 404", async () => {
+    await withFixtures([{ raw: "infra-config/main/config/channels.toml", status: 404, body: "" }]);
+    expect((await readChannelsConfig()).ok).toBe(false);
+  });
+
   it("is unknown without a channel table", async () => {
     await withFixtures([{ raw: "infra-config/main/config/channels.toml", body: "[source]\nref = 'lkgr'\n" }]);
     const signal = await readChannelsConfig();

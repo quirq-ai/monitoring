@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { blobUrl, fetchRaw, parseValue, treeUrl } from "@/lib/fetch";
-import { assertRepoName, ghGet, repoPath } from "@/lib/github";
+import { assertRepoName, ghGet, isSafeName, repoPath } from "@/lib/github";
 import { failSignal, okSignal, type Signal } from "@/lib/signal";
 
 // perf perf-data <repo>/<metric>.jsonl: one qq-perf-record/1 per line, write-once. Raw cannot
@@ -22,7 +22,7 @@ const RecordSchema = z
     commit: z.string(),
     committed_at: z.string().optional(),
     recorded_at: z.string(),
-    status: z.string().default("ok"),
+    status: z.enum(["ok", "failed"]),
     target: z.string().optional(),
     run: z.object({ url: z.string().default("") }).loose().optional(),
     values: z.array(ValueSchema).default([]),
@@ -49,7 +49,8 @@ export async function listPerfMetrics(repo: string): Promise<Signal<string[]>> {
   if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
   const metrics = parsed.value
     .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
-    .map((e) => e.name.slice(0, -".jsonl".length));
+    .map((e) => e.name.slice(0, -".jsonl".length))
+    .filter((name) => isSafeName(name, 100));
   return okSignal(source, sourceUrl, metrics);
 }
 
@@ -57,7 +58,7 @@ export type PerfSeries = { metric: string; records: PerfRecord[]; skipped: numbe
 
 export async function readPerfSeries(repo: string, metric: string): Promise<Signal<PerfSeries>> {
   assertRepoName(repo);
-  if (!/^[A-Za-z0-9_.-]{1,100}$/.test(metric)) throw new Error(`not a metric name: ${metric}`);
+  if (!isSafeName(metric, 100)) throw new Error(`not a metric name: ${metric}`);
   const path = `${repo}/${metric}.jsonl`;
   const source = `perf/${repo}/${metric}`;
   const sourceUrl = blobUrl(REPO, BRANCH, path);

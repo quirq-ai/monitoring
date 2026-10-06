@@ -21,6 +21,13 @@ describe("tree history", () => {
     expect(parseMessage("Merge pull request")).toEqual({});
   });
 
+  it("is unknown on a malformed log and without a token", async () => {
+    await withFixtures([{ path: "/repos/quirq-ai/gardener/commits", body: '[{"sha":1}]' }]);
+    expect((await readTreeHistory()).ok).toBe(false);
+    delete process.env.GITHUB_TOKEN;
+    expect(await readTreeHistory()).toMatchObject({ ok: false, reason: "gardener: no token" });
+  });
+
   it("names a missing branch", async () => {
     await withFixtures([{ path: "/repos/quirq-ai/gardener/commits", status: 404, body: "{}" }]);
     const signal = await readTreeHistory();

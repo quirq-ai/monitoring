@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { blobUrl, fetchRaw, parseJson, parseValue, treeUrl } from "@/lib/fetch";
-import { ghGet, repoPath } from "@/lib/github";
+import { ghGet, isSafeName, repoPath } from "@/lib/github";
 import { failSignal, okSignal, type Signal } from "@/lib/signal";
 import { isDemoSubject } from "@/config/demo";
 
@@ -49,18 +49,19 @@ export async function readFailures(): Promise<Signal<FailureRecord[]>> {
   }
   const parsed = parseValue(z.array(EntrySchema), api.data, "results: failures/");
   if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
-  const ids = parsed.value.filter((e) => e.type === "dir" && !e.name.startsWith(".")).map((e) => e.name);
+  const names = parsed.value.filter((e) => e.type === "dir" && !e.name.startsWith(".")).map((e) => e.name);
+  const bad: string[] = names.filter((n) => !isSafeName(n, 120)).map((n) => `${n}: not a failure id`);
+  const ids = names.filter((n) => isSafeName(n, 120));
   const records = await Promise.all(ids.map((id) => readFailure(id)));
   const good: FailureRecord[] = [];
-  const bad: string[] = [];
   records.forEach((r, i) => (r.ok ? good.push(r.value) : bad.push(`${ids[i]}: ${r.reason}`)));
-  if (bad.length && good.length === 0) return failSignal(source, sourceUrl, `results: ${bad[0]}`);
+  if (bad.length) return failSignal(source, sourceUrl, `results: ${bad.length} of ${names.length} records unreadable: ${bad[0]}`);
   good.sort((a, b) => b.opened_at.localeCompare(a.opened_at));
   return okSignal(source, sourceUrl, good, good[0]?.opened_at || undefined);
 }
 
 export async function readFailure(id: string): Promise<Signal<FailureRecord>> {
-  if (!/^[A-Za-z0-9_.-]{1,120}$/.test(id)) throw new Error(`not a failure id: ${id}`);
+  if (!isSafeName(id, 120)) throw new Error(`not a failure id: ${id}`);
   const path = `failures/${id}/failure.json`;
   const source = `test-pipelines/failure/${id}`;
   const sourceUrl = blobUrl(REPO, BRANCH, path);

@@ -26,10 +26,11 @@ const HoldSchema = z.object({
   state: z.string().default("held"),
   digest: z.string().default(""),
   run_url: z.string().default(""),
-  reason: z.string().optional(),
-  failure: z.string().optional(),
   releases: z.array(ReleaseSchema).default([]),
-});
+  // Extras the writer adds on a runner fault (canary.py: tag=RUNNER_FAULT, errors=count).
+  tag: z.string().optional(),
+  errors: z.number().optional(),
+}).loose();
 
 export type Hold = z.infer<typeof HoldSchema>;
 

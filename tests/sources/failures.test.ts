@@ -23,6 +23,13 @@ describe("failures", () => {
     if (!missing.ok) expect(missing.reason).toBe("results: no failures directory yet");
   });
 
+  it("is unknown when a listed record cannot be read, saying how many", async () => {
+    await withFixtures([{ raw: "test-pipelines/results/failures/qq-failure-canary-held-aefebec4c11f668b/failure.json", status: 500, body: "" }]);
+    const signal = await readFailures();
+    expect(signal.ok).toBe(false);
+    if (!signal.ok) expect(signal.reason).toContain("1 of 1 records unreadable");
+  });
+
   it("refuses a record with another schema", async () => {
     await withFixtures([
       { raw: "test-pipelines/results/failures/qq-failure-canary-held-aefebec4c11f668b/failure.json", body: '{"schema":"quirq-results/2","id":"x"}' },

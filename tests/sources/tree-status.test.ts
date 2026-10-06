@@ -22,6 +22,13 @@ describe("tree status", () => {
     if (!signal.ok) expect(signal.reason).toBe("tree-status: the gardener does not watch website");
   });
 
+  it("is unknown when the file is not JSON", async () => {
+    await withFixtures([{ raw: "gardener/tree-status/status/innernet.json", body: "<html>" }]);
+    const signal = await readTreeStatus("innernet");
+    expect(signal.ok).toBe(false);
+    if (!signal.ok) expect(signal.reason).toContain("not JSON");
+  });
+
   it("refuses a state it does not know and a wrong schema", async () => {
     await withFixtures([
       { raw: "gardener/tree-status/status/innernet.json", body: '{"schema":"qq-tree-status/1","repo":"innernet","state":"purple"}' },

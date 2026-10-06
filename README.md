@@ -166,10 +166,9 @@ It decides from that, then works in the repo itself. It never acts through the d
 - **One read-only token.** `GITHUB_TOKEN`, a fine-grained token with public read access only, kept
   in Vercel's environment variables. Without it the state-branch tiles still work and API-backed
   tiles read `unknown: no token`.
-- **Budget.** Under 500 GitHub REST requests and 2,500 GraphQL points an hour, whatever the
-  number of visitors, against limits of 5,000 each. Shared caches, one GraphQL query for all
-  repos' PRs and checks, and page addresses checked against the registry before anything is
-  fetched keep it there.
+- **Budget.** Under 500 GitHub REST requests an hour, whatever the number of visitors, against
+  a limit of 5,000. Shared caches, one org-wide search for all repos' PRs, and page addresses
+  checked against the registry before anything is fetched keep it there.
 
 ## Design
 

@@ -7,7 +7,7 @@ export type FixtureRoute = {
   status?: number;
 };
 
-export type FixtureLog = { requests: number; nonGet: number; authorizationOnRaw: number; misses: string[] };
+export type FixtureLog = { requests: number; api: number; nonGet: number; authorizationOnRaw: number; misses: string[] };
 
 export function renderTokens(text: string, now?: Date): string;
 

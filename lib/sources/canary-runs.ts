@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { blobUrl, fetchRaw, parseJson, schemaReason, treeUrl } from "@/lib/fetch";
-import { assertRepoName } from "@/lib/github";
+import { assertRepoName, ghGet, hasToken, repoPath } from "@/lib/github";
 import { failSignal, okSignal, type Signal } from "@/lib/signal";
 
 // release release-state canary/<repo>/runs/<date>.json: one outcome per repo per day. A day with
@@ -11,7 +11,7 @@ const BRANCH = "release-state";
 const SCHEMA = "qq-canary-run/1";
 const REVALIDATE = 300;
 
-export const canaryOutcomes = ["shipped", "held", "noop", "error"] as const;
+export const canaryOutcomes = ["shipped", "held", "noop", "error", "later"] as const;
 export type CanaryOutcome = (typeof canaryOutcomes)[number];
 
 const StageSchema = z.object({
@@ -75,8 +75,32 @@ export function recentDates(days: number, now = new Date()): string[] {
 
 export type CanaryDay = { date: string; run: Signal<CanaryRun | null> };
 
+const ListingSchema = z.array(z.object({ name: z.string(), type: z.string() }).loose());
+
+/**
+ * Which days have a run file, from one contents listing (cached 5 min). Raw answers 404 for a
+ * missing day and Next never caches a 404, so probing every day would cost 14 reads per render.
+ * Without a token, or when the listing fails, `null` means "probe each day".
+ */
+export async function listCanaryRunDates(repo: string): Promise<Set<string> | null> {
+  assertRepoName(repo);
+  if (!hasToken()) return null;
+  const api = await ghGet<unknown>(repoPath(REPO, `contents/canary/${repo}/runs`), { revalidate: REVALIDATE, params: { ref: BRANCH } });
+  if (!api.ok) return api.status === 404 ? new Set() : null;
+  const parsed = ListingSchema.safeParse(api.data);
+  if (!parsed.success) return null;
+  return new Set(parsed.data.filter((e) => e.type === "file").map((e) => e.name.replace(/\.json$/, "")));
+}
+
 export async function readCanaryDays(repo: string, days = 14, now = new Date()): Promise<CanaryDay[]> {
   const dates = recentDates(days, now);
-  const runs = await Promise.all(dates.map((date) => readCanaryRun(repo, date)));
+  const known = await listCanaryRunDates(repo);
+  const runs = await Promise.all(
+    dates.map((date) =>
+      known && !known.has(date)
+        ? Promise.resolve(okSignal<CanaryRun | null>(`release/canary/${repo}/${date}`, treeUrl(REPO, BRANCH, `canary/${repo}/runs`), null))
+        : readCanaryRun(repo, date),
+    ),
+  );
   return dates.map((date, i) => ({ date, run: runs[i] }));
 }

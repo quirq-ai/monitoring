@@ -16,12 +16,21 @@ describe("perf", () => {
   });
 
   it("skips a bad line and says how many", async () => {
-    await withFixtures([{ raw: "perf/perf-data/innernet/build-size.jsonl", body: '{"schema":"qq-perf-record/1","repo":"innernet","metric":"build-size","commit":"a","recorded_at":"2026-10-01T00:00:00Z"}\nnot json\n' }]);
+    await withFixtures([{ raw: "perf/perf-data/innernet/build-size.jsonl", body: '{"schema":"qq-perf-record/1","repo":"innernet","metric":"build-size","commit":"a","recorded_at":"2026-10-01T00:00:00Z","status":"ok"}\nnot json\n' }]);
     const series = await readPerfSeries("innernet", "build-size");
     expect(series.ok).toBe(true);
     if (!series.ok) return;
     expect(series.value.records.length).toBe(1);
     expect(series.value.skipped).toBe(1);
+  });
+
+  it("is unknown when a series is missing or a record has no status", async () => {
+    await withFixtures([{ raw: "perf/perf-data/innernet/build-size.jsonl", status: 404, body: "" }]);
+    expect((await readPerfSeries("innernet", "build-size")).ok).toBe(false);
+    await withFixtures([{ raw: "perf/perf-data/innernet/build-size.jsonl", body: '{"schema":"qq-perf-record/1","repo":"innernet","metric":"build-size","commit":"a","recorded_at":"2026-10-01T00:00:00Z"}\n' }]);
+    const noStatus = await readPerfSeries("innernet", "build-size");
+    expect(noStatus.ok).toBe(false);
+    if (!noStatus.ok) expect(noStatus.reason).toContain("1 line(s) skipped");
   });
 
   it("is unknown for a repo with no data and without a token", async () => {

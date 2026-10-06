@@ -66,5 +66,11 @@ export function rollup(checks: CheckRun[]): { state: State; summary: string } {
   if (failed.length) return { state: "red", summary: `${failed.length} of ${checks.length} failed: ${failed.map((c) => c.name).join(", ")}` };
   const running = checks.filter((c) => c.status !== "completed");
   if (running.length) return { state: "pending", summary: `${running.length} of ${checks.length} still running` };
-  return { state: "green", summary: `${checks.length} check${checks.length === 1 ? "" : "s"} passed` };
+  const stale = checks.filter((c) => c.conclusion === "stale");
+  if (stale.length) return { state: "unknown", summary: `${stale.length} of ${checks.length} marked stale by GitHub` };
+  const passed = checks.filter((c) => c.conclusion === "success");
+  const rest = checks.filter((c) => c.conclusion !== "success");
+  if (passed.length === 0) return { state: "unknown", summary: `no check passed: ${checks.map((c) => `${c.name} ${c.conclusion}`).join(", ")}` };
+  const skipped = rest.length ? `, ${rest.length} ${[...new Set(rest.map((c) => c.conclusion))].join("/")}` : "";
+  return { state: "green", summary: `${passed.length} check${passed.length === 1 ? "" : "s"} passed${skipped}` };
 }

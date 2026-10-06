@@ -23,6 +23,13 @@ describe("registry", () => {
     expect(signal.value.map((r) => r.name)).toContain("gate");
   });
 
+  it("is unknown when the gate file is missing", async () => {
+    await withFixtures([{ raw: "gate/main/settings/github.toml", status: 404, body: "" }]);
+    const signal = await readGateRepos();
+    expect(signal.ok).toBe(false);
+    if (!signal.ok) expect(signal.reason).toBe("gate: gate:main settings/github.toml returned 404");
+  });
+
   it("is unknown when a TOML file is broken", async () => {
     await withFixtures([{ raw: "infra-config/main/config/repos.toml", body: "[[repo]\nname = " }]);
     const signal = await readProducts();

@@ -62,13 +62,14 @@ export async function readProducts(): Promise<Signal<Product[]>> {
 const GateRepoSchema = z
   .object({
     name: z.string().min(1),
+    kind: z.string().default(""),
     state_branches: z.array(z.string()).default([]),
   })
   .loose();
 
 const GateFileSchema = z.object({ repo: z.array(GateRepoSchema).default([]) }).loose();
 
-export type GateRepo = { name: string; stateBranches: string[] };
+export type GateRepo = { name: string; kind: string; stateBranches: string[] };
 
 export async function readGateRepos(): Promise<Signal<GateRepo[]>> {
   const source = "gate/settings";
@@ -82,7 +83,7 @@ export async function readGateRepos(): Promise<Signal<GateRepo[]>> {
   return okSignal(
     source,
     sourceUrl,
-    parsed.value.repo.map((r) => ({ name: r.name, stateBranches: r.state_branches })),
+    parsed.value.repo.map((r) => ({ name: r.name, kind: r.kind, stateBranches: r.state_branches })),
   );
 }
 

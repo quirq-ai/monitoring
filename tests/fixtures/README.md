@@ -50,7 +50,10 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `api/test-pipelines_contents_failures.json` | synthetic listing in the contents API shape; names are the real entries of test-pipelines `results` failures/ at 5959080f0d02e8efaf8f6728bef4d366dee41425 |
 | `api/perf_contents_innernet.json` | synthetic listing; names are the real files of perf `perf-data` at b94c958011be3b3b1835a41debe53f5cbc5f6413 |
 | `api/perf_contents_xo-space.json` | synthetic listing; names are the real files of perf `perf-data` at b94c958011be3b3b1835a41debe53f5cbc5f6413 |
-| `api/gardener_contents_reverts.json` | synthetic: a ledger listing for the "started" case (the branch does not exist yet) |
+| `api/gardener_contents_reverts.json` | synthetic: a ledger listing for the "started" case (the branch does not exist yet); the name follows ledger.py revert_id = <repo>-<culprit12> |
+| `raw/gardener/ledger/reverts/innernet-8f383a3d6c28.json` | synthetic: built from gardener src/qqgarden/ledger.py Entry at bf7d24d (schema qq-revert/1); no real record exists yet and the dashboard only counts records today |
+| `api/release_contents_canary_innernet_runs.json` | synthetic listing in the contents API shape: the captured run files of innernet plus the synthetic one for the request day |
+| `api/release_contents_canary_xo-space_runs.json` | synthetic listing in the contents API shape: the captured run files of xo-space plus the synthetic one for the request day |
 | `api/gardener_contents_landed.json` | synthetic: an empty ledger landed/ listing |
 | `api/org_repos.json` | synthetic list in the orgs/<org>/repos shape; names are the real public repos from the wiki manifest generated 2026-10-06T12:18Z |
 | `api/gardener_tree-status_commits.json` | built from the git log of gardener `tree-status` at ea5544df11ac35cdb9573edc8bbdce0d8dc03255: real shas and messages, except the newest three whose times are set relative to the request and the second of which says innernet closed, so a close and a reopen appear |

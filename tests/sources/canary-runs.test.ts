@@ -6,9 +6,8 @@ describe("canary runs", () => {
   it("reads a captured shipped run", async () => {
     await withFixtures();
     const signal = await readCanaryRun("innernet", "2026-10-05");
-    expect(signal.ok).toBe(true);
+    expect(signal.ok && signal.value?.outcome).toBe("shipped");
     if (!signal.ok || !signal.value) return;
-    expect(signal.value.outcome).toBe("shipped");
     expect(signal.value.stages.map((s) => s.name)).toEqual(["build", "verify", "fuzz-smoke", "deploy-probe", "promote"]);
     expect(signal.value.stages.every((s) => s.ok)).toBe(true);
   });
@@ -17,9 +16,8 @@ describe("canary runs", () => {
     await withFixtures();
     const today = new Date().toISOString().slice(0, 10);
     const signal = await readCanaryRun("xo-space", today);
-    expect(signal.ok).toBe(true);
+    expect(signal.ok && signal.value?.outcome).toBe("held");
     if (!signal.ok || !signal.value) return;
-    expect(signal.value.outcome).toBe("held");
     expect(signal.value.date).toBe(today);
     expect(signal.value.stages.find((s) => s.name === "verify")?.ok).toBe(false);
   });
@@ -52,12 +50,29 @@ describe("canary runs", () => {
     expect(dates).toEqual(["2026-10-04", "2026-10-05", "2026-10-06"]);
   });
 
-  it("reads a window of days in one call", async () => {
-    await withFixtures();
+  it("reads a window of days from one listing, reading only the days that exist", async () => {
+    const fixtures = await withFixtures();
     const days = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
     expect(days.map((d) => d.date)).toEqual(["2026-10-04", "2026-10-05", "2026-10-06"]);
     expect(days[0].run.ok && days[0].run.value).toBeNull();
     expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
+    expect(fixtures.log.misses.filter((m) => m.includes("2026-10-04"))).toEqual([]);
+    expect(fixtures.log.requests).toBe(3);
+  });
+
+  it("probes each day when there is no token to list the directory", async () => {
+    const fixtures = await withFixtures();
+    delete process.env.GITHUB_TOKEN;
+    const days = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(days[0].run.ok && days[0].run.value).toBeNull();
+    expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
+    expect(fixtures.log.requests).toBe(3);
+  });
+
+  it("accepts the later outcome the writer uses for reruns", async () => {
+    await withFixtures([{ raw: "release/release-state/canary/innernet/runs/2026-10-01.json", body: '{"schema":"qq-canary-run/1","repo":"innernet","date":"2026-10-01","outcome":"later"}' }]);
+    const signal = await readCanaryRun("innernet", "2026-10-01");
+    expect(signal.ok && signal.value?.outcome).toBe("later");
   });
 
   it("rejects a date that is not a date", async () => {

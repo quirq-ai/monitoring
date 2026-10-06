@@ -46,12 +46,13 @@ export async function readLatestDeployment(repo: string): Promise<Signal<Deploym
   const sourceUrl = web.deployments(repo);
   const api = await ghGet<unknown>(repoPath(repo, "deployments"), {
     revalidate: REVALIDATE,
-    params: { per_page: 10 },
+    params: { per_page: 10, environment: "Production" },
   });
   if (!api.ok) return failSignal(source, sourceUrl, api.reason);
   const parsed = parseValue(z.array(DeploymentSchema), api.data, `${repo} deployments`);
   if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason);
-  const production = parsed.value.find((d) => /^prod/i.test(d.environment)) ?? parsed.value[0];
+  // Vercel names its environment "Production"; a preview deploy never answers "did my merge ship?".
+  const production = parsed.value.find((d) => /^production$/i.test(d.environment));
   if (!production) return okSignal(source, sourceUrl, null);
   const statuses = await ghGet<unknown>(repoPath(repo, `deployments/${production.id}/statuses`), {
     revalidate: REVALIDATE,

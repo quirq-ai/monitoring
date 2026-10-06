@@ -25,6 +25,7 @@ export async function readLedger(): Promise<Signal<LedgerSummary>> {
   }
   const revertNames = parseNames(reverts.data);
   if (!revertNames.ok) return failSignal(source, sourceUrl, revertNames.reason);
+  if (!landed.ok && landed.status !== 404) return failSignal(source, sourceUrl, `ledger: landed/: ${landed.reason}`);
   const landedNames = landed.ok ? parseNames(landed.data) : { ok: true as const, value: [] as string[] };
   if (!landedNames.ok) return failSignal(source, sourceUrl, landedNames.reason);
   return okSignal(source, sourceUrl, {

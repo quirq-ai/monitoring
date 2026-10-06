@@ -15,6 +15,13 @@ describe("issues", () => {
     expect(reports.ok && reports.value[0].title).toContain("Canary report");
   });
 
+  it("is unknown on 404 and without a token", async () => {
+    await withFixtures([{ path: "/search/issues", status: 404, body: '{"message":"Not Found"}' }]);
+    expect(await readIssues("qq-failure")).toMatchObject({ ok: false, reason: "GitHub API returned 404" });
+    delete process.env.GITHUB_TOKEN;
+    expect(await readIssues("canary-report")).toMatchObject({ ok: false, reason: "no token" });
+  });
+
   it("is unknown on a bad response shape", async () => {
     await withFixtures([{ path: "/search/issues", body: '{"items": "nope"}' }]);
     const signal = await readIssues("qq-failure");

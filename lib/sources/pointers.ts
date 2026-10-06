@@ -43,6 +43,7 @@ function pointerPath(repo: string, ref: PointerRef): string {
 
 export async function readPointer(repo: string, ref: PointerRef): Promise<Signal<Pointer>> {
   assertRepoName(repo);
+  if (!/^(lkgr|channels\/[A-Za-z0-9_-]{1,50})$/.test(ref)) throw new Error(`not a pointer ref: ${ref}`);
   const path = pointerPath(repo, ref);
   const source = `release/pointer/${repo}/${ref}`;
   const sourceUrl = blobUrl(REPO, BRANCH, path);

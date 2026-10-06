@@ -75,7 +75,7 @@ export function createFixtureServer(options = {}) {
   const templatedRaw = walk(rawRoot)
     .map((f) => relative(rawRoot, f))
     .filter((f) => f.includes("{{"));
-  const log = { requests: 0, nonGet: 0, authorizationOnRaw: 0, misses: [] };
+  const log = { requests: 0, api: 0, nonGet: 0, authorizationOnRaw: 0, misses: [] };
 
   // A templated name (`runs/{{today}}.json`) wins over a captured file of the same day, so the
   // synthetic "today" story is the same whatever the date.
@@ -128,6 +128,7 @@ export function createFixtureServer(options = {}) {
     }
 
     if (pathname.startsWith("/api/")) {
+      log.api += 1;
       const apiPath = pathname.slice("/api".length);
       const route = routes.find((r) => r.path && matchPath(r.path, apiPath) && matchQuery(r.query, url.searchParams));
       if (!route) {

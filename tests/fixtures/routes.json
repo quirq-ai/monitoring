@@ -82,6 +82,20 @@
     "file": "api/org_repos.json"
   },
   {
+    "path": "/repos/quirq-ai/release/contents/canary/innernet/runs",
+    "query": {
+      "ref": "release-state"
+    },
+    "file": "api/release_contents_canary_innernet_runs.json"
+  },
+  {
+    "path": "/repos/quirq-ai/release/contents/canary/xo-space/runs",
+    "query": {
+      "ref": "release-state"
+    },
+    "file": "api/release_contents_canary_xo-space_runs.json"
+  },
+  {
     "path": "/repos/quirq-ai/gardener/actions/workflows/tree-status.yml/runs",
     "file": "api/runs_gardener_tree-status.json"
   },

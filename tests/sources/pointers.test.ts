@@ -42,5 +42,7 @@ describe("pointers", () => {
   it("never lets a bad repo name reach a URL", async () => {
     await withFixtures();
     await expect(readPointer("../etc", "lkgr")).rejects.toThrow("not a repo name");
+    await expect(readPointer("..", "lkgr")).rejects.toThrow("not a repo name");
+    await expect(readPointer("innernet", "channels/../../x" as "channels/x")).rejects.toThrow("not a pointer ref");
   });
 });

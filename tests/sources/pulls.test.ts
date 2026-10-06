@@ -51,6 +51,13 @@ describe("pulls", () => {
     if (!noToken.ok) expect(noToken.reason).toBe("no token");
   });
 
+  it("is unknown on a malformed search answer", async () => {
+    await withFixtures([{ path: "/search/issues", body: '{"total_count":1,"items":[{"number":"x"}]}' }]);
+    const signal = await readOpenPulls();
+    expect(signal.ok).toBe(false);
+    if (!signal.ok) expect(signal.reason).toContain("does not match schema");
+  });
+
   it("refuses a bad login or PR number before any request", async () => {
     await withFixtures();
     expect(() => readReviewRequested("a b")).toThrow("not a GitHub login");

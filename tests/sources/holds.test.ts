@@ -8,9 +8,8 @@ describe("holds", () => {
   it("reads the synthetic hold record", async () => {
     await withFixtures();
     const signal = await readHold("xo-space", COMMIT);
-    expect(signal.ok).toBe(true);
+    expect(signal.ok && signal.value?.stage).toBe("verify");
     if (!signal.ok || !signal.value) return;
-    expect(signal.value.stage).toBe("verify");
     expect(signal.value.state).toBe("held");
     expect(signal.value.releases).toEqual([]);
   });
@@ -19,6 +18,12 @@ describe("holds", () => {
     await withFixtures();
     const signal = await readHold("innernet", COMMIT);
     expect(signal.ok && signal.value).toBeNull();
+  });
+
+  it("keeps the writer's runner-fault extras", async () => {
+    await withFixtures([{ raw: `release/release-state/canary/xo-space/held/${COMMIT}.json`, body: JSON.stringify({ repo: "xo-space", commit: COMMIT, date: "2026-10-06", stage: "build", state: "held", digest: "", run_url: "", releases: [], tag: "runner-fault", errors: 3 }) }]);
+    const signal = await readHold("xo-space", COMMIT);
+    expect(signal.ok && signal.value).toMatchObject({ tag: "runner-fault", errors: 3 });
   });
 
   it("is unknown on a malformed record", async () => {

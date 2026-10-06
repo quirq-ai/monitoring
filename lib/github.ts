@@ -117,7 +117,12 @@ export function repoPath(repo: string, rest: string): string {
 }
 
 export function assertRepoName(repo: string): void {
-  if (!/^[A-Za-z0-9_.-]{1,100}$/.test(repo)) throw new Error(`not a repo name: ${repo}`);
+  if (!isSafeName(repo, 100)) throw new Error(`not a repo name: ${repo}`);
+}
+
+/** Letters, digits, `_`, `.` and `-` only, and never `.` or `..`, so a name can never climb a path. */
+export function isSafeName(name: string, max: number): boolean {
+  return name !== "." && name !== ".." && new RegExp(`^[A-Za-z0-9_.-]{1,${max}}$`).test(name);
 }
 
 /** Where a person looks for the same thing on github.com. */

@@ -1,0 +1,32 @@
+[
+  {
+    "name": "2026-10-05.json",
+    "path": "canary/xo-space/runs/2026-10-05.json",
+    "type": "file",
+    "size": 0,
+    "sha": "0000000000000000000000000000000000000000",
+    "url": "https://api.github.com/repos/quirq-ai/x/contents/canary/xo-space/runs/2026-10-05.json",
+    "html_url": "https://github.com/quirq-ai/x/blob/main/canary/xo-space/runs/2026-10-05.json",
+    "download_url": "https://raw.githubusercontent.com/quirq-ai/x/main/canary/xo-space/runs/2026-10-05.json"
+  },
+  {
+    "name": "2026-10-06.json",
+    "path": "canary/xo-space/runs/2026-10-06.json",
+    "type": "file",
+    "size": 0,
+    "sha": "0000000000000000000000000000000000000000",
+    "url": "https://api.github.com/repos/quirq-ai/x/contents/canary/xo-space/runs/2026-10-06.json",
+    "html_url": "https://github.com/quirq-ai/x/blob/main/canary/xo-space/runs/2026-10-06.json",
+    "download_url": "https://raw.githubusercontent.com/quirq-ai/x/main/canary/xo-space/runs/2026-10-06.json"
+  },
+  {
+    "name": "{{today}}.json",
+    "path": "canary/xo-space/runs/{{today}}.json",
+    "type": "file",
+    "size": 0,
+    "sha": "0000000000000000000000000000000000000000",
+    "url": "https://api.github.com/repos/quirq-ai/x/contents/canary/xo-space/runs/{{today}}.json",
+    "html_url": "https://github.com/quirq-ai/x/blob/main/canary/xo-space/runs/{{today}}.json",
+    "download_url": "https://raw.githubusercontent.com/quirq-ai/x/main/canary/xo-space/runs/{{today}}.json"
+  }
+]
