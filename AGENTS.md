@@ -1,3 +1,13 @@
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+
 # Agent guide
 
 How an agent builds and changes the quirq-ai monitoring dashboard. Read [`README.md`](README.md)
@@ -353,7 +363,9 @@ pnpm e2e           # playwright: 390x844 and 1280x800, light and dark
   against `--background`, `--card` and `--muted`. The e2e suite checks all of these from the
   computed CSS variables. Never lower a limit to pass.
 - **Screenshots.** For any UI change, attach phone and desktop screenshots in light and dark. suraj
-  reads on his phone, so the phone shots matter most.
+  reads on his phone, so the phone shots matter most. `pnpm e2e` writes them to the ignored
+  `test-results/screenshots/`, and CI uploads that folder as the `screenshots` artifact; never
+  commit them.
 - **Real data.** Before calling a source done, run it once against the live branch and show a
   summary in the PR (counts and states, not whole files).
 - **Adversarial reread.** Before pushing, reread the diff and ask: does anything write, leak a

@@ -3,10 +3,10 @@
 The quirq-ai monitoring dashboard: one place to see **what changed across the org and what state
 everything is in**, on a phone or a desktop.
 
-This repo holds the plan only. Nothing is built yet. This README is the plan for people: what the
-dashboard is, what it covers, how it looks and in what order it gets built. [`AGENTS.md`](AGENTS.md)
-is the plan for the agents that build it: the stack, rules, every data source, milestones and how
-to check their work. A PR that changes the plan updates both files.
+The app shell is in place (M0). Pages do not read sources yet; that starts at M1. This README is
+the plan for people: what the dashboard is, what it covers, how it looks and in what order it gets
+built. [`AGENTS.md`](AGENTS.md) is the plan for the agents that build it: the stack, rules, every
+data source, milestones and how to check their work. A PR that changes the plan updates both files.
 
 ## Why it exists
 
