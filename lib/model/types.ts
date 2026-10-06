@@ -45,6 +45,8 @@ export const TodayItemSchema = z.object({
   demo: z.boolean().optional(),
   /** True when a newer event on the same subject (this repo's tree, canary or deploy) has replaced it, so it is history, not an alarm. */
   superseded: z.boolean().optional(),
+  /** With `superseded`: true when that newer event is green, so the alarm is over rather than repeated. */
+  cleared: z.boolean().optional(),
 });
 
 export const WaitingItemSchema = z.object({

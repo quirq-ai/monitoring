@@ -184,7 +184,8 @@ export type Signal<T> = {
 - **The newest event per subject is the current one.** Today marks an older tree, canary or deploy
   event `superseded` when a newer one exists for the same repo (`markSuperseded`), so "tree
   closed" at 09:00 leaves "Needs a look" once "tree open" lands at 10:00; it stays in the
-  timeline marked "since cleared". A writer whose last run failed is a "Needs a look" item that
+  timeline marked "since cleared" when the newer event is green (`cleared`), and unmarked when
+  the newer event is another alarm. A writer whose last run failed is a "Needs a look" item that
   opens Health, and counts in the third tile ("unknown, stale or failing") with the unreadable
   sources and the stale writers; "red or held" counts Board cells only, since it opens the Board.
 - **Writers gate their files.** A tree, lkgr or canary cell is only as current as the job that
@@ -195,15 +196,18 @@ export type Signal<T> = {
   happened since.
 - **Back-off.** `lib/github.ts` keeps the rate-limit reset time in module memory (trusted for at
   most an hour, so a bad header cannot pin the state) and answers "rate limit" without calling
-  until then; a 5xx or no answer at all stops calls for one minute, with the reason and the retry
-  time in each skipped cell; both clients remember a 404 for the source's window, since Next
-  caches only 200s. Tests call `forgetBackoff()` between cases (`withFixtures` does).
+  until then; an endpoint that answered 5xx or not at all is not asked again for one minute (per
+  URL, never globally: one 502 from one search must not blank the other cells, and a 5xx reaches
+  the client only when the data cache had nothing to serve, so the wait hides no cached data), with
+  the reason and the retry time in that cell; both clients remember a 404 for the source's window,
+  since Next caches only 200s. Tests call `forgetBackoff()` between cases (`withFixtures` does).
 - **One banner.** `health.api` says whether the API as a whole answers (`ok`, `no-token`,
   `rate-limited`, `token-rejected`, `down`); every page shows it as one Alert whose description
   does not repeat its title, and API cells then say just `unknown: no token` or `rate limited`,
-  carrying `because: "api"`. A Board row whose only unknowns are that cause is `quiet`, and the
-  phone Board folds it to one line while the banner is up, so a token outage reads as one line,
-  not thirty open cards.
+  carrying `because: "api"` (`isApiOutageReason`: no token, rate limit, rejected token, a wait
+  after a 5xx; never a 404, a bad body or a refused name, which are the row's own). A Board row
+  whose only unknowns are that cause is `quiet`, and the phone Board folds it to one line while
+  the banner is up, so a token outage reads as one line, not thirty open cards.
 - **GitHub API.** Always go through `lib/github.ts`. It sends the token only to `api.github.com`,
   reads the rate-limit headers, counts requests per hour, and returns
   `ok: false, reason: "GitHub API rate limit, resets at <time>"` instead of throwing. With no token

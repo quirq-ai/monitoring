@@ -70,8 +70,11 @@ describe("snapshot", () => {
       { kind: "canary", repo: "x", title: "canary shipped", at: "2026-10-06T10:00:00Z", url: "https://a", state: "green" },
       { kind: "canary", repo: "x", title: "canary held", at: "2026-10-05T10:00:00Z", url: "https://b", state: "held" },
       { kind: "issue", repo: "x", title: "issue", at: "2026-10-04T10:00:00Z", url: "https://c", state: "red" },
+      { kind: "deploy", repo: "y", title: "deploy failure", at: "2026-10-06T10:00:00Z", url: "https://d", state: "red" },
+      { kind: "deploy", repo: "y", title: "deploy failure", at: "2026-10-05T10:00:00Z", url: "https://e", state: "red" },
     ]);
-    expect(marked.map((m) => Boolean(m.superseded))).toEqual([false, true, false]);
+    expect(marked.map((m) => `${Boolean(m.superseded)} ${Boolean(m.cleared)}`)).toEqual(["false false", "true true", "false false", "false false", "true false"]);
+    expect(trees[1].cleared, "the tree close was cleared by the open").toBe(true);
   });
 
   it("puts a failed writer in what needs a look, linked to Health, and counts it in the third tile", async () => {
@@ -102,6 +105,8 @@ describe("snapshot", () => {
     const { board } = await buildSnapshot();
     const wiki = board.flatMap((g) => g.repos).find((r) => r.name === "wiki");
     expect(wiki?.ci).toMatchObject({ state: "unknown", text: expect.stringContaining("not a usable branch name") });
+    expect(wiki?.ci.because, "a refused name is the row's own problem, not the banner's").toBeUndefined();
+    expect(wiki?.quiet).toBe(false);
     expect(board.flatMap((g) => g.repos).find((r) => r.name === "gate")?.ci.state).toBe("pending");
   });
 
@@ -139,14 +144,38 @@ describe("snapshot", () => {
     expect(xo?.quiet, "a red CI and a held canary are not the banner's doing").toBe(false);
   });
 
-  it("stops calling for a minute after a 5xx, and caps a far-off rate-limit reset at an hour", async () => {
+  it("waits a minute before asking a 5xx endpoint again, and only that endpoint", async () => {
+    const fixtures = await withFixtures([{ path: "/search/issues", query: { q: "org:quirq-ai is:pr is:merged*" }, status: 502, body: "{}" }]);
+    const first = await buildSnapshot();
+    const notOk = (s: typeof first) => s.sources.filter((x) => !x.ok && (x.source.startsWith("github/") || x.source.startsWith("writer/"))).map((x) => x.source);
+    expect(notOk(first), "one endpoint down leaves the others ok").toEqual(["github/pulls/merged"]);
+    expect(first.health.api.state).toBe("ok");
+    expect(first.counts.redOrHeld).toBe(3);
+    const calls = fixtures.log.api;
+    const apiMisses = new Set(fixtures.log.misses.filter((m) => m.startsWith("/api/"))).size;
+    const second = await buildSnapshot();
+    expect(notOk(second)).toEqual(["github/pulls/merged"]);
+    expect(second.sources.find((s) => s.source === "github/pulls/merged")?.reason).toMatch(/502; retrying after \d\d:\d\d UTC/);
+    // Under vitest there is no data cache, so the second view repeats every call except the one
+    // backed-off endpoint and the remembered 404s.
+    expect(fixtures.log.api - calls, "the failed endpoint is not asked again; the rest are").toBe(calls - 1 - apiMisses);
+    expect(fixtures.log.misses.filter((m) => m.includes("is%3Amerged")).length, "the 502 endpoint is not in the misses").toBe(0);
+    // The 502 itself is an answer the API gave; the wait after it is an outage. Either way the
+    // banner is not up (the API as a whole answers), so no row folds on a phone.
+    expect(first.board[0].repos[0].lastMerge).toMatchObject({ state: "unknown", text: "GitHub API returned 502" });
+    expect(first.board[0].repos[0].lastMerge.because).toBeUndefined();
+    expect(second.board[0].repos[0].lastMerge.because).toBe("api");
+    expect(second.health.api.state).toBe("ok");
+  });
+
+  it("stops calling every endpoint for a minute when all of them answer 5xx, and caps a far-off rate-limit reset at an hour", async () => {
     const fixtures = await withFixtures([{ path: "/**", status: 503, body: "{}" }]);
     const first = await buildSnapshot();
     const calls = fixtures.log.api;
     expect(calls).toBeGreaterThan(0);
     expect(first.health.api).toMatchObject({ state: "down", text: expect.stringContaining("503") });
     await buildSnapshot();
-    expect(fixtures.log.api, "no call while backed off").toBe(calls);
+    expect(fixtures.log.api, "no call to a backed-off endpoint").toBe(calls);
     const far = String(Math.floor(Date.now() / 1000) + 7 * 24 * 3600);
     await withFixtures([{ path: "/search/issues", status: 403, body: "{}", headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": far } }]);
     const limited = await buildSnapshot();

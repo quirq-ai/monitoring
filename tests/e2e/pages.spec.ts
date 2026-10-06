@@ -98,7 +98,9 @@ test.describe("content from the fixtures", () => {
     await expect(page.locator(".markdown table").first()).toBeVisible();
     await expect(page.locator(".markdown").getByText("|---|")).toHaveCount(0);
     // A keyboard can reach the table's scroll box (axe: scrollable-region-focusable).
-    await expect(page.locator(".markdown [role=region][tabindex='0']").first()).toHaveAttribute("aria-label", "Table in the report");
+    const regions = page.locator(".markdown [role=region][tabindex='0']");
+    await expect(regions.first()).toHaveAttribute("aria-label", "Table 1 in the report");
+    expect(new Set(await regions.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))).size, "every table region has its own label").toBe(await regions.count());
   });
 
   test("Health shows eight fresh writers, one red writer and the ledger not started", async ({ page }) => {

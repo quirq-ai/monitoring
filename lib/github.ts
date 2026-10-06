@@ -16,25 +16,36 @@ export type ApiResult<T> =
 let limitedUntil: number | undefined;
 const RESET_CAP_MS = 60 * 60_000;
 
-// While GitHub answers 5xx or does not answer at all, a view would make every call for nothing,
-// so the first such answer stops calls for a minute (per server process).
+// An endpoint that answered 5xx or not at all is not asked again for a minute (per URL, per
+// server process), like the 404 memory. Only that URL waits: every other endpoint, and anything
+// Next's data cache already holds for it, is served as usual. A 5xx reaches this code only when
+// the cache had nothing to serve, so the wait never hides cached data.
 const DOWN_BACKOFF_MS = 60_000;
-let downUntil: number | undefined;
-let downReason = "";
+const BACKOFF_WORDS = "retrying after";
+const down = new Map<string, { until: number; reason: string }>();
 
-/** The reason to give without calling while the API is backed off, or nothing when it is not. */
-export function apiBackedOff(): string | undefined {
-  if (downUntil === undefined) return undefined;
-  if (downUntil <= Date.now()) {
-    downUntil = undefined;
+function backedOff(url: string): string | undefined {
+  const entry = down.get(url);
+  if (!entry) return undefined;
+  if (entry.until <= Date.now()) {
+    down.delete(url);
     return undefined;
   }
-  return `${downReason}; retrying after ${new Date(downUntil).toISOString().slice(11, 16)} UTC`;
+  return `${entry.reason}; ${BACKOFF_WORDS} ${new Date(entry.until).toISOString().slice(11, 16)} UTC`;
 }
 
-function backOff(reason: string): void {
-  downUntil = Date.now() + DOWN_BACKOFF_MS;
-  downReason = reason;
+function backOff(url: string, reason: string): void {
+  down.set(url, { until: Date.now() + DOWN_BACKOFF_MS, reason });
+  if (down.size > 500) for (const [key, entry] of down) if (entry.until < Date.now()) down.delete(key);
+}
+
+/**
+ * True for the reasons that mean the API as a whole, or this endpoint for now, could not be
+ * asked (no token, rate limit, rejected token, a wait after a 5xx), as opposed to an answer the
+ * API gave (a 404, a malformed body) or a name the dashboard refused to ask about.
+ */
+export function isApiOutageReason(reason: string): boolean {
+  return reason === "no token" || reason === "token rejected" || reason.startsWith(RATE_LIMIT_REASON) || reason.includes(`; ${BACKOFF_WORDS} `);
 }
 
 /** The ISO time the rate limit resets, while one is in force. */
@@ -50,7 +61,7 @@ export function rateLimitedUntil(): string | undefined {
 /** Tests call this between cases; nothing else should. */
 export function forgetBackoff(): void {
   limitedUntil = undefined;
-  downUntil = undefined;
+  down.clear();
   forgetMissing();
 }
 
@@ -116,8 +127,8 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
   const limited = rateLimitedUntil();
   if (limited) return { ok: false, reason: `${RATE_LIMIT_REASON} ${limited}`, url, status: 403, fetchedAt: new Date().toISOString(), maxAge };
   if (isRememberedMissing(url)) return { ok: false, reason: "GitHub API returned 404", url, status: 404, fetchedAt: new Date().toISOString(), maxAge };
-  const backedOff = apiBackedOff();
-  if (backedOff) return { ok: false, reason: backedOff, url, fetchedAt: new Date().toISOString(), maxAge };
+  const waiting = backedOff(url);
+  if (waiting) return { ok: false, reason: waiting, url, fetchedAt: new Date().toISOString(), maxAge };
 
   const headers: Record<string, string> = {
     Accept: options.accept ?? "application/vnd.github+json",
@@ -150,14 +161,14 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
     if (!res.ok) {
       if (res.status === 404) rememberMissing(url, options.revalidate);
       const reason = `GitHub API returned ${res.status}`;
-      if (res.status >= 500) backOff(reason);
+      if (res.status >= 500) backOff(url, reason);
       return { ok: false, reason, url, status: res.status, fetchedAt, maxAge };
     }
     const data = (await res.json()) as T;
     return { ok: true, data, url, fetchedAt, maxAge, status: res.status };
   } catch (error) {
     const reason = `GitHub API: ${describeError(error)}`;
-    backOff(reason);
+    backOff(url, reason);
     return { ok: false, reason, url, fetchedAt: new Date().toISOString(), maxAge };
   }
 }

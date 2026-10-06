@@ -103,7 +103,7 @@ function ItemList({ items, now }: { items: TodayItem[]; now: Date }) {
               <a href={item.url} className="text-sm underline-offset-2 hover:underline" rel={item.url.startsWith("/") ? undefined : "noreferrer"}>
                 {item.title}
                 {item.demo ? <span className="ml-1 rounded bg-muted px-1 text-xs text-muted-foreground">planted demo, not counted</span> : null}
-                {item.superseded && (item.state === "red" || item.state === "held") ? <span className="ml-1 rounded bg-muted px-1 text-xs text-muted-foreground">since cleared</span> : null}
+                {item.cleared && (item.state === "red" || item.state === "held") ? <span className="ml-1 rounded bg-muted px-1 text-xs text-muted-foreground">since cleared</span> : null}
               </a>
               <TimeAgo iso={item.at} now={now} className="text-xs text-muted-foreground" />
             </span>

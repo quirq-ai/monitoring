@@ -1,7 +1,7 @@
 import { WRITERS } from "@/config/freshness";
 import { OWNER } from "@/config/owner";
 import { ORG, blobUrl, treeUrl } from "@/lib/fetch";
-import { hasToken, RATE_LIMIT_REASON, rateLimitedUntil, requestsThisHour, web } from "@/lib/github";
+import { hasToken, isApiOutageReason, RATE_LIMIT_REASON, rateLimitedUntil, requestsThisHour, web } from "@/lib/github";
 import type { Signal, State } from "@/lib/signal";
 import { judgeWriter } from "@/lib/model/freshness";
 import { ago, WINDOWS, within, type Window } from "@/lib/model/time";
@@ -79,7 +79,8 @@ function isApiSource(source: string): boolean {
 
 function unknownCell(signal: Signal<unknown>, text?: string): Cell {
   const cell: Cell = { state: "unknown", text: text ?? (signal.ok ? "no data" : shortReason(signal.reason)), url: signal.sourceUrl, source: signal.source };
-  return !signal.ok && isApiSource(signal.source) ? { ...cell, because: "api" } : cell;
+  // Only an outage is the banner's doing; a 404, a bad body or a refused name is the row's own.
+  return !signal.ok && isApiSource(signal.source) && isApiOutageReason(signal.reason) ? { ...cell, because: "api" } : cell;
 }
 
 /** A known fact with no health in it: shown as plain text, never counted. */
@@ -102,8 +103,8 @@ export function gateByWriter(cell: Cell, writer: WriterHealth | undefined): Cell
   const who = WRITER_WORDS[writer.id] ?? writer.id;
   const state: Cell["state"] = writer.state === "stale" || writer.state === "red" ? "stale" : "unknown";
   const text = cell.state === "unknown" ? cell.text : `${cell.text} as of the last run; ${who} ${writer.state}, ${shortReason(writer.reason)}`;
-  // A writer is unknown only when its runs could not be read from the API.
-  return state === "unknown" ? { ...cell, state, text, because: "api" } : { ...cell, state, text };
+  // A writer is unknown when its runs could not be read; that is the banner's doing only in an outage.
+  return state === "unknown" && isApiOutageReason(writer.reason) ? { ...cell, state, text, because: "api" } : { ...cell, state, text };
 }
 
 /**
@@ -146,15 +147,22 @@ export function sectionRead(signals: Signal<unknown>[], now: Date): SectionRead 
 
 const SUPERSEDED_KINDS = new Set<TodayItem["kind"]>(["tree", "canary", "deploy"]);
 
-/** The newest event per subject (a repo's tree, canary or deploy) is the current one; older ones are history, not alarms. */
+/**
+ * The newest event per subject (a repo's tree, canary or deploy) is the current one; older ones
+ * are history, not alarms. An older alarm is `cleared` only when the newest event is green: a
+ * failure followed by another failure was replaced, not cleared.
+ */
 export function markSuperseded(items: TodayItem[]): TodayItem[] {
-  const seen = new Set<string>();
+  const newest = new Map<string, TodayItem>();
   return items.map((item) => {
     if (!SUPERSEDED_KINDS.has(item.kind)) return item;
     const subject = `${item.kind}:${item.repo}`;
-    if (seen.has(subject)) return { ...item, superseded: true };
-    seen.add(subject);
-    return item;
+    const current = newest.get(subject);
+    if (!current) {
+      newest.set(subject, item);
+      return item;
+    }
+    return { ...item, superseded: true, cleared: current.state === "green" };
   });
 }
 
