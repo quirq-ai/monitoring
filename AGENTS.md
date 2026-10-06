@@ -172,21 +172,38 @@ export type Signal<T> = {
   the render time: Next serves an expired entry once while it refreshes in the background, so after
   a quiet night the first render carries last night's data. Every signal also carries `maxAge` (its
   cache window); the model marks a green or pending cell `stale` when its source was read more than
-  twice its window ago, and Today shows "data as of" the oldest read.
+  twice its window ago. `reads` says per page (Today, Waiting, Board) when its own sources were
+  last read (`asOf`, absent when none answered, so the page says "No data could be read" rather
+  than "just now") and whether any read is past twice its window (`stale`, shown on the count tiles
+  and over the lists). The registries are left out: the hourly org list says nothing about how
+  fresh the PRs or the files are.
 - **Facts are not states.** A cell whose text is a known fact with no health in it ("nothing merged
-  in 7 days", "no deployments", "nothing promoted yet") has state `none`: plain text, no badge,
-  never counted. `green` means healthy, not "a thing exists".
+  in 7 days", "no deployments", "nothing promoted yet", "not in the canary yet") has state `none`:
+  plain text, no badge, never counted. `green` means healthy, not "a thing exists". A product with
+  no channels in infra-config is outside the canary, so no lkgr pointer is read for it.
+- **The newest event per subject is the current one.** Today marks an older tree, canary or deploy
+  event `superseded` when a newer one exists for the same repo (`markSuperseded`), so "tree
+  closed" at 09:00 leaves "Needs a look" once "tree open" lands at 10:00; it stays in the
+  timeline marked "since cleared". A writer whose last run failed is a "Needs a look" item that
+  opens Health, and counts in the third tile ("unknown, stale or failing") with the unreadable
+  sources and the stale writers; "red or held" counts Board cells only, since it opens the Board.
 - **Writers gate their files.** A tree, lkgr or canary cell is only as current as the job that
   writes the file (`gateByWriter` in `lib/model/build.ts`): when gardener `tree-status`, release
   `lkgr` or release `canary` is stale, red or unknown, a green or pending cell becomes stale or
-  unknown and says so. Red and held cells stay, since the file's alarm is real whatever happened
-  since.
-- **Back-off.** `lib/github.ts` keeps the rate-limit reset time in module memory and answers
-  "rate limit" without calling until then; both clients remember a 404 for the source's window,
-  since Next caches only 200s. Tests call `forgetBackoff()` between cases (`withFixtures` does).
+  unknown and says so (with the writer's reason shortened to "no token" or "rate limited" where
+  the banner explains it). Red and held cells stay, since the file's alarm is real whatever
+  happened since.
+- **Back-off.** `lib/github.ts` keeps the rate-limit reset time in module memory (trusted for at
+  most an hour, so a bad header cannot pin the state) and answers "rate limit" without calling
+  until then; a 5xx or no answer at all stops calls for one minute, with the reason and the retry
+  time in each skipped cell; both clients remember a 404 for the source's window, since Next
+  caches only 200s. Tests call `forgetBackoff()` between cases (`withFixtures` does).
 - **One banner.** `health.api` says whether the API as a whole answers (`ok`, `no-token`,
-  `rate-limited`, `token-rejected`, `down`); every page shows it as one Alert, and API cells then
-  say just `unknown: no token` or `rate limited`.
+  `rate-limited`, `token-rejected`, `down`); every page shows it as one Alert whose description
+  does not repeat its title, and API cells then say just `unknown: no token` or `rate limited`,
+  carrying `because: "api"`. A Board row whose only unknowns are that cause is `quiet`, and the
+  phone Board folds it to one line while the banner is up, so a token outage reads as one line,
+  not thirty open cards.
 - **GitHub API.** Always go through `lib/github.ts`. It sends the token only to `api.github.com`,
   reads the rate-limit headers, counts requests per hour, and returns
   `ok: false, reason: "GitHub API rate limit, resets at <time>"` instead of throwing. With no token
@@ -323,10 +340,15 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - No popup, dialog or popover that scrolls; detail belongs on a page. A Sheet on a phone is fine
   only if it fits without scrolling.
 - Phone first: what needs a look comes first (Today's "Needs a look", the Board's row order by
-  worst state), and a green non-product repo on the Board is one line that opens on tap
+  worst state), and a green or quiet non-product repo on the Board is one line that opens on tap
   (Collapsible). Every page segment has a `loading.tsx` (Skeleton) except the repo page, where a
   Suspense boundary would stream a 200 before `notFound()` can answer 404; `app/error.tsx` shows
-  what it can and offers a retry.
+  one fixed sentence and the digest (production replaces the message with a minified one) and
+  offers a retry. A page cannot set a 503, so a repo whose registries could not be read is a 200
+  that says "could not be looked up"; `notFound()` is the only status a page can choose.
+- Fetched Markdown: a table in the report sits in a scroll box with `tabIndex=0`, `role="region"`
+  and a label, so a keyboard can reach it; images are not fetched (alt text only), so no outside
+  host learns a viewer's address.
 - Tap targets are at least 44 px tall on a phone (nav links, the theme toggle, the window links).
 - Do not reuse PostHog's site design or assets (website was derived from it and its UI is being
   replaced). The look comes from the quirq brand below.

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildSnapshot, short } from "@/lib/model/build";
+import { buildSnapshot, markSuperseded, short } from "@/lib/model/build";
 import { SnapshotSchema } from "@/lib/model/types";
 import { FIXTURE_TOKEN, withFixtures } from "../helpers/fixtures";
 
@@ -43,7 +43,7 @@ describe("snapshot", () => {
     expect(kinds("canary").filter((t) => t.state === "held").map((t) => t.repo)).toEqual(["xo-space"]);
     expect(kinds("issue").map((t) => t.title)).toEqual([expect.stringContaining("issue #44 qq-failure")]);
     expect(kinds("tree").map((t) => `${t.repo} ${t.title}`)).toEqual(["innernet tree open", "innernet tree closed"]);
-    for (const item of today) expect(item.url, item.title).toMatch(/^https:\/\//);
+    for (const item of today) expect(item.url, item.title).toMatch(/^(https:\/\/|\/health$)/);
     expect(today.map((t) => t.at)).toEqual([...today.map((t) => t.at)].sort().reverse());
 
     expect(waiting.map((w) => `${w.kind} ${w.repo} ${w.title}`).sort()).toEqual([
@@ -57,6 +57,101 @@ describe("snapshot", () => {
     expect(counts.waitingComplete).toBe(true);
     expect(counts.redOrHeld).toBe(3);
     expect(counts.redOrHeldComplete).toBe(true);
+    expect(counts.todayComplete, "every source healthy, so the list is complete (website has no lkgr by design)").toBe(true);
+  });
+
+  it("keeps a cleared alarm out of what needs a look: the newest event per subject is the current one", async () => {
+    await withFixtures();
+    const { today } = await buildSnapshot({ window: "24h" });
+    const trees = today.filter((t) => t.kind === "tree" && t.repo === "innernet");
+    expect(trees.map((t) => `${t.title} ${t.superseded ? "superseded" : "current"}`)).toEqual(["tree open current", "tree closed superseded"]);
+    expect(today.filter((t) => (t.state === "red" || t.state === "held") && !t.superseded).map((t) => t.kind)).not.toContain("tree");
+    const marked = markSuperseded([
+      { kind: "canary", repo: "x", title: "canary shipped", at: "2026-10-06T10:00:00Z", url: "https://a", state: "green" },
+      { kind: "canary", repo: "x", title: "canary held", at: "2026-10-05T10:00:00Z", url: "https://b", state: "held" },
+      { kind: "issue", repo: "x", title: "issue", at: "2026-10-04T10:00:00Z", url: "https://c", state: "red" },
+    ]);
+    expect(marked.map((m) => Boolean(m.superseded))).toEqual([false, true, false]);
+  });
+
+  it("puts a failed writer in what needs a look, linked to Health, and counts it in the third tile", async () => {
+    await withFixtures();
+    const { today, counts, health } = await buildSnapshot();
+    const scorecard = health.writers.find((w) => w.id === "test-pipelines/scorecard");
+    expect(scorecard?.state).toBe("red");
+    const item = today.find((t) => t.kind === "writer");
+    expect(item).toMatchObject({ repo: "test-pipelines", state: "red", url: "/health", at: scorecard?.lastRun?.at });
+    expect(item?.title).toContain("scorecard writer failure");
+    const unreadable = (await buildSnapshot()).sources.filter((s) => !s.ok).length;
+    expect(counts.unknownOrStale).toBe(unreadable + health.writers.filter((w) => w.state === "red" || w.state === "stale").length);
+  });
+
+  it("marks a product outside the canary as such instead of reading a pointer it has no reason to have", async () => {
+    const fixtures = await withFixtures();
+    const { board, sources } = await buildSnapshot();
+    const website = board[0].repos.find((r) => r.name === "website");
+    expect(website?.lkgr).toMatchObject({ state: "none", text: "not in the canary yet" });
+    expect(sources.some((s) => s.source === "release/pointer/website/lkgr")).toBe(false);
+    expect(fixtures.log.misses.some((m) => m.includes("pointers/website"))).toBe(false);
+  });
+
+  it("turns one odd default-branch name into one unknown cell, not a 500 for every page", async () => {
+    const org = JSON.parse(fixture("api/org_repos.json")) as { name: string; default_branch: string }[];
+    const odd = org.map((r) => (r.name === "wiki" ? { ...r, default_branch: "main branch" } : r));
+    await withFixtures([{ path: "/orgs/quirq-ai/repos", body: JSON.stringify(odd) }]);
+    const { board } = await buildSnapshot();
+    const wiki = board.flatMap((g) => g.repos).find((r) => r.name === "wiki");
+    expect(wiki?.ci).toMatchObject({ state: "unknown", text: expect.stringContaining("not a usable branch name") });
+    expect(board.flatMap((g) => g.repos).find((r) => r.name === "gate")?.ci.state).toBe("pending");
+  });
+
+  it("dates each page by its own sources and says when nothing was read", async () => {
+    await withFixtures([{ path: "/orgs/quirq-ai/repos", file: "api/org_repos.json", headers: { date: "{{now-50m}}" } }]);
+    const fresh = await buildSnapshot();
+    for (const read of Object.values(fresh.reads)) {
+      expect(read.asOf).toBeDefined();
+      expect((Date.now() - new Date(read.asOf ?? 0).getTime()) / 60_000, "the hour-old org list does not date a page").toBeLessThan(5);
+      expect(read.stale).toBe(false);
+    }
+    await withFixtures([{ raw: "**", status: 500, body: "boom" }, { path: "/**", status: 500, body: "{}" }]);
+    const down = await buildSnapshot();
+    expect(down.reads.today.asOf, "nothing read, so no 'just now'").toBeUndefined();
+    expect(down.reads.waiting.asOf).toBeUndefined();
+  });
+
+  it("marks the tiles and lists stale when a read behind them is long past its window", async () => {
+    await withFixtures([{ path: "/search/issues", query: { q: "org:quirq-ai is:pr is:open" }, file: "api/search_pulls_open.json", headers: { date: "{{now-1h}}" } }]);
+    const { reads } = await buildSnapshot();
+    expect(reads.waiting.stale).toBe(true);
+    expect(reads.board.stale).toBe(true);
+    expect(reads.today.stale, "the open-PR search does not feed Today").toBe(false);
+  });
+
+  it("marks a row quiet when its only unknowns are the API banner's cause, so the phone Board can fold it", async () => {
+    await withFixtures();
+    delete process.env.GITHUB_TOKEN;
+    const { board } = await buildSnapshot();
+    const infra = board.find((g) => g.id === "infra")?.repos ?? [];
+    expect(infra.length).toBeGreaterThan(5);
+    for (const row of infra) expect(row.quiet, row.name).toBe(true);
+    expect(infra[0].ci.because).toBe("api");
+    const xo = board[0].repos.find((r) => r.name === "xo-space");
+    expect(xo?.quiet, "a red CI and a held canary are not the banner's doing").toBe(false);
+  });
+
+  it("stops calling for a minute after a 5xx, and caps a far-off rate-limit reset at an hour", async () => {
+    const fixtures = await withFixtures([{ path: "/**", status: 503, body: "{}" }]);
+    const first = await buildSnapshot();
+    const calls = fixtures.log.api;
+    expect(calls).toBeGreaterThan(0);
+    expect(first.health.api).toMatchObject({ state: "down", text: expect.stringContaining("503") });
+    await buildSnapshot();
+    expect(fixtures.log.api, "no call while backed off").toBe(calls);
+    const far = String(Math.floor(Date.now() / 1000) + 7 * 24 * 3600);
+    await withFixtures([{ path: "/search/issues", status: 403, body: "{}", headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": far } }]);
+    const limited = await buildSnapshot();
+    const until = new Date(limited.health.api.until ?? 0).getTime();
+    expect(until - Date.now()).toBeLessThanOrEqual(60 * 60_000 + 5_000);
   });
 
   it("marks a count incomplete, never a green zero, when a source behind it is down", async () => {
@@ -246,16 +341,21 @@ describe("snapshot", () => {
     expect(age, "fetchedAt comes from the Date header").toBeGreaterThan(55);
     expect(channels?.maxAge).toBe(120);
     expect(snapshot.release.repos[0].channels.canary).toMatchObject({ state: "stale", text: expect.stringContaining("not refreshed yet") });
-    expect(new Date(snapshot.dataAsOf).getTime()).toBeLessThanOrEqual(new Date(channels?.fetchedAt ?? 0).getTime());
+    expect(new Date(snapshot.reads.today.asOf ?? 0).getTime()).toBeLessThanOrEqual(new Date(channels?.fetchedAt ?? 0).getTime());
+    expect(snapshot.reads.today.stale).toBe(true);
   });
 
   it("explains a rate limit once, in the API state, and stops calling until it resets", async () => {
     const reset = String(Math.floor(Date.now() / 1000) + 600);
-    const fixtures = await withFixtures([{ path: "/search/issues", status: 403, body: "{}", headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": reset } }]);
+    const limit = { status: 403, body: "{}", headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": reset } };
+    const fixtures = await withFixtures([{ path: "/search/issues", ...limit }, { path: "/repos/quirq-ai/gardener/actions/workflows/tree-status.yml/runs", ...limit }]);
     const first = await buildSnapshot();
     expect(first.health.api.state).toBe("rate-limited");
     expect(first.health.api.until).toBeDefined();
     expect(first.board[0].repos[0].ci).toMatchObject({ state: "unknown", text: "rate limited" });
+    const innernet = first.board[0].repos.find((r) => r.name === "innernet");
+    expect(innernet?.tree?.text, "a gated cell says 'rate limited', not the ISO reset time").not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+    expect(innernet?.tree?.text).toContain("rate limited");
     const calls = fixtures.log.api;
     await buildSnapshot();
     expect(fixtures.log.api, "no API call while the limit is in force").toBe(calls);

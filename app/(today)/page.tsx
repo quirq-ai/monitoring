@@ -6,7 +6,7 @@ import { StateBadge } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
 import { Card } from "@/components/ui/card";
 import { buildSnapshot } from "@/lib/model/build";
-import { parseWindow } from "@/lib/model/time";
+import { ago, parseWindow } from "@/lib/model/time";
 import type { TodayItem } from "@/lib/model/types";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +16,11 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
   const snapshot = await buildSnapshot({ window });
   const now = new Date(snapshot.generatedAt);
   const words = window === "24h" ? "24 hours" : "7 days";
-  // What needs a look comes first on a phone; the rest is the timeline, newest first.
-  const alarms = snapshot.today.filter((t) => t.state === "red" || t.state === "held");
+  // What needs a look comes first on a phone; the rest is the timeline, newest first. An alarm a
+  // newer event on the same subject has replaced (the tree closed, then opened) is history.
+  const alarms = snapshot.today.filter((t) => (t.state === "red" || t.state === "held") && !t.superseded);
   const rest = snapshot.today.filter((t) => !alarms.includes(t));
+  const read = snapshot.reads.today;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -39,7 +41,13 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
 
       <ApiBanner api={snapshot.health.api} />
 
-      <CountTiles counts={snapshot.counts} />
+      <CountTiles counts={snapshot.counts} reads={snapshot.reads} now={now} />
+
+      {read.stale && read.asOf ? (
+        <p className="text-sm text-muted-foreground">
+          <StateBadge state="stale" /> The oldest read behind this page is from {ago(read.asOf, now)} and has not refreshed yet; the next view will.
+        </p>
+      ) : null}
 
       {alarms.length ? (
         <section className="flex flex-col gap-2">
@@ -63,7 +71,13 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
       </section>
 
       <p className="text-xs text-muted-foreground">
-        Data as of <TimeAgo iso={snapshot.dataAsOf} now={new Date()} exact /> (the oldest source read for this page; raw files can be up to 5 minutes behind that, the search index a minute or two).{" "}
+        {read.asOf ? (
+          <>
+            Data as of <TimeAgo iso={read.asOf} now={new Date()} exact /> (the oldest source read for this page; raw files can be up to 5 minutes behind that, the search index a minute or two).
+          </>
+        ) : (
+          "No data could be read for this page."
+        )}{" "}
         <Link href="/health" className="underline-offset-2 hover:underline">
           Every source and its state
         </Link>
@@ -86,9 +100,10 @@ function ItemList({ items, now }: { items: TodayItem[]; now: Date }) {
               </Link>
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-              <a href={item.url} className="text-sm underline-offset-2 hover:underline" rel="noreferrer">
+              <a href={item.url} className="text-sm underline-offset-2 hover:underline" rel={item.url.startsWith("/") ? undefined : "noreferrer"}>
                 {item.title}
                 {item.demo ? <span className="ml-1 rounded bg-muted px-1 text-xs text-muted-foreground">planted demo, not counted</span> : null}
+                {item.superseded && (item.state === "red" || item.state === "held") ? <span className="ml-1 rounded bg-muted px-1 text-xs text-muted-foreground">since cleared</span> : null}
               </a>
               <TimeAgo iso={item.at} now={now} className="text-xs text-muted-foreground" />
             </span>

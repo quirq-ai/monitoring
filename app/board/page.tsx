@@ -69,10 +69,11 @@ export default async function BoardPage() {
               </TableBody>
             </Table>
           </div>
-          {/* On a phone, a green non-product repo is one line that opens on tap; anything else is a card. */}
+          {/* On a phone, a non-product repo with nothing to look at (green, or unknown only because
+              the API banner's cause) is one line that opens on tap; anything else is a card. */}
           <ul className="flex flex-col gap-2 md:hidden">
             {group.repos.map((row) =>
-              row.worst === "green" && group.id !== "products" ? (
+              (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products" ? (
                 <li key={row.name}>
                   <Collapsible>
                     <Card className="gap-0 rounded-lg py-0 shadow-none">
@@ -80,7 +81,7 @@ export default async function BoardPage() {
                         <Link href={`/repos/${row.name}`} className="min-h-11 flex-1 py-2 text-sm font-medium underline-offset-2 hover:underline">
                           <span className="flex min-h-7 items-center">{row.name}</span>
                         </Link>
-                        <StateBadge state="green" />
+                        <StateBadge state={row.worst} />
                         <CollapsibleTrigger className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180" aria-label={`Details for ${row.name}`}>
                           <ChevronDown className="size-5 transition-transform" aria-hidden="true" />
                         </CollapsibleTrigger>

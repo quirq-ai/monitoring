@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { StateBadge } from "@/components/state-badge";
 
 /**
- * Shown when a page throws. Next hides a server error's message in production and gives a
- * digest instead, so this says what it can and offers a retry.
+ * Shown when a page throws. In production Next replaces a server error's message with a minified
+ * React message and a digest, so the message is never shown: one fixed sentence, the digest for
+ * the server log, and a retry.
  */
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
@@ -14,7 +15,7 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
       <h1 className="text-3xl">This page could not be built</h1>
       <p className="flex flex-wrap items-center gap-2 text-sm">
         <StateBadge state="unknown" />
-        <span>{error.message || "no message"}</span>
+        <span>Something this page needs failed while rendering. Health shows which source failed.</span>
         {error.digest ? <span className="font-mono text-xs text-muted-foreground">digest {error.digest}</span> : null}
       </p>
       <p className="text-sm text-muted-foreground">Nothing was written anywhere; the dashboard only reads. The sources it reads are listed on Health.</p>

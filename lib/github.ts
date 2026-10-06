@@ -11,8 +11,31 @@ export type ApiResult<T> =
   | { ok: false; reason: string; url: string; status?: number; fetchedAt: string; maxAge: number };
 
 // Once GitHub answers with the rate limit, every further call until the reset would be refused
-// too, so the reset time is kept here and calls are skipped until then (per server process).
+// too, so the reset time is kept here and calls are skipped until then (per server process). A
+// reset header is trusted for at most an hour, so a bad one cannot pin the state until a restart.
 let limitedUntil: number | undefined;
+const RESET_CAP_MS = 60 * 60_000;
+
+// While GitHub answers 5xx or does not answer at all, a view would make every call for nothing,
+// so the first such answer stops calls for a minute (per server process).
+const DOWN_BACKOFF_MS = 60_000;
+let downUntil: number | undefined;
+let downReason = "";
+
+/** The reason to give without calling while the API is backed off, or nothing when it is not. */
+export function apiBackedOff(): string | undefined {
+  if (downUntil === undefined) return undefined;
+  if (downUntil <= Date.now()) {
+    downUntil = undefined;
+    return undefined;
+  }
+  return `${downReason}; retrying after ${new Date(downUntil).toISOString().slice(11, 16)} UTC`;
+}
+
+function backOff(reason: string): void {
+  downUntil = Date.now() + DOWN_BACKOFF_MS;
+  downReason = reason;
+}
 
 /** The ISO time the rate limit resets, while one is in force. */
 export function rateLimitedUntil(): string | undefined {
@@ -27,6 +50,7 @@ export function rateLimitedUntil(): string | undefined {
 /** Tests call this between cases; nothing else should. */
 export function forgetBackoff(): void {
   limitedUntil = undefined;
+  downUntil = undefined;
   forgetMissing();
 }
 
@@ -92,6 +116,8 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
   const limited = rateLimitedUntil();
   if (limited) return { ok: false, reason: `${RATE_LIMIT_REASON} ${limited}`, url, status: 403, fetchedAt: new Date().toISOString(), maxAge };
   if (isRememberedMissing(url)) return { ok: false, reason: "GitHub API returned 404", url, status: 404, fetchedAt: new Date().toISOString(), maxAge };
+  const backedOff = apiBackedOff();
+  if (backedOff) return { ok: false, reason: backedOff, url, fetchedAt: new Date().toISOString(), maxAge };
 
   const headers: Record<string, string> = {
     Accept: options.accept ?? "application/vnd.github+json",
@@ -111,7 +137,8 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
       const remaining = res.headers.get("x-ratelimit-remaining");
       const reset = res.headers.get("x-ratelimit-reset");
       if (remaining === "0" || res.status === 429) {
-        const resetAt = reset && /^\d+$/.test(reset) ? Number(reset) * 1000 : Date.now() + 5 * 60_000;
+        const claimed = reset && /^\d+$/.test(reset) ? Number(reset) * 1000 : Date.now() + 5 * 60_000;
+        const resetAt = Math.min(claimed, Date.now() + RESET_CAP_MS);
         limitedUntil = Math.max(limitedUntil ?? 0, resetAt);
         return { ok: false, reason: `${RATE_LIMIT_REASON} ${new Date(resetAt).toISOString()}`, url, status: res.status, fetchedAt, maxAge };
       }
@@ -122,12 +149,16 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
     }
     if (!res.ok) {
       if (res.status === 404) rememberMissing(url, options.revalidate);
-      return { ok: false, reason: `GitHub API returned ${res.status}`, url, status: res.status, fetchedAt, maxAge };
+      const reason = `GitHub API returned ${res.status}`;
+      if (res.status >= 500) backOff(reason);
+      return { ok: false, reason, url, status: res.status, fetchedAt, maxAge };
     }
     const data = (await res.json()) as T;
     return { ok: true, data, url, fetchedAt, maxAge, status: res.status };
   } catch (error) {
-    return { ok: false, reason: `GitHub API: ${describeError(error)}`, url, fetchedAt: new Date().toISOString(), maxAge };
+    const reason = `GitHub API: ${describeError(error)}`;
+    backOff(reason);
+    return { ok: false, reason, url, fetchedAt: new Date().toISOString(), maxAge };
   }
 }
 

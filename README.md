@@ -8,7 +8,9 @@ It is read-only. It reads the state the other repos already publish, shows it wi
 (`green`, `red`, `held`, `pending`, `unknown`, `stale`) before the color, and links every value to
 the file or GitHub page it came from. It never merges, approves, comments or moves a ref.
 
-<img src="docs/today-phone.png" width="300" alt="Today on a phone: the three counts, then what needs a look, then what changed">
+<img src="docs/today-phone.png" width="300" alt="Today on a phone, showing fixture data: the three counts, then what needs a look, then what changed">
+
+(Fixture data from the test server, not the live org.)
 
 Every page at phone and desktop width, light and dark, is in the `screenshots` artifact of each
 CI run.
@@ -17,12 +19,12 @@ CI run.
 
 | Page | The question it answers |
 |---|---|
-| **Today** (`/`) | Three counts on top (waiting on you, red or held, unknown or stale), then what needs a look, then what changed in the last 24 hours (or 7 days): merged PRs, lkgr and channel moves, canary results, tree opened or closed, deploys, new failures. |
+| **Today** (`/`) | Three counts on top (waiting on you; red or held; unknown, stale or failing), then what needs a look (a closed tree, a held or failed canary, a failed deploy, a new failure, a writer whose last run failed), then what changed in the last 24 hours (or 7 days): merged PRs, lkgr and channel moves, canary results, tree opened or closed, deploys, new failures. An alarm a newer event has cleared stays in the timeline, marked "since cleared". |
 | **Waiting on you** (`/waiting`) | PRs where you are a requested reviewer or assignee, PRs you approved on an older head, held canaries, open `qq-failure` issues. |
 | **Board** (`/board`) | One row per repo, grouped, the ones that need a look first: CI on main, open PRs, last merge; for products also tree, lkgr, canary and deploy. On a phone a green repo is one line that opens on tap. |
 | **Release** (`/release`) | Per product: lkgr and each channel, the last 14 canary days as a strip, the hold if one is on, and the latest canary report. |
 | **Health** (`/health`) | Whether each of the 9 scheduled writers ran on time, the scorecard, the gardener ledger, and every source this render read with its state. |
-| **Repo** (`/repos/<name>`) | Everything above for one repo, plus its open PRs, the checks on its head, its tree builders and its perf metrics. |
+| **Repo** (`/repos/<name>`) | One repo's Board row (CI, last merge; for a product also tree, lkgr, canary and deploy), its open PRs, the checks on its head, and for a product its tree builders, its canary strip and its perf metrics. |
 | **Snapshot** (`/api/snapshot`) | The same state as JSON (`qq-monitoring-snapshot/1`), for agents. `?since=7d` widens the window. |
 
 Every tile shows the state first, then the detail, then where it came from and how old the data
@@ -34,11 +36,13 @@ as a whole is out (no token, rate limit, rejected token), one banner says so and
 read `unknown`. A count whose sources were not all read is a floor ("3+") or "?", never a green
 zero. Nothing missing is ever shown as green.
 
-**How old is what you see?** Today says "data as of" the oldest read behind the page. Each source
-is cached for 2 to 60 minutes (the windows are in [AGENTS.md](AGENTS.md)); after a quiet night the
-first view is served from that cache while it refreshes, so a tile older than twice its window is
-marked `stale` rather than shown as current. Raw files add up to 5 minutes on top of that, and the
-PR search index a minute or two.
+**How old is what you see?** Today says "data as of" the oldest read behind that page's own
+sources (the hourly org repo list does not count), or "No data could be read" when none answered.
+Each source is cached for 2 to 60 minutes (the windows are in [AGENTS.md](AGENTS.md)); after a
+quiet night the first view is served from that cache while it refreshes, so a Board or Release
+tile read more than twice its window ago is marked `stale` rather than shown as current, and the
+counts and the Today and Waiting lists say "stale: read 50 min ago" when a read behind them is
+that old. Raw files add up to 5 minutes on top of that, and the PR search index a minute or two.
 
 ## Run it
 

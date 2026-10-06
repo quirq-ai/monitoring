@@ -21,6 +21,8 @@ export const CellSchema = z.object({
   url: z.string(),
   at: z.string().optional(),
   source: z.string(),
+  /** `api` when the cell is unknown only because the GitHub API did not answer (the banner's cause). */
+  because: z.enum(["api"]).optional(),
 });
 
 export const SourceStatusSchema = z.object({
@@ -34,13 +36,15 @@ export const SourceStatusSchema = z.object({
 });
 
 export const TodayItemSchema = z.object({
-  kind: z.enum(["merged", "lkgr", "channel", "canary", "tree", "failure", "issue", "deploy"]),
+  kind: z.enum(["merged", "lkgr", "channel", "canary", "tree", "failure", "issue", "deploy", "writer"]),
   repo: z.string(),
   title: z.string(),
   at: z.string(),
   url: z.string(),
   state: StateSchema,
   demo: z.boolean().optional(),
+  /** True when a newer event on the same subject (this repo's tree, canary or deploy) has replaced it, so it is history, not an alarm. */
+  superseded: z.boolean().optional(),
 });
 
 export const WaitingItemSchema = z.object({
@@ -72,6 +76,8 @@ export const BoardRowSchema = z.object({
   deploy: CellSchema.optional(),
   /** The worst state among the row's health cells, for ordering: red and held first, green last. */
   worst: StateSchema,
+  /** True when every health cell is green, a fact, or unknown only because the GitHub API did not answer: nothing to look at beyond the banner. */
+  quiet: z.boolean(),
 });
 
 export const BoardGroupSchema = z.object({ id: z.string(), title: z.string(), repos: z.array(BoardRowSchema) });
@@ -118,6 +124,14 @@ export const ScorecardViewSchema = z.object({
   url: z.string(),
 });
 
+/** When a page's data was read: the oldest read behind it, and whether any read is long past its window. */
+export const SectionReadSchema = z.object({
+  /** The oldest read among the section's sources that answered; absent when none did. */
+  asOf: z.string().optional(),
+  /** True when a source behind the section was read more than twice its cache window ago and not refreshed yet. */
+  stale: z.boolean(),
+});
+
 export const SnapshotSchema = z.object({
   schema: z.literal(SNAPSHOT_SCHEMA),
   generatedAt: z.string(),
@@ -129,12 +143,13 @@ export const SnapshotSchema = z.object({
     waitingComplete: z.boolean(),
     redOrHeld: z.number(),
     redOrHeldComplete: z.boolean(),
+    /** Sources that could not be read, writers past their window, and writers whose last run failed. */
     unknownOrStale: z.number(),
     /** False when a source feeding the Today list could not be read, so the list may be short. */
     todayComplete: z.boolean(),
   }),
-  /** The oldest read among the sources that answered: the data on screen is at least this old. */
-  dataAsOf: z.string(),
+  /** Per page, when its data was read; a page with nothing read has no `asOf`. */
+  reads: z.object({ today: SectionReadSchema, waiting: SectionReadSchema, board: SectionReadSchema }),
   today: z.array(TodayItemSchema),
   waiting: z.array(WaitingItemSchema),
   board: z.array(BoardGroupSchema),
@@ -157,6 +172,7 @@ export const SnapshotSchema = z.object({
     /** The GitHub API as a whole: one line the pages show as a banner when it is not `ok`. */
     api: z.object({
       state: z.enum(["ok", "no-token", "rate-limited", "token-rejected", "down"]),
+      /** What the banner says under its title; it does not repeat the title. */
       text: z.string(),
       until: z.string().optional(),
     }),
@@ -165,6 +181,7 @@ export const SnapshotSchema = z.object({
 });
 
 export type Cell = z.infer<typeof CellSchema>;
+export type SectionRead = z.infer<typeof SectionReadSchema>;
 export type SourceStatus = z.infer<typeof SourceStatusSchema>;
 export type TodayItem = z.infer<typeof TodayItemSchema>;
 export type WaitingItem = z.infer<typeof WaitingItemSchema>;

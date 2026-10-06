@@ -208,10 +208,8 @@
 .markdown h4 {
   font-size: 1.05rem;
 }
+/* The table scrolls inside its focusable wrapper (components/markdown.tsx), never by itself. */
 .markdown table {
-  display: block;
-  max-width: 100%;
-  overflow-x: auto;
   border-collapse: collapse;
   font-size: 0.8125rem;
 }

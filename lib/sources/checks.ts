@@ -33,8 +33,10 @@ export type BranchChecks = {
 };
 
 export async function readBranchChecks(repo: string, branch: string): Promise<Signal<BranchChecks>> {
-  if (!/^[A-Za-z0-9_.\/-]{1,200}$/.test(branch)) throw new Error(`not a branch name: ${branch}`);
   const source = `github/checks/${repo}`;
+  // Git allows almost any branch name; the dashboard only builds URLs from plain ones, and says
+  // so for the rest instead of throwing out of the page (one failing source never breaks a page).
+  if (!/^[A-Za-z0-9_.\/-]{1,200}$/.test(branch)) return failSignal(source, web.repo(repo), `not a usable branch name: ${JSON.stringify(branch).slice(0, 60)}`);
   const sourceUrl = web.commits(repo, branch);
   const api = await ghGet<unknown>(repoPath(repo, `commits/${encodeURIComponent(branch)}/check-runs`), {
     revalidate: REVALIDATE,
@@ -54,10 +56,14 @@ export async function readBranchChecks(repo: string, branch: string): Promise<Si
     completedAt: c.completed_at,
   }));
   const headSha = parsed.value.check_runs[0]?.head_sha ?? "";
+  // A failure among the runs read is red whatever was not read; anything else is unknown.
+  const full = rollup(checks);
   const verdict =
-    parsed.value.total_count > checks.length
+    parsed.value.total_count > checks.length && full.state !== "red"
       ? { state: "unknown" as const, summary: `more than ${PER_PAGE} check runs on the head commit (${parsed.value.total_count}); only ${checks.length} read` }
-      : rollup(checks);
+      : parsed.value.total_count > checks.length
+        ? { ...full, summary: `${full.summary} (${checks.length} of ${parsed.value.total_count} read)` }
+        : full;
   return okSignal(source, sourceUrl, { headSha, ...verdict, checks }, newest(checks), api);
 }
 

@@ -1,4 +1,4 @@
-import { ApiBanner } from "@/components/api-banner";
+import { ApiBanner, apiTitles } from "@/components/api-banner";
 import { CellView } from "@/components/cell";
 import { PageTitle } from "@/components/page-title";
 import { SourceLink } from "@/components/source-link";
@@ -56,7 +56,7 @@ export default async function HealthPage() {
         <Card className="gap-1 rounded-lg px-3 py-3 shadow-none">
           <span className="text-xs text-muted-foreground">GitHub API</span>
           <StateBadge state={health.api.state === "ok" ? "green" : "unknown"} />
-          <span className="text-sm">{health.api.state === "ok" ? "answering, with a token" : health.api.text}</span>
+          <span className="text-sm">{health.api.state === "ok" ? "answering, with a token" : `${apiTitles[health.api.state]}: ${health.api.text}`}</span>
         </Card>
         <Card className="gap-1 rounded-lg px-3 py-3 shadow-none">
           <span className="text-xs text-muted-foreground">API budget</span>

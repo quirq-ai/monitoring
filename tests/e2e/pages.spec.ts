@@ -48,8 +48,15 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByText("tree closed")).toHaveCount(1);
     await expect(page.getByRole("link", { name: /waiting on you/ })).toContainText("4");
     await expect(page.getByRole("link", { name: /red or held/ })).toContainText("3");
+    await expect(page.getByRole("link", { name: /unknown, stale or failing/ })).toBeVisible();
     await expect(page.getByText("some sources unread")).toHaveCount(0);
+    await expect(page.getByText(/^stale: read/)).toHaveCount(0);
     await expect(page.getByRole("heading", { name: "Needs a look" })).toBeVisible();
+    // The failed scorecard writer needs a look and opens Health; the tree close is history now.
+    const alarms = page.locator("section").filter({ has: page.getByRole("heading", { name: "Needs a look" }) });
+    await expect(alarms.getByRole("link", { name: /scorecard writer failure/ })).toHaveAttribute("href", "/health");
+    await expect(alarms.getByText("tree closed")).toHaveCount(0);
+    await expect(page.getByText("since cleared")).toHaveCount(1);
     await expect(page.locator("[data-slot=alert]"), "no API banner with a token and the API answering").toHaveCount(0);
     await expect(page.getByText(/^Data as of/)).toBeVisible();
   });
@@ -90,6 +97,8 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByRole("heading", { level: 3, name: /^Canary report \d{4}-\d{2}-\d{2}/ })).toBeVisible();
     await expect(page.locator(".markdown table").first()).toBeVisible();
     await expect(page.locator(".markdown").getByText("|---|")).toHaveCount(0);
+    // A keyboard can reach the table's scroll box (axe: scrollable-region-focusable).
+    await expect(page.locator(".markdown [role=region][tabindex='0']").first()).toHaveAttribute("aria-label", "Table in the report");
   });
 
   test("Health shows eight fresh writers, one red writer and the ledger not started", async ({ page }) => {

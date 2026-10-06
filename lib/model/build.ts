@@ -12,6 +12,7 @@ import {
   type CanaryDay,
   type Cell,
   type ReleaseRepo,
+  type SectionRead,
   type Snapshot,
   type SourceStatus,
   type TodayItem,
@@ -71,8 +72,14 @@ export function shortReason(reason: string): string {
   return reason;
 }
 
+/** The sources that need the GitHub API, so a cell can say its unknown is the banner's cause. */
+function isApiSource(source: string): boolean {
+  return source.startsWith("github/") || source.startsWith("writer/");
+}
+
 function unknownCell(signal: Signal<unknown>, text?: string): Cell {
-  return { state: "unknown", text: text ?? (signal.ok ? "no data" : shortReason(signal.reason)), url: signal.sourceUrl, source: signal.source };
+  const cell: Cell = { state: "unknown", text: text ?? (signal.ok ? "no data" : shortReason(signal.reason)), url: signal.sourceUrl, source: signal.source };
+  return !signal.ok && isApiSource(signal.source) ? { ...cell, because: "api" } : cell;
 }
 
 /** A known fact with no health in it: shown as plain text, never counted. */
@@ -94,8 +101,9 @@ export function gateByWriter(cell: Cell, writer: WriterHealth | undefined): Cell
   if (cell.state === "red" || cell.state === "held" || cell.state === "none") return cell;
   const who = WRITER_WORDS[writer.id] ?? writer.id;
   const state: Cell["state"] = writer.state === "stale" || writer.state === "red" ? "stale" : "unknown";
-  const text = cell.state === "unknown" ? cell.text : `${cell.text} as of the last run; ${who} ${writer.state}, ${writer.reason}`;
-  return { ...cell, state, text };
+  const text = cell.state === "unknown" ? cell.text : `${cell.text} as of the last run; ${who} ${writer.state}, ${shortReason(writer.reason)}`;
+  // A writer is unknown only when its runs could not be read from the API.
+  return state === "unknown" ? { ...cell, state, text, because: "api" } : { ...cell, state, text };
 }
 
 /**
@@ -118,6 +126,36 @@ export function worstOf(cells: (Cell | undefined)[]): State {
   const present = cells.filter((c): c is Cell => Boolean(c) && c!.state !== "none").map((c) => c.state as State);
   for (const state of WORST_ORDER) if (present.includes(state)) return state;
   return "green";
+}
+
+/** Nothing to look at beyond the API banner: every cell is green, a fact, or unknown because the API did not answer. */
+export function isQuiet(cells: (Cell | undefined)[]): boolean {
+  return cells.every((c) => !c || c.state === "green" || c.state === "none" || (c.state === "unknown" && c.because === "api"));
+}
+
+/**
+ * When a page's data was read: the oldest read among the sources that answered (none when nothing
+ * was), and whether any of them was read more than twice its window ago and not refreshed yet.
+ */
+export function sectionRead(signals: Signal<unknown>[], now: Date): SectionRead {
+  const ok = signals.filter((s) => s.ok);
+  const asOf = ok.map((s) => s.fetchedAt).sort()[0];
+  const stale = ok.some((s) => s.maxAge !== undefined && (now.getTime() - new Date(s.fetchedAt).getTime()) / 1000 > 2 * s.maxAge);
+  return { asOf, stale };
+}
+
+const SUPERSEDED_KINDS = new Set<TodayItem["kind"]>(["tree", "canary", "deploy"]);
+
+/** The newest event per subject (a repo's tree, canary or deploy) is the current one; older ones are history, not alarms. */
+export function markSuperseded(items: TodayItem[]): TodayItem[] {
+  const seen = new Set<string>();
+  return items.map((item) => {
+    if (!SUPERSEDED_KINDS.has(item.kind)) return item;
+    const subject = `${item.kind}:${item.repo}`;
+    if (seen.has(subject)) return { ...item, superseded: true };
+    seen.add(subject);
+    return item;
+  });
 }
 
 export type BuildOptions = { window?: Window; now?: Date };
@@ -178,8 +216,9 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
   const [perProduct, checks, staleApprovals] = await Promise.all([
     Promise.all(
       productList.map(async (p) => {
+        // A product outside the canary (no channels) has no lkgr pointer by design, so none is read.
         const [lkgr, tree, days, deploy] = await Promise.all([
-          readPointer(p.name, "lkgr").then(track),
+          p.channels.length > 0 ? readPointer(p.name, "lkgr").then(track) : Promise.resolve(undefined),
           readTreeStatus(p.name).then(track),
           readCanaryDays(p.name, CANARY_DAYS, now),
           p.deployTarget === "vercel" ? readLatestDeployment(p.name).then(track) : Promise.resolve(undefined),
@@ -233,6 +272,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       openPullsLowerBound: openPulls.ok && openPulls.value.incomplete,
       lastMerge,
       worst: worstOf([ci]),
+      quiet: isQuiet([ci, lastMerge]),
     };
     const p = productIndex.get(row.name);
     if (!p) return base;
@@ -242,12 +282,14 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
         : unknownCell(p.tree),
       writerById.get("gardener/tree-status"),
     );
-    const lkgr: Cell = gateByWriter(
-      p.lkgr.ok
-        ? { state: p.lkgr.value.pending ? "pending" : "green", text: `${short(p.lkgr.value.commit)}${p.lkgr.value.pending ? ` pending ${short(p.lkgr.value.pending)}` : ""}`, url: web.commit(row.name, p.lkgr.value.commit), at: p.lkgr.value.updated_at, source: p.lkgr.source }
-        : unknownCell(p.lkgr),
-      writerById.get("release/lkgr"),
-    );
+    const lkgr: Cell = !p.lkgr
+      ? noneCell("not in the canary yet", products.sourceUrl, products.source)
+      : gateByWriter(
+          p.lkgr.ok
+            ? { state: p.lkgr.value.pending ? "pending" : "green", text: `${short(p.lkgr.value.commit)}${p.lkgr.value.pending ? ` pending ${short(p.lkgr.value.pending)}` : ""}`, url: web.commit(row.name, p.lkgr.value.commit), at: p.lkgr.value.updated_at, source: p.lkgr.source }
+            : unknownCell(p.lkgr),
+          writerById.get("release/lkgr"),
+        );
     const latest = latestRun(p.days);
     const unreadable = newestUnreadable(p.days);
     const runsDown = unreadable !== undefined && (!latest || unreadable.date > latest.date);
@@ -277,7 +319,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
           ? { state: p.deploy.value.state, text: `${p.deploy.value.status} ${short(p.deploy.value.sha)}`, url: p.deploy.value.url, at: p.deploy.value.createdAt, source: p.deploy.source }
           : noneCell("no deployments", p.deploy.sourceUrl, p.deploy.source)
         : unknownCell(p.deploy);
-    return { ...base, tree, lkgr, canary, deploy, worst: worstOf([ci, tree, lkgr, canary, deploy]) };
+    return { ...base, tree, lkgr, canary, deploy, worst: worstOf([ci, tree, lkgr, canary, deploy]), quiet: isQuiet([ci, lastMerge, tree, lkgr, canary, deploy]) };
   });
   const sourceById = new Map(sources.map((s) => [s.source, s]));
   for (const row of boardRowsFull) {
@@ -287,6 +329,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     if (row.canary) row.canary = gateByAge(row.canary, sourceById.get(row.canary.source), now);
     if (row.deploy) row.deploy = gateByAge(row.deploy, sourceById.get(row.deploy.source), now);
     row.worst = worstOf([row.ci, row.tree, row.lkgr, row.canary, row.deploy]);
+    row.quiet = isQuiet([row.ci, row.lastMerge, row.tree, row.lkgr, row.canary, row.deploy]);
   }
   const board = groupRows(boardRowsFull);
   const unregistered = boardRowsFull.filter((r) => !r.registered).map((r) => r.name);
@@ -297,7 +340,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     if (within(pr.mergedAt, hours, now)) today.push({ kind: "merged", repo: pr.repo, title: `merged #${pr.number} ${pr.title}`, at: pr.mergedAt ?? pr.updatedAt, url: pr.url, state: "green" });
   }
   for (const p of perProduct) {
-    if (p.lkgr.ok) {
+    if (p.lkgr?.ok) {
       const seen = new Set<string>();
       for (const h of [{ commit: p.lkgr.value.commit, updated_at: p.lkgr.value.updated_at }, ...p.lkgr.value.history]) {
         if (seen.has(h.updated_at) || !within(h.updated_at, hours, now)) continue;
@@ -340,7 +383,14 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       if (within(issue.createdAt, hours, now)) today.push({ kind: "issue", repo: issue.repo, title: `issue #${issue.number} ${issue.title}`, at: issue.createdAt, url: issue.url, state: "red" });
     }
   }
+  // A writer whose last run failed is current news whatever the window: it is red only while that
+  // run is inside its window. The item opens Health, where the writer's row is.
+  for (const w of writers) {
+    if (w.state !== "red" || !w.lastRun) continue;
+    today.push({ kind: "writer", repo: w.repo, title: `${w.workflow.replace(/\.ya?ml$/, "")} writer ${w.lastRun.conclusion}; its data may still be current`, at: w.lastRun.at, url: "/health", state: "red" });
+  }
   today.sort((a, b) => b.at.localeCompare(a.at));
+  const todayItems = markSuperseded(today);
 
   // --- waiting on you ------------------------------------------------------------------------
   const waiting: WaitingItem[] = [];
@@ -395,7 +445,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
       }
       const days = p.days.map(toCanaryDay);
       const latest = [...days].reverse().find((d) => d.outcome !== "none");
-      return { repo: p.product.name, lkgr: row?.lkgr ?? unknownCell(p.lkgr), channels, days, latest, hold: holds[perProduct.indexOf(p)] };
+      return { repo: p.product.name, lkgr: row?.lkgr ?? (p.lkgr ? unknownCell(p.lkgr) : noneCell("not in the canary yet", products.sourceUrl, products.source)), channels, days, latest, hold: holds[perProduct.indexOf(p)] };
     });
 
   // --- health --------------------------------------------------------------------------------
@@ -405,19 +455,28 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
 
   // A count is `complete` only when every source feeding it was read; a 0 with a source down is
   // not "nothing", and the tile says so (rule 3). The counts are of what their tiles link to:
-  // board cells for red or held, so a failed writer run is on Health, not in a count. A product
-  // the gardener does not watch yet has no tree-status file by design, so the tree cell is not
-  // in the completeness check; the API-backed cells and the run files are.
+  // board cells for red or held (the Board has no writer rows), and sources, stale writers and
+  // failed writers for the third tile, which opens Health. A product the gardener does not watch
+  // yet has no tree-status file by design, so the tree cell is not in the completeness check; the
+  // API-backed cells, the run files and (where a product is in the canary) the lkgr pointer are.
   const runsRead = perProduct.every((p) => p.days.every((d) => d.run.ok));
   const counts = {
     waiting: waiting.length,
     waitingComplete: reviewRequested.ok && openPulls.ok && reviewedBy.ok && failureIssues.ok && staleApprovals.every((s) => s.review.ok) && runsRead,
     redOrHeld: boardRowsFull.reduce((n, r) => n + [r.ci, r.tree, r.canary, r.deploy].filter((c) => c && (c.state === "red" || c.state === "held")).length, 0),
     redOrHeldComplete: checks.every((c) => c.ok) && perProduct.every((p) => p.deploy?.ok ?? true) && releaseChannels.ok && runsRead,
-    unknownOrStale: sources.filter((s) => !s.ok).length + writers.filter((w) => w.state === "stale").length,
-    todayComplete: mergedPulls.ok && treeHistory.ok && failures.ok && failureIssues.ok && releaseChannels.ok && perProduct.every((p) => p.lkgr.ok && (p.deploy?.ok ?? true)) && runsRead,
+    unknownOrStale: sources.filter((s) => !s.ok).length + writers.filter((w) => w.state === "stale" || w.state === "red").length,
+    todayComplete: mergedPulls.ok && treeHistory.ok && failures.ok && failureIssues.ok && releaseChannels.ok && writerRuns.every((r) => r.ok) && perProduct.every((p) => (p.lkgr?.ok ?? true) && (p.deploy?.ok ?? true)) && runsRead,
   };
-  const dataAsOf = sources.filter((s) => s.ok).map((s) => s.fetchedAt).sort()[0] ?? now.toISOString();
+  // When each page's data was read, from that page's own sources: the registries (the org list is
+  // cached an hour) say nothing about how fresh the PRs or the files are, so they are left out.
+  const runSignals = perProduct.flatMap((p) => p.days.map((d) => d.run));
+  const productSignals: Signal<unknown>[] = perProduct.flatMap((p) => [p.lkgr, p.tree, p.deploy].filter((s) => s !== undefined));
+  const reads = {
+    today: sectionRead([mergedPulls, releaseChannels, treeHistory, failures, failureIssues, ...writerRuns, ...productSignals, ...runSignals], now),
+    waiting: sectionRead([reviewRequested, openPulls, reviewedBy, failureIssues, ...staleApprovals.map((s) => s.review), ...runSignals], now),
+    board: sectionRead([...checks, mergedPulls, openPulls, releaseChannels, ...writerRuns, ...productSignals, ...runSignals], now),
+  };
   const api = apiState(sources);
 
   return {
@@ -427,8 +486,8 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     owner: OWNER,
     window,
     counts,
-    dataAsOf,
-    today,
+    reads,
+    today: todayItems,
     waiting,
     board,
     unregistered,
@@ -461,13 +520,13 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
 
 /** The GitHub API as a whole, from the first reason that explains every API cell at once. */
 export function apiState(sources: SourceStatus[]): Snapshot["health"]["api"] {
-  if (!hasToken()) return { state: "no-token", text: "GitHub token not set, so PRs, CI, deploys, issues and writer health are hidden; the state-branch files still show" };
+  if (!hasToken()) return { state: "no-token", text: "PRs, CI, deploys, issues and writer health are hidden until one is set; the state-branch files still show" };
   const reasons = sources.filter((s) => !s.ok && s.source.startsWith("github/")).map((s) => s.reason ?? "");
   const limited = rateLimitedUntil() ?? reasons.find((r) => r.startsWith(RATE_LIMIT_REASON))?.slice(RATE_LIMIT_REASON.length + 1);
-  if (limited) return { state: "rate-limited", text: `GitHub API rate limit until ${limited.slice(11, 16)} UTC; the API cells are unknown until then`, until: limited };
-  if (reasons.includes("token rejected")) return { state: "token-rejected", text: "GitHub rejected the token (expired or revoked); PRs, CI, deploys, issues and writer health are hidden until it is replaced" };
-  const apiSources = sources.filter((s) => s.source.startsWith("github/") || s.source.startsWith("writer/"));
-  if (apiSources.length && apiSources.every((s) => !s.ok)) return { state: "down", text: `GitHub API not answering: ${reasons[0] ?? "no reason"}` };
+  if (limited) return { state: "rate-limited", text: `the API cells are unknown until it resets at ${limited.slice(11, 16)} UTC`, until: limited };
+  if (reasons.includes("token rejected")) return { state: "token-rejected", text: "expired or revoked, so PRs, CI, deploys, issues and writer health are hidden until it is replaced" };
+  const apiSources = sources.filter((s) => isApiSource(s.source));
+  if (apiSources.length && apiSources.every((s) => !s.ok)) return { state: "down", text: reasons[0] ?? "no reason given" };
   return { state: "ok", text: "" };
 }
 
@@ -488,7 +547,7 @@ export async function isRegisteredRepo(name: string): Promise<true | null | { un
   return null;
 }
 
-type RowSeed = Omit<BoardRow, "ci" | "openPulls" | "openPullsLowerBound" | "lastMerge" | "worst">;
+type RowSeed = Omit<BoardRow, "ci" | "openPulls" | "openPullsLowerBound" | "lastMerge" | "worst" | "quiet">;
 
 /** Every repo once: products, then the gate's infra repos, then this repo's own groups, then any public repo none of them names. */
 export function boardRows(

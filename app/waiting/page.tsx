@@ -5,6 +5,7 @@ import { StateBadge } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
 import { Card } from "@/components/ui/card";
 import { buildSnapshot } from "@/lib/model/build";
+import { ago } from "@/lib/model/time";
 
 const kindWords: Record<string, string> = {
   review: "review requested",
@@ -18,6 +19,7 @@ export default async function WaitingPage() {
   const snapshot = await buildSnapshot();
   const now = new Date(snapshot.generatedAt);
   const down = snapshot.sources.filter((s) => !s.ok && /^github\/(pulls|issues|reviews)/.test(s.source));
+  const read = snapshot.reads.waiting;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -28,9 +30,14 @@ export default async function WaitingPage() {
           {down.length} of the PR and issue sources could not be read, so this list may be short: {down[0].reason}.
         </p>
       ) : null}
+      {read.stale && read.asOf ? (
+        <p className="text-sm text-muted-foreground">
+          <StateBadge state="stale" /> The oldest read behind this list is from {ago(read.asOf, now)} and has not refreshed yet; the next view will.
+        </p>
+      ) : null}
       {snapshot.waiting.length === 0 ? (
         <Card className="rounded-lg p-4 text-sm text-muted-foreground shadow-none">
-          {snapshot.counts.waitingComplete ? "Nothing is waiting on you." : "Nothing is waiting on you in the sources that could be read."}
+          {snapshot.counts.waitingComplete ? "Nothing is waiting on you." : read.asOf ? "Nothing is waiting on you in the sources that could be read." : "No data could be read for this page."}
         </Card>
       ) : (
         <Card className="gap-0 divide-y divide-border rounded-lg py-0 shadow-none">

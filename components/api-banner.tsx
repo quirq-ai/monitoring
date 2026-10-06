@@ -3,7 +3,8 @@ import { CircleAlert } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { Snapshot } from "@/lib/model/types";
 
-const titles = {
+export const apiTitles = {
+  ok: "GitHub API answering",
   "no-token": "GitHub token not set",
   "rate-limited": "GitHub rate limit",
   "token-rejected": "GitHub token rejected",
@@ -16,15 +17,15 @@ export function ApiBanner({ api }: { api: Snapshot["health"]["api"] }) {
   return (
     <Alert>
       <CircleAlert aria-hidden="true" />
-      <AlertTitle>{titles[api.state]}</AlertTitle>
+      <AlertTitle>{apiTitles[api.state]}</AlertTitle>
       <AlertDescription>
         <span>
-          {api.text}.{" "}
+          {api.text[0].toUpperCase() + api.text.slice(1)}.{" "}
           <Link href="/health" className="underline underline-offset-2">
             Health
           </Link>{" "}
-          has the details
-          {api.state === "no-token" ? " and the README says how to set the token" : ""}.
+          has every source
+          {api.state === "no-token" ? "; the README says how to set the token" : ""}.
         </span>
       </AlertDescription>
     </Alert>

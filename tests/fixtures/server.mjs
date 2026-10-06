@@ -44,10 +44,12 @@ function walk(dir) {
   return out;
 }
 
-// A `*` segment in a route path matches exactly one path segment.
+// A `*` segment in a route path matches exactly one path segment; a final `**` matches the rest
+// of the path, however many segments, so one route can take an API or a raw tree down.
 function matchPath(pattern, actual) {
   const p = pattern.split("/");
   const a = actual.split("/");
+  if (p.at(-1) === "**") return p.length - 1 <= a.length && p.slice(0, -1).every((seg, i) => seg === "*" || seg === a[i]);
   if (p.length !== a.length) return false;
   return p.every((seg, i) => seg === "*" || seg === a[i]);
 }
