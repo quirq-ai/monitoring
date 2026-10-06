@@ -64,6 +64,7 @@ test.describe("theme and contrast", () => {
         ].map(([fg, bg]) => `${fg} on ${bg}`);
         expect(failures).toEqual([]);
 
+        await page.screenshot({ path: `test-results/screenshots/today-${viewport.name}-${theme}.png` });
       });
     }
   }
