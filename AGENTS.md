@@ -211,10 +211,13 @@ export type Signal<T> = {
 - **GitHub API.** Always go through `lib/github.ts`. It sends the token only to `api.github.com`,
   reads the rate-limit headers, counts requests per hour, and returns
   `ok: false, reason: "GitHub API rate limit, resets at <time>"` instead of throwing. With no token
-  it returns `ok: false, reason: "no token"` without calling. A 403 that is not the rate limit
-  carries GitHub's own `message` from the body, one line cut at 120 characters ("GitHub API refused
-  (403): Resource not accessible by personal access token"), so Health says what the token lacks;
-  it is the row's own reason, never the banner's.
+  it returns `ok: false, reason: "no token"` without calling. A 403 that is not the primary rate
+  limit (`x-ratelimit-remaining: 0`) carries GitHub's own `message` from the body, one line cut at
+  120 characters ("GitHub API refused (403): Resource not accessible by personal access token"),
+  so Health shows GitHub's reason, whatever it is: a missing permission, or a secondary rate limit
+  ("You have exceeded a secondary rate limit", `retry-after` set, remaining above 0), which today
+  takes the same path with no back-off (backlog: treat a 403 with `retry-after` as rate limited).
+  Either way it is the row's own reason, never the banner's.
 
 ### Freshness
 

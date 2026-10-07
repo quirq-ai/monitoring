@@ -116,14 +116,18 @@ show up in the repo's deployments and on the PR). The project needs one environm
 
 1. Create a classic personal access token at https://github.com/settings/tokens/new: note
    `monitoring.quirq.dev read-only`, expiration 90 days, **no scopes ticked**. Every call the
-   dashboard makes is a public read; the token only buys the 5,000-an-hour limit. Not a
-   fine-grained token limited to "Public repositories": on 2026-10-07 one of those was refused
-   (403) on the writers' Actions runs endpoints while the rest answered, and Health then showed
-   every writer as unknown. A refusal's own message is shown next to the 403 on Health.
+   dashboard makes is a public read; the token only buys the 5,000-an-hour limit. A classic token
+   rather than a fine-grained one because GitHub documents the Checks API as a gap of fine-grained
+   tokens, and the Board reads `commits/<branch>/check-runs`. (Observed, cause not established: on
+   2026-10-07 a fine-grained token limited to "Public repositories" was refused with 403 on the
+   writers' Actions runs endpoints while the rest answered. Health now shows GitHub's own message
+   next to such a 403; read it before drawing a conclusion.)
 2. In Vercel, Settings > Environment Variables, add it as `GITHUB_TOKEN`, marked **Sensitive**, for
    **Production and Preview**.
 3. **Redeploy** (a variable change does not rebuild by itself), then open Health: the GitHub API
-   card should read "answering, with a token".
+   card should read "answering, with a token", and no Writers card should read "GitHub API
+   refused (403)". The API card alone is not the check: it stays green while every writer is
+   refused, since it judges only the org-wide reads.
 
 Rotate the token before it expires: an expired one shows a "GitHub token rejected" banner and
 breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same way.

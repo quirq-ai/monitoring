@@ -243,7 +243,11 @@ describe("snapshot", () => {
 
   it("matches the channel cells to channels.json and the strip to the run files", async () => {
     await withFixtures();
-    const { release } = await buildSnapshot();
+    // The captured runs are dated 2026-10-05 and 2026-10-06, so the request day is pinned to keep
+    // them inside the 14-day strip (with the real date the test would have expired on 2026-10-19).
+    // The fixture written for the real day (`{{today}}`) is only in the strip on that one day.
+    const pinned = "2026-10-07";
+    const { release } = await buildSnapshot({ now: new Date(`${pinned}T12:00:00Z`) });
     const channels = JSON.parse(fixture("raw/release/release-state/channels.json")) as Record<string, Record<string, { commit: string; generation: number }>>;
     for (const r of release.repos) {
       for (const [name, entry] of Object.entries(channels[r.repo] ?? {})) {
@@ -253,13 +257,14 @@ describe("snapshot", () => {
     const xo = release.repos.find((r) => r.repo === "xo-space");
     const byDate = Object.fromEntries((xo?.days ?? []).map((d) => [d.date, d.outcome]));
     // The templated file for the request day wins over a captured file of the same date.
-    const files = new Map([["2026-10-05", "2026-10-05"], ["2026-10-06", "2026-10-06"], [today(), "{{today}}"]]);
+    const files = new Map([["2026-10-05", "2026-10-05"], ["2026-10-06", "2026-10-06"]]);
+    if (today() === pinned) files.set(today(), "{{today}}");
     for (const [date, file] of files) {
       const run = JSON.parse(fixture(`raw/release/release-state/canary/xo-space/runs/${file}.json`));
       expect(byDate[date], date).toBe(run.outcome === "later" ? "noop" : run.outcome);
     }
     expect(Object.values(byDate).filter((o) => o === "none").length, JSON.stringify(byDate)).toBe(14 - files.size);
-    expect(release.report?.date).toBe(today());
+    expect(release.report?.date).toBe(today() === pinned ? pinned : "2026-10-06");
   });
 
   it("names a public repo no registry knows", async () => {
