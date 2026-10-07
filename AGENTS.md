@@ -367,8 +367,9 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   only if it fits without scrolling.
 - Phone first: what needs a look comes first (Today's "Needs a look", the Board's row order by
   worst state), and a green or quiet non-product repo on the Board is one line that opens on tap
-  (Collapsible), a run of such lines sharing one card. Every page segment has a `loading.tsx` (Skeleton) except the repo page, where a
-  Suspense boundary would stream a 200 before `notFound()` can answer 404; `app/error.tsx` shows
+  (Collapsible), a run of such lines sharing one card. Every page segment has a `loading.tsx`
+  (Skeleton) except the repo page, where a Suspense boundary would stream a 200 before
+  `notFound()` can answer 404; `app/error.tsx` shows
   one fixed sentence and the digest (production replaces the message with a minified one) and
   offers a retry. A page cannot set a 503, so a repo whose registries could not be read is a 200
   that says "could not be looked up"; `notFound()` is the only status a page can choose.
@@ -387,9 +388,9 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   UI"), on shadcn components. Near-monochrome surfaces and text, hairline dividers, color only for
   the six states; a compact sticky header with the wordmark, a "/ Monitoring" label and underlined
   tabs; stat tiles with the label above a large tabular number. The sticky header needs
-  `scroll-padding-top` on `<html>`, or a focused element can land under it (WCAG 2.4.11). Until then the palette was mapped
-  from xo-space's `quirq` and `linen` themes (`space_ui/css/themes.css`); see this file at
-  e148ad9 for that mapping.
+  `scroll-padding-top` on `<html>`, or a focused element can land under it (WCAG 2.4.11). Before
+  2026-10-07 the palette was mapped from xo-space's `quirq` and `linen` themes
+  (`space_ui/css/themes.css`); see this file at e148ad9 for that mapping.
 - **Colors.** The tokens live in `app/globals.css`, in three blocks the contrast test parses:
   light (`:root`), dark (`:root[data-theme="dark"]`) and dark-system (inside the
   `prefers-color-scheme: dark` media query), the last two identical.
