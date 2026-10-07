@@ -12,7 +12,7 @@ import { StateBadge } from "@/components/state-badge";
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <h1 className="text-3xl">This page could not be built</h1>
+      <h1 className="text-2xl sm:text-3xl">This page could not be built</h1>
       <p className="flex flex-wrap items-center gap-2 text-sm">
         <StateBadge state="unknown" />
         <span>Something this page needs failed while rendering. Health shows which source failed.</span>

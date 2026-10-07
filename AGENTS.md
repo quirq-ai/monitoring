@@ -113,7 +113,7 @@ app/
   api/snapshot/route.ts  GET only: the model as JSON
 components/
   ui/                    shadcn, unmodified where possible
-  state-badge.tsx        the one way to show a state (a shadcn Badge)
+  state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
   api-banner.tsx         one Alert when the GitHub API as a whole is out
   markdown.tsx           react-markdown with raw HTML off, for the canary report
   source-link.tsx        "from <source>, <age> ago"
@@ -349,9 +349,11 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - One page answers one question from the README. If a page needs a paragraph to explain, split it
   or cut it.
 - Show the state word first, then the detail, then the link. Commits are 7-character SHAs in
-  JetBrains Mono, linked to the full commit. Times read "4 min ago", with the exact UTC time in the
+  Geist Mono, linked to the full commit. Times read "4 min ago", with the exact UTC time in the
   title attribute; phones have no hover, so the repo page shows exact times.
-- One `StateBadge` component for every state, everywhere. It never uses shadcn's `destructive`
+- One `StateBadge` component for every state, everywhere: a dot in the state color (the 3:1
+  marker; `unknown` is an outlined dot, so a missing value never looks like a quiet one) and the
+  state word in the text color. It never uses shadcn's `destructive`
   variant. Stock shadcn Button and Badge hard-code `text-white` on `destructive`; when you copy
   them, change that to `text-destructive-foreground`, drop the `dark:bg-destructive/60` overlay
   (with it, dark text is only 3.5:1), and add `--color-destructive-foreground:
@@ -378,34 +380,38 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 
 - **Logo.** Copy `wordmark.svg`, `mark.svg` and `app-icon.svg` from innernet `public/brand/quirq/`
   into `public/brand/quirq/` unchanged, and note the source commit in the PR.
-- **Colors.** Map xo-space `space_ui/css/themes.css` onto shadcn's tokens in `app/globals.css`.
-  Dark is the `quirq` theme (lines 7-25). Light is the `linen` theme (lines 62-80; its
-  `--chart-*` values are on lines 75-76).
+- **Look.** Vercel's: suraj asked for it on 2026-10-07 ("sleek, professional, modern Vercel-type
+  UI"), on shadcn components. Near-monochrome surfaces and text, hairline dividers, color only for
+  the six states; a compact sticky header with the wordmark, a "/ Monitoring" label and underlined
+  tabs; stat tiles with the label above a large tabular number. Until then the palette was mapped
+  from xo-space's `quirq` and `linen` themes (`space_ui/css/themes.css`); see this file at
+  e148ad9 for that mapping.
+- **Colors.** The tokens live in `app/globals.css`, in three blocks the contrast test parses:
+  light (`:root`), dark (`:root[data-theme="dark"]`) and dark-system (inside the
+  `prefers-color-scheme: dark` media query), the last two identical.
 
-| shadcn token | xo-space token | Why |
-|---|---|---|
-| `--background` | `--bg` | |
-| `--card`, `--popover` | `--bg-2` | |
-| `--card-foreground`, `--popover-foreground`, `--secondary-foreground`, `--accent-foreground` | `--ink` | |
-| `--accent` (shadcn's hover surface, not the brand accent) | `--bg-3` | |
-| `--muted`, `--secondary` | `--bg-3` | |
-| `--foreground` | `--ink` | |
-| `--muted-foreground` | `--ink-3` | 7.90:1 dark, 5.40:1 light |
-| `--border`, `--input` | `--ink-4` | `--line` is only 1.52:1 dark and 1.39:1 light; `--ink-4` is 4.61-5.40:1 dark and 3.64-4.29:1 light on `--bg`/`--bg-2`/`--bg-3` |
-| `--ring` | `--focus-line` | |
-| `--primary` | `--accent` | |
-| `--primary-foreground` | `--accent-ink` | 9.21:1 dark, 5.59:1 light |
-| `--destructive` | `--err` | |
-| `--destructive-foreground` | dark `#21141e` (`--accent-ink`), light `#ffffff` | white on dark `--err` is only 2.23:1; these give 7.95:1 and 6.37:1 |
-| `--chart-1` to `--chart-5` | `--chart-1` to `--chart-5` | |
+| shadcn token | light | dark | Why |
+|---|---|---|---|
+| `--background` | `#fafafa` | `#000000` | the page |
+| `--card`, `--popover` | `#ffffff` | `#0a0a0a` | a card sits a step above the page |
+| `--muted`, `--secondary`, `--accent` (shadcn's hover surface) | `#f2f2f2` | `#1a1a1a` | |
+| `--foreground`, `--card-foreground` and the other foregrounds | `#171717` | `#ededed` | |
+| `--muted-foreground` | `#666666` | `#a1a1a1` | 5.1:1 light and 6.7:1 dark on `--muted`, the worst case |
+| `--border`, `--input` | `#858585` | `#7d7d7d` | at least 3.3:1 light and 4.2:1 dark on every surface |
+| `--line` | `#ebebeb` | `#262626` | decorative hairlines only; 1.1:1 to 1.4:1, never a control's edge |
+| `--primary` / `--primary-foreground` | `#171717` / `#ffffff` | `#ededed` / `#0a0a0a` | |
+| `--destructive` / `--destructive-foreground` | `#cc1f1a` / `#ffffff` | `#ff6166` / `#0a0a0a` | |
+| `--ring` | `#0070f3` | `#52a8ff` | |
+| `--state-green`, `-red`, `-held`, `-pending`, `-unknown`, `-stale` | `#0f7a3e`, `#cc1f1a`, `#b45309`, `#0070f3`, `#666666`, `#6d28d9` | `#3ecf8e`, `#ff6166`, `#f5a623`, `#52a8ff`, `#a1a1a1`, `#b48cff` | markers, at least 3:1 on every surface |
+| `--chart-1` to `--chart-5` | pending, green, held, stale, red | the same | |
 
-Use `--line` only for purely decorative dividers that carry no meaning; anything that outlines a
-control, a card edge you rely on, or a state uses `--border`. Add state tokens (`--state-green`,
-`--state-red`, `--state-held`, `--state-pending`, `--state-unknown`) and check each against all
-three backgrounds in both themes.
+Use `--line` only for purely decorative dividers that carry no meaning (list rows, the header
+rule, table rows); anything that outlines a control, a card edge you rely on, or a state uses
+`--border`. Check every state token against all three backgrounds in both themes; the tests do.
 
-- **Fonts.** Poppins 600 for headings, Inter for text, JetBrains Mono for code and numbers, through
-  `next/font` (self-hosted at build time, no runtime font requests).
+- **Fonts.** Geist Sans for all text (headings semibold, tightened), Geist Mono for ids and
+  source names, from the `geist` package through `next/font/local` (self-hosted at build time, no
+  runtime font requests). Numbers are Geist Sans with `tabular-nums`.
 - **Theme.** Follows `prefers-color-scheme`, with a toggle stored in a cookie so the server renders
   the right theme with no flash.
 

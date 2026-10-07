@@ -15,13 +15,13 @@ export const apiTitles = {
 export function ApiBanner({ api }: { api: Snapshot["health"]["api"] }) {
   if (api.state === "ok") return null;
   return (
-    <Alert>
+    <Alert className="rounded-xl border-border bg-muted/60">
       <CircleAlert aria-hidden="true" />
       <AlertTitle>{apiTitles[api.state]}</AlertTitle>
       <AlertDescription>
         <span>
           {api.text[0].toUpperCase() + api.text.slice(1)}.{" "}
-          <Link href="/health" className="underline underline-offset-2">
+          <Link href="/health" className="text-foreground underline underline-offset-2">
             Health
           </Link>{" "}
           has every source

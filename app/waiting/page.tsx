@@ -36,14 +36,14 @@ export default async function WaitingPage() {
         </p>
       ) : null}
       {snapshot.waiting.length === 0 ? (
-        <Card className="rounded-lg p-4 text-sm text-muted-foreground shadow-none">
+        <Card className="rounded-xl p-4 text-sm text-muted-foreground shadow-none">
           {snapshot.counts.waitingComplete ? "Nothing is waiting on you." : read.asOf ? "Nothing is waiting on you in the sources that could be read." : "No data could be read for this page."}
         </Card>
       ) : (
-        <Card className="gap-0 divide-y divide-border rounded-lg py-0 shadow-none">
+        <Card className="gap-0 divide-y divide-line overflow-hidden rounded-xl py-0 shadow-none">
           <ol>
             {snapshot.waiting.map((item, i) => (
-              <li key={`${item.kind}-${item.url}-${i}`} className="flex flex-col gap-1 px-3 py-3">
+              <li key={`${item.kind}-${item.url}-${i}`} className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/50">
                 <span className="flex flex-wrap items-center gap-2">
                   <StateBadge state={item.state} />
                   <span className="text-xs text-muted-foreground">{kindWords[item.kind]}</span>

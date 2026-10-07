@@ -5,20 +5,25 @@ import { SiteNav } from "@/components/site-nav";
 
 export function SiteHeader() {
   return (
-    <header className="flex flex-col border-b border-border px-4 pt-3 md:flex-row md:items-center md:gap-6 md:px-8 md:py-3">
-      <div className="flex items-center">
-        <Link href="/" aria-label="quirq" className="flex items-center">
-          {/* White artwork from innernet public/brand/quirq. Light theme recolors it in CSS. */}
-          <Image src="/brand/quirq/wordmark.svg" alt="quirq" width={307} height={159} priority unoptimized className="brand-wordmark" />
-        </Link>
-        <span className="ml-2 text-sm text-muted-foreground">monitoring</span>
-        <div className="ml-auto md:hidden">
+    <header className="sticky top-0 z-10 border-b border-line bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <div className="mx-auto flex w-full max-w-6xl flex-col px-4 md:flex-row md:items-center md:gap-8 md:px-8">
+        <div className="flex h-14 items-center gap-3">
+          <Link href="/" aria-label="quirq" className="flex items-center">
+            {/* White artwork from innernet public/brand/quirq. Light theme recolors it in CSS. */}
+            <Image src="/brand/quirq/wordmark.svg" alt="quirq" width={307} height={159} priority unoptimized className="brand-wordmark" />
+          </Link>
+          <span aria-hidden="true" className="select-none text-xl font-light text-border">
+            /
+          </span>
+          <span className="text-sm font-medium text-muted-foreground">Monitoring</span>
+          <div className="ml-auto md:hidden">
+            <ThemeToggle />
+          </div>
+        </div>
+        <SiteNav />
+        <div className="ml-auto hidden md:block">
           <ThemeToggle />
         </div>
-      </div>
-      <SiteNav />
-      <div className="ml-auto hidden md:block">
-        <ThemeToggle />
       </div>
     </header>
   );

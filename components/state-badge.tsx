@@ -1,25 +1,27 @@
-import { Check, CircleHelp, Clock, History, OctagonX, Pause, type LucideIcon } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { states, type State } from "@/lib/signal";
 
 export { states, type State };
 
-const icons: Record<State, LucideIcon> = {
-  green: Check,
-  red: OctagonX,
-  held: Pause,
-  pending: Clock,
-  unknown: CircleHelp,
-  stale: History,
+const dots: Record<State, string> = {
+  green: "bg-state-green",
+  red: "bg-state-red",
+  held: "bg-state-held",
+  pending: "bg-state-pending",
+  unknown: "bg-state-unknown",
+  stale: "bg-state-stale",
 };
 
-/** The one way to show a state: a shadcn outline Badge in the state's color, icon plus word. */
+/**
+ * The one way to show a state: a dot in the state's color (the 3:1 marker) and the state word in
+ * the text color, so the word carries the meaning and the color only speeds it up. The dot is a
+ * filled circle for every state except `unknown`, which is an outlined one, so a missing value
+ * never reads like a quiet one from across the room.
+ */
 export function StateBadge({ state }: { state: State }) {
-  const Icon = icons[state];
   return (
-    <Badge variant="outline" data-state={state} className={`state-badge state-${state} border-current font-semibold`}>
-      <Icon aria-hidden="true" />
+    <span data-state={state} className={`state-badge inline-flex w-fit shrink-0 items-center gap-1.5 text-xs font-medium whitespace-nowrap text-foreground`}>
+      <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${state === "unknown" ? "border-[1.5px] border-state-unknown" : dots[state]}`} />
       <span>{state}</span>
-    </Badge>
+    </span>
   );
 }

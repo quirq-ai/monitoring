@@ -12,11 +12,12 @@ const pages = [
   { href: "/health", label: "Health" },
 ] as const;
 
+/** Underlined tabs: the current page carries a bar in the text color, the rest are muted. */
 export function SiteNav() {
   const pathname = usePathname();
   return (
     <nav aria-label="Pages" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-      <ul className="flex gap-1 py-2 md:py-0">
+      <ul className="-mb-px flex gap-1 md:gap-2">
         {pages.map((p) => {
           const current = p.href === "/" ? pathname === "/" : pathname.startsWith(p.href);
           return (
@@ -25,8 +26,8 @@ export function SiteNav() {
                 href={p.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center whitespace-nowrap rounded-md px-3 text-sm underline-offset-4 md:min-h-9",
-                  current ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:text-foreground hover:underline",
+                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 text-sm md:min-h-14",
+                  current ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
                 {p.label}
