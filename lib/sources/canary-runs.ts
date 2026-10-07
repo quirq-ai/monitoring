@@ -75,26 +75,36 @@ export function recentDates(days: number, now = new Date()): string[] {
 
 export type CanaryDay = { date: string; run: Signal<CanaryRun | null> };
 
+/** The days read, and the directory listing they came from (`null` without a token: each day was probed). */
+export type CanaryDays = { listing: Signal<string[]> | null; days: CanaryDay[] };
+
 const ListingSchema = z.array(z.object({ name: z.string(), type: z.string() }).loose());
 
 /**
  * Which days have a run file, from one contents listing (cached 5 min). Raw answers 404 for a
  * missing day and Next never caches a 404, so probing every day would cost 14 reads per render.
- * Without a token, or when the listing fails, `null` means "probe each day".
+ * A directory that does not exist yet is an empty list, not a failure; a refused or malformed
+ * listing is `ok: false` with the reason, so Health can show it, and the caller probes each day.
  */
-export async function listCanaryRunDates(repo: string): Promise<Set<string> | null> {
+export async function listCanaryRunDates(repo: string): Promise<Signal<string[]>> {
   assertRepoName(repo);
-  if (!hasToken()) return null;
+  const source = `release/canary-listing/${repo}`;
+  const sourceUrl = treeUrl(REPO, BRANCH, `canary/${repo}/runs`);
   const api = await ghGet<unknown>(repoPath(REPO, `contents/canary/${repo}/runs`), { revalidate: REVALIDATE, params: { ref: BRANCH } });
-  if (!api.ok) return api.status === 404 ? new Set() : null;
+  if (!api.ok) {
+    if (api.status === 404) return okSignal(source, sourceUrl, [], undefined, api);
+    return failSignal(source, sourceUrl, `release-state: canary/${repo}/runs listing: ${api.reason}`, api);
+  }
   const parsed = ListingSchema.safeParse(api.data);
-  if (!parsed.success) return null;
-  return new Set(parsed.data.filter((e) => e.type === "file").map((e) => e.name.replace(/\.json$/, "")));
+  if (!parsed.success) return failSignal(source, sourceUrl, `release-state: canary/${repo}/runs listing does not match schema`, api);
+  return okSignal(source, sourceUrl, parsed.data.filter((e) => e.type === "file").map((e) => e.name.replace(/\.json$/, "")), undefined, api);
 }
 
-export async function readCanaryDays(repo: string, days = 14, now = new Date()): Promise<CanaryDay[]> {
+export async function readCanaryDays(repo: string, days = 14, now = new Date()): Promise<CanaryDays> {
+  assertRepoName(repo);
   const dates = recentDates(days, now);
-  const known = await listCanaryRunDates(repo);
+  const listing = hasToken() ? await listCanaryRunDates(repo) : null;
+  const known = listing?.ok ? new Set(listing.value) : null;
   const runs = await Promise.all(
     dates.map((date) =>
       known && !known.has(date)
@@ -102,5 +112,5 @@ export async function readCanaryDays(repo: string, days = 14, now = new Date()):
         : readCanaryRun(repo, date),
     ),
   );
-  return dates.map((date, i) => ({ date, run: runs[i] }));
+  return { listing, days: dates.map((date, i) => ({ date, run: runs[i] })) };
 }

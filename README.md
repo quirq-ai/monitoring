@@ -103,7 +103,7 @@ guide for the agents that build this. A PR that changes a source updates both fi
 
 | Group | Repos | Also shows |
 |---|---|---|
-| Products | `xo-space`, `innernet`, `website` (from infra-config) | tree status, lkgr, canary, production deploy, perf |
+| Products | `xo-space`, `innernet`, `website` (from infra-config) | tree status, lkgr, canary, production deploy, perf (website is not in the canary yet, and gardener and perf publish nothing for it, so it shows its deploy only) |
 | qq infra | every non-product repo in gate `settings/github.toml`: `infra-config`, `gate`, `test-pipelines`, `gardener`, `release`, `perf`, `rollers`, `toolchains`, `depot`, `sync`, `recipes`, `remote-build`, `installer` | whether their scheduled writers ran on time (Health) |
 | Apps in progress | `euler`, `galileo`, `instants`, `quitter` | |
 | Knowledge | `research`, `wiki`, `docs`, `marketing`, `.github` | |
@@ -126,7 +126,7 @@ show up in the repo's deployments and on the PR). The project needs one environm
    **Production and Preview**.
 3. **Redeploy** (a variable change does not rebuild by itself), then open Health: the GitHub API
    card should read "answering, with a token", and nothing on the page should read "GitHub API
-   refused". The API card alone is not the check: it turns red only when every GitHub read
+   refused". The API card alone is not the check: it goes unknown only when every GitHub read
    fails, so it stays green while the writers' runs or the check runs are refused.
 
 Rotate the token before it expires: an expired one shows a "GitHub token rejected" banner and
@@ -139,8 +139,9 @@ breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same
 - Anything that writes: filing alert issues, approving, landing or releasing a hold from the
   dashboard (v2, waits for its own decision).
 - The dev and stable channels show "nothing promoted yet" until release promotes to them.
-- A secondary rate limit (a 403 with a `retry-after` header) is shown with GitHub's own words but
-  not backed off from, and the API card does not turn amber when only some reads are refused.
+- A secondary rate limit (a 403 GitHub sometimes marks with a `retry-after` header) is shown with
+  GitHub's own words but not backed off from, and the API card does not turn amber when only some
+  reads are refused.
 
 ## How it is built
 

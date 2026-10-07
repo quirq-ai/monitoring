@@ -52,7 +52,8 @@ describe("canary runs", () => {
 
   it("reads a window of days from one listing, reading only the days that exist", async () => {
     const fixtures = await withFixtures();
-    const days = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing?.ok).toBe(true);
     expect(days.map((d) => d.date)).toEqual(["2026-10-04", "2026-10-05", "2026-10-06"]);
     expect(days[0].run.ok && days[0].run.value).toBeNull();
     expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
@@ -63,10 +64,29 @@ describe("canary runs", () => {
   it("probes each day when there is no token to list the directory", async () => {
     const fixtures = await withFixtures();
     delete process.env.GITHUB_TOKEN;
-    const days = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing).toBeNull();
     expect(days[0].run.ok && days[0].run.value).toBeNull();
     expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
     expect(fixtures.log.requests).toBe(3);
+  });
+
+  it("reports a refused listing and still probes each day", async () => {
+    const fixtures = await withFixtures([
+      { path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 403, body: JSON.stringify({ message: "Resource not accessible by personal access token" }) },
+    ]);
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing?.ok).toBe(false);
+    if (listing && !listing.ok) expect(listing.reason).toBe("release-state: canary/innernet/runs listing: GitHub API refused (403): Resource not accessible by personal access token");
+    expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
+    expect(fixtures.log.requests, "one listing call, then one raw read per day").toBe(4);
+  });
+
+  it("treats a directory that does not exist yet as no runs, not a failure", async () => {
+    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: "{}" }]);
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing?.ok && listing.value).toEqual([]);
+    expect(days.every((d) => d.run.ok && d.run.value === null)).toBe(true);
   });
 
   it("accepts the later outcome the writer uses for reruns", async () => {

@@ -21,6 +21,7 @@ import {
 } from "@/lib/model/types";
 import { readLatestCanaryReport } from "@/lib/sources/canary-report";
 import { readCanaryDays, type CanaryRun } from "@/lib/sources/canary-runs";
+import { listPerfMetrics, readPerfSeries } from "@/lib/sources/perf";
 import { readChannelsConfig } from "@/lib/sources/channels-config";
 import { readBranchChecks } from "@/lib/sources/checks";
 import { readLatestDeployment } from "@/lib/sources/deployments";
@@ -168,6 +169,13 @@ export function markSuperseded(items: TodayItem[]): TodayItem[] {
 
 export type BuildOptions = { window?: Window; now?: Date };
 
+/** Read a product's perf listing and each metric file, only so Health can show whether they read. */
+async function readPerfSources(repo: string, track: <T>(signal: Signal<T>) => Signal<T>): Promise<void> {
+  const list = track(await listPerfMetrics(repo));
+  if (!list.ok) return;
+  await Promise.all(list.value.map((metric) => readPerfSeries(repo, metric).then(track)));
+}
+
 export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapshot> {
   const now = options.now ?? new Date();
   const window = options.window ?? "24h";
@@ -225,12 +233,19 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
     Promise.all(
       productList.map(async (p) => {
         // A product outside the canary (no channels) has no lkgr pointer by design, so none is read.
-        const [lkgr, tree, days, deploy] = await Promise.all([
+        const [lkgr, tree, canary, deploy] = await Promise.all([
           p.channels.length > 0 ? readPointer(p.name, "lkgr").then(track) : Promise.resolve(undefined),
           readTreeStatus(p.name).then(track),
           readCanaryDays(p.name, CANARY_DAYS, now),
           p.deployTarget === "vercel" ? readLatestDeployment(p.name).then(track) : Promise.resolve(undefined),
+          // Perf publishes only for products in the canary; Health lists those reads so a refused
+          // or malformed perf-data file is seen before the repo page is opened.
+          p.channels.length > 0 ? readPerfSources(p.name, track) : Promise.resolve(undefined),
         ]);
+        // A refused or malformed run listing is a source failure in its own right; the days were
+        // probed one by one instead, so the strip is still real.
+        if (canary.listing && !canary.listing.ok) track(canary.listing);
+        const days = canary.days;
         for (const d of days) if (!d.run.ok) track(d.run);
         return { product: p, lkgr, tree, days, deploy };
       }),

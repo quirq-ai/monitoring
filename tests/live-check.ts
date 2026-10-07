@@ -41,7 +41,8 @@ describe("live sources", () => {
     for (const repo of ["innernet", "xo-space"]) {
       line(`release/pointer/${repo}/lkgr`, await readPointer(repo, "lkgr"), (v) => `${v.commit.slice(0, 7)} gen ${v.generation}${v.pending ? " pending" : ""}`);
       line(`release/pointer/${repo}/canary`, await readPointer(repo, "channels/canary"), (v) => `${v.commit.slice(0, 7)} gen ${v.generation}`);
-      const days = await readCanaryDays(repo, 14);
+      const { listing, days } = await readCanaryDays(repo, 14);
+      if (listing) line(`release/canary-listing/${repo}`, listing, (v) => `${v.length} run files`);
       const outcomes = days.map((d) => (d.run.ok ? (d.run.value?.outcome ?? "-") : "?"));
       rows.push(`ok       release/canary/${repo}`.padEnd(45) + outcomes.join(" "));
       line(`gardener/tree-status/${repo}`, await readTreeStatus(repo), (v) => `${v.state}: ${v.reason}`);

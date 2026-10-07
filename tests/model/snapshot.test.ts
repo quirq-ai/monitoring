@@ -248,12 +248,15 @@ describe("snapshot", () => {
     // The fixture written for the real day (`{{today}}`) is only in the strip on that one day.
     const pinned = "2026-10-07";
     const { release } = await buildSnapshot({ now: new Date(`${pinned}T12:00:00Z`) });
-    const channels = JSON.parse(fixture("raw/release/release-state/channels.json")) as Record<string, Record<string, { commit: string; generation: number }>>;
+    const channels = (JSON.parse(fixture("raw/release/release-state/channels.json")) as { repos: Record<string, Record<string, { commit: string; generation: number }>> }).repos;
+    let compared = 0;
     for (const r of release.repos) {
       for (const [name, entry] of Object.entries(channels[r.repo] ?? {})) {
         expect(r.channels[name], `${r.repo} ${name}`).toMatchObject({ state: "green", text: `${short(entry.commit)} gen ${entry.generation}` });
+        compared += 1;
       }
     }
+    expect(compared, "the fixture's channel entries were compared").toBeGreaterThan(0);
     const xo = release.repos.find((r) => r.repo === "xo-space");
     const byDate = Object.fromEntries((xo?.days ?? []).map((d) => [d.date, d.outcome]));
     // The templated file for the request day wins over a captured file of the same date.
@@ -275,6 +278,22 @@ describe("snapshot", () => {
     expect(unregistered).toEqual(["zz-not-registered"]);
     expect(board.at(-1)?.id).toBe("unregistered");
     expect(board.at(-1)?.repos[0]).toMatchObject({ name: "zz-not-registered", registered: false });
+  });
+
+  it("lists the perf reads of canary products on Health, and a refused run listing", async () => {
+    await withFixtures([
+      { path: "/repos/quirq-ai/release/contents/canary/xo-space/runs", status: 403, body: JSON.stringify({ message: "Resource not accessible by personal access token" }) },
+    ]);
+    const { sources } = await buildSnapshot();
+    const ids = sources.map((s) => s.source);
+    expect(ids).toContain("perf/metrics/innernet");
+    expect(ids).toContain("perf/innernet/build-size");
+    expect(sources.find((s) => s.source === "perf/innernet/build-size")?.ok).toBe(true);
+    expect(ids.some((id) => id.startsWith("perf/metrics/website")), "website is outside the canary, so no perf read").toBe(false);
+    const listing = sources.find((s) => s.source === "release/canary-listing/xo-space");
+    expect(listing?.ok).toBe(false);
+    expect(listing?.reason).toContain("refused (403)");
+    expect(ids).not.toContain("release/canary-listing/innernet");
   });
 
   it("makes at most 70 API requests for one cold render", async () => {
