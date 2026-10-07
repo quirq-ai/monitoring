@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WRITERS } from "@/config/freshness";
+import { isApiOutageReason } from "@/lib/github";
 import { readWriterRuns } from "@/lib/sources/writer-runs";
 import { withFixtures } from "../helpers/fixtures";
 
@@ -51,6 +52,24 @@ describe("writer runs", () => {
     const signal = await readWriterRuns(treeStatus);
     expect(signal.ok).toBe(false);
     if (!signal.ok) expect(signal.reason).toContain("does not match schema");
+  });
+
+  it("carries GitHub's own message when the token is refused", async () => {
+    const message = "Resource not accessible by personal access token";
+    await withFixtures([{ path: "/repos/quirq-ai/gardener/actions/workflows/tree-status.yml/runs", status: 403, body: JSON.stringify({ message, documentation_url: "https://docs.github.com/rest" }) }]);
+    const refused = await readWriterRuns(treeStatus);
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.reason).toBe(`GitHub API refused (403): ${message}`);
+    expect(isApiOutageReason(refused.ok ? "" : refused.reason), "a refused token is the row's own reason, not an outage").toBe(false);
+    await withFixtures([{ path: "/repos/quirq-ai/gardener/actions/workflows/tree-status.yml/runs", status: 403, body: "not json" }]);
+    const bare = await readWriterRuns(treeStatus);
+    expect(bare.ok).toBe(false);
+    if (!bare.ok) expect(bare.reason).toBe("GitHub API refused (403)");
+    const long = "x".repeat(300);
+    await withFixtures([{ path: "/repos/quirq-ai/gardener/actions/workflows/tree-status.yml/runs", status: 403, body: JSON.stringify({ message: `${long}\n\nsecond line` }) }]);
+    const cut = await readWriterRuns(treeStatus);
+    expect(cut.ok).toBe(false);
+    if (!cut.ok) expect(cut.reason.length).toBeLessThanOrEqual("GitHub API refused (403): ".length + 120);
   });
 
   it("is unknown when the workflow is missing or the token is", async () => {

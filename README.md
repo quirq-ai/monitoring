@@ -59,9 +59,9 @@ Add a token to make the GitHub API tiles (PRs, checks, deploys, writer runs, iss
 cp .env.example .env.local    # then put a read-only token in GITHUB_TOKEN
 ```
 
-The token is a fine-grained personal access token with **Public repositories** access and no
-permissions (see Deploy for the exact settings). Without one those tiles read `unknown` under a
-"GitHub token not set" banner, and everything read from the state branches still works.
+The token is a classic personal access token with **no scopes** (see Deploy for the exact
+settings and why not a fine-grained one). Without one those tiles read `unknown` under a "GitHub
+token not set" banner, and everything read from the state branches still works.
 `MONITORING_ORG` (default `quirq-ai`) is the org it reads; `MONITORING_OWNER` (default
 `sharmasuraj0123`) is whose "waiting on you" it is.
 
@@ -114,15 +114,20 @@ guide for the agents that build this. A PR that changes a source updates both fi
 Vercel's GitHub app builds `main` into the production deployment and every PR into a preview (both
 show up in the repo's deployments and on the PR). The project needs one environment variable:
 
-1. Create a fine-grained personal access token at
-   https://github.com/settings/personal-access-tokens/new: name `monitoring.quirq.dev read-only`,
-   resource owner your own account (public data needs no org approval), expiration 90 days,
-   repository access **Public repositories**, no permissions added. Every call the dashboard makes
-   is a public read; the token only buys the 5,000-an-hour limit.
+1. Create a classic personal access token at https://github.com/settings/tokens/new: note
+   `monitoring.quirq.dev read-only`, expiration 90 days, **no scopes ticked**. Every call the
+   dashboard makes is a public read; the token only buys the 5,000-an-hour limit. A classic token
+   rather than a fine-grained one because GitHub documents the Checks API as a gap of fine-grained
+   tokens, and the Board reads `commits/<branch>/check-runs`. (Observed, cause not established: on
+   2026-10-07 a fine-grained token limited to "Public repositories" was refused with 403 on the
+   writers' Actions runs endpoints while the rest answered. Health now shows GitHub's own message
+   next to such a 403; read it before drawing a conclusion.)
 2. In Vercel, Settings > Environment Variables, add it as `GITHUB_TOKEN`, marked **Sensitive**, for
    **Production and Preview**.
 3. **Redeploy** (a variable change does not rebuild by itself), then open Health: the GitHub API
-   card should read "answering, with a token".
+   card should read "answering, with a token", and nothing on the page should read "GitHub API
+   refused". The API card alone is not the check: it turns red only when every GitHub read
+   fails, so it stays green while the writers' runs or the check runs are refused.
 
 Rotate the token before it expires: an expired one shows a "GitHub token rejected" banner and
 breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same way.
@@ -134,6 +139,8 @@ breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same
 - Anything that writes: filing alert issues, approving, landing or releasing a hold from the
   dashboard (v2, waits for its own decision).
 - The dev and stable channels show "nothing promoted yet" until release promotes to them.
+- A secondary rate limit (a 403 with a `retry-after` header) is shown with GitHub's own words but
+  not backed off from, and the API card does not turn amber when only some reads are refused.
 
 ## How it is built
 
