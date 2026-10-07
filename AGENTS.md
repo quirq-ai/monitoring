@@ -215,9 +215,10 @@ export type Signal<T> = {
   limit (`x-ratelimit-remaining: 0`) carries GitHub's own `message` from the body, one line cut at
   120 characters ("GitHub API refused (403): Resource not accessible by personal access token"),
   so Health shows GitHub's reason, whatever it is: a missing permission, or a secondary rate limit
-  ("You have exceeded a secondary rate limit", `retry-after` set, remaining above 0), which today
-  takes the same path with no back-off (backlog: treat a 403 with `retry-after` as rate limited).
-  Either way it is the row's own reason, never the banner's.
+  ("You have exceeded a secondary rate limit", with a `retry-after` header and remaining above 0),
+  which today takes the same path with no back-off (listed under "What is not built" in the
+  README: treat a 403 that carries `retry-after` as rate limited). Such a reason is the row's own
+  and does not fold the row as quiet; the banner repeats it only when every GitHub read fails.
 
 ### Freshness
 

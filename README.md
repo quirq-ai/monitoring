@@ -125,9 +125,9 @@ show up in the repo's deployments and on the PR). The project needs one environm
 2. In Vercel, Settings > Environment Variables, add it as `GITHUB_TOKEN`, marked **Sensitive**, for
    **Production and Preview**.
 3. **Redeploy** (a variable change does not rebuild by itself), then open Health: the GitHub API
-   card should read "answering, with a token", and no Writers card should read "GitHub API
-   refused (403)". The API card alone is not the check: it stays green while every writer is
-   refused, since it judges only the org-wide reads.
+   card should read "answering, with a token", and nothing on the page should read "GitHub API
+   refused". The API card alone is not the check: it turns red only when every GitHub read
+   fails, so it stays green while the writers' runs or the check runs are refused.
 
 Rotate the token before it expires: an expired one shows a "GitHub token rejected" banner and
 breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same way.
@@ -139,6 +139,8 @@ breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same
 - Anything that writes: filing alert issues, approving, landing or releasing a hold from the
   dashboard (v2, waits for its own decision).
 - The dev and stable channels show "nothing promoted yet" until release promotes to them.
+- A secondary rate limit (a 403 with a `retry-after` header) is shown with GitHub's own words but
+  not backed off from, and the API card does not turn amber when only some reads are refused.
 
 ## How it is built
 
