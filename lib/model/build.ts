@@ -20,7 +20,7 @@ import {
   type WriterHealth,
 } from "@/lib/model/types";
 import { readLatestCanaryReport } from "@/lib/sources/canary-report";
-import { readCanaryDays, type CanaryRun } from "@/lib/sources/canary-runs";
+import { readCanaryDays, type CanaryDays, type CanaryRun } from "@/lib/sources/canary-runs";
 import { listPerfMetrics, readPerfSeries } from "@/lib/sources/perf";
 import { readChannelsConfig } from "@/lib/sources/channels-config";
 import { readBranchChecks } from "@/lib/sources/checks";
@@ -169,9 +169,15 @@ export function markSuperseded(items: TodayItem[]): TodayItem[] {
 
 export type BuildOptions = { window?: Window; now?: Date };
 
-/** Read a product's perf listing and each metric file, only so Health can show whether they read. */
+/**
+ * Read a product's perf listing and each metric file, only so Health can show whether they read.
+ * Perf decides on its own which products it measures, so a product with no perf directory is
+ * "not measured": nothing is listed for it, which is not a failure.
+ */
 async function readPerfSources(repo: string, track: <T>(signal: Signal<T>) => Signal<T>): Promise<void> {
-  const list = track(await listPerfMetrics(repo));
+  const list = await listPerfMetrics(repo);
+  if (list.ok && list.value.length === 0) return;
+  track(list);
   if (!list.ok) return;
   await Promise.all(list.value.map((metric) => readPerfSeries(repo, metric).then(track)));
 }
@@ -232,15 +238,17 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
   const [perProduct, checks, staleApprovals] = await Promise.all([
     Promise.all(
       productList.map(async (p) => {
-        // A product outside the canary (no channels) has no lkgr pointer by design, so none is read.
+        // A product outside the canary (no channels) has no lkgr pointer and no run files by
+        // design, so neither is read. Perf is read for every product, since perf chooses what it
+        // measures; Health lists those reads so a refused or malformed perf-data file is seen
+        // before the repo page is opened.
+        const inCanary = p.channels.length > 0;
         const [lkgr, tree, canary, deploy] = await Promise.all([
-          p.channels.length > 0 ? readPointer(p.name, "lkgr").then(track) : Promise.resolve(undefined),
+          inCanary ? readPointer(p.name, "lkgr").then(track) : Promise.resolve(undefined),
           readTreeStatus(p.name).then(track),
-          readCanaryDays(p.name, CANARY_DAYS, now),
+          inCanary ? readCanaryDays(p.name, CANARY_DAYS, now) : Promise.resolve<CanaryDays>({ listing: null, days: [] }),
           p.deployTarget === "vercel" ? readLatestDeployment(p.name).then(track) : Promise.resolve(undefined),
-          // Perf publishes only for products in the canary; Health lists those reads so a refused
-          // or malformed perf-data file is seen before the repo page is opened.
-          p.channels.length > 0 ? readPerfSources(p.name, track) : Promise.resolve(undefined),
+          readPerfSources(p.name, track),
         ]);
         // A refused or malformed run listing is a source failure in its own right; the days were
         // probed one by one instead, so the strip is still real.

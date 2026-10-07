@@ -93,10 +93,10 @@ export async function listCanaryRunDates(repo: string): Promise<Signal<string[]>
   const api = await ghGet<unknown>(repoPath(REPO, `contents/canary/${repo}/runs`), { revalidate: REVALIDATE, params: { ref: BRANCH } });
   if (!api.ok) {
     if (api.status === 404) return okSignal(source, sourceUrl, [], undefined, api);
-    return failSignal(source, sourceUrl, `release-state: canary/${repo}/runs listing: ${api.reason}`, api);
+    return failSignal(source, sourceUrl, `release-state: canary/${repo}/runs listing: ${api.reason}; days read one by one`, api);
   }
   const parsed = ListingSchema.safeParse(api.data);
-  if (!parsed.success) return failSignal(source, sourceUrl, `release-state: canary/${repo}/runs listing does not match schema`, api);
+  if (!parsed.success) return failSignal(source, sourceUrl, `release-state: canary/${repo}/runs listing does not match schema; days read one by one`, api);
   return okSignal(source, sourceUrl, parsed.data.filter((e) => e.type === "file").map((e) => e.name.replace(/\.json$/, "")), undefined, api);
 }
 

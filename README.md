@@ -103,11 +103,11 @@ guide for the agents that build this. A PR that changes a source updates both fi
 
 | Group | Repos | Also shows |
 |---|---|---|
-| Products | `xo-space`, `innernet`, `website` (from infra-config) | tree status, lkgr, canary, production deploy, perf (website is not in the canary yet, and gardener and perf publish nothing for it, so it shows its deploy only) |
+| Products | `xo-space`, `innernet`, `website` (from infra-config) | tree status, lkgr, canary, production deploy, perf (website is not in the canary yet, and gardener and perf publish nothing for it, so only its deploy carries data: its tree cell is unknown and its perf section says no metrics are recorded) |
 | qq infra | every non-product repo in gate `settings/github.toml`: `infra-config`, `gate`, `test-pipelines`, `gardener`, `release`, `perf`, `rollers`, `toolchains`, `depot`, `sync`, `recipes`, `remote-build`, `installer` | whether their scheduled writers ran on time (Health) |
 | Apps in progress | `euler`, `galileo`, `instants`, `quitter` | |
 | Knowledge | `research`, `wiki`, `docs`, `marketing`, `.github` | |
-| Other | `monitoring`, `xo-cowork-api`, `environment`, `quirq_ai`, `quirqy` | |
+| Other | `monitoring`, `setup`, `agent-skills`, `xo-cowork-api`, `environment`, `quirq_ai`, `quirqy` (`setup` and `agent-skills` are grouped here by this repo only; whether they go behind the gate is a separate decision) | |
 
 ## Deploy
 

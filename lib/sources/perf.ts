@@ -42,8 +42,10 @@ export async function listPerfMetrics(repo: string): Promise<Signal<string[]>> {
     params: { ref: BRANCH },
   });
   if (!api.ok) {
-    const why = api.status === 404 ? `no perf data for ${repo}` : api.reason;
-    return failSignal(source, sourceUrl, `perf-data: ${why}`, api);
+    // Perf decides on its own which products it measures (its workflow matrix), so a directory
+    // that is not there is "not measured": an empty list, a fact, never an unknown.
+    if (api.status === 404) return okSignal(source, sourceUrl, [], undefined, api);
+    return failSignal(source, sourceUrl, `perf-data: ${api.reason}`, api);
   }
   const parsed = parseValue(z.array(EntrySchema), api.data, `perf-data: ${repo}/`);
   if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);

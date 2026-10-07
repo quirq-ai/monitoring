@@ -280,13 +280,16 @@ cloud session, and REST with the issue search covers the same questions in a han
   hour.
 - Directory listings through the contents API, cached 300 s: test-pipelines `results` failures/
   (raw cannot list a directory), gardener `ledger` reverts/ and landed/, and release
-  `canary/<repo>/runs/` per product, so only the days that have a file are read (raw answers 404
-  for the rest, which Next never caches). Without a token the days are probed one by one instead;
-  a refused or malformed listing is a source failure on Health (`release/canary-listing/<repo>`)
-  and the days are probed. The gardener `tree-status` commit log is `commits?sha=tree-status`,
-  cached 300 s.
-- The perf `perf-data` listing per product in the canary, cached 1 h, and each metric file read
-  raw, cached 600 s: on the repo page, and on Health so a refused or malformed file is seen.
+  `canary/<repo>/runs/` per product in the canary (a product with no channels has no run files by
+  design, so none is listed or probed for it), so only the days that have a file are read (raw
+  answers 404 for the rest, which Next never caches). Without a token the days are probed one by
+  one instead; a refused or malformed listing is a source failure on Health
+  (`release/canary-listing/<repo>`, with "days read one by one" in its reason) and the days are
+  probed. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
+- The perf `perf-data` listing per product, cached 1 h, and each metric file read raw, cached
+  600 s: on the repo page, and on Health so a refused or malformed file is seen. Perf decides on
+  its own which products it measures, so a product with no directory there (a 404) is "not
+  measured": an empty list on the repo page and no row on Health, never an unknown.
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is the no-token fallback:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
@@ -311,7 +314,7 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | infra-config `repos` | `config/repos.toml` | products: kinds, channels, deploy target |
 | infra-config `channels` | `config/channels.toml` | channel order, cadence, canary schedule |
 | infra-config `health` | `config/health.toml` | probes and v0 signals (not read yet: no module in `lib/sources/` reads it) |
-| gate `settings` | `settings/github.toml` | `[[repo]]`: 13 infra repos plus the products xo-space, innernet and website |
+| gate `settings` | `settings/github.toml` | `[[repo]]`: 13 infra repos plus the products xo-space, innernet and website (gate 2a73334, 2026-10-06) |
 
 **State branches (raw):**
 

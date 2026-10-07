@@ -77,7 +77,17 @@ describe("canary runs", () => {
     ]);
     const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
     expect(listing?.ok).toBe(false);
-    if (listing && !listing.ok) expect(listing.reason).toBe("release-state: canary/innernet/runs listing: GitHub API refused (403): Resource not accessible by personal access token");
+    if (listing && !listing.ok) expect(listing.reason).toBe("release-state: canary/innernet/runs listing: GitHub API refused (403): Resource not accessible by personal access token; days read one by one");
+    expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
+    expect(fixtures.log.requests, "one listing call, then one raw read per day").toBe(4);
+  });
+
+  it("reports a listing that is not a directory listing and still probes each day", async () => {
+    const fixtures = await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", body: JSON.stringify({ name: "runs", type: "dir" }) }]);
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing?.ok).toBe(false);
+    if (listing && !listing.ok) expect(listing.reason).toBe("release-state: canary/innernet/runs listing does not match schema; days read one by one");
+    expect(days[0].run.ok && days[0].run.value).toBeNull();
     expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
     expect(fixtures.log.requests, "one listing call, then one raw read per day").toBe(4);
   });
