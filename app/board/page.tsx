@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildSnapshot } from "@/lib/model/build";
+import { foldRuns } from "@/lib/model/fold-runs";
 import type { BoardRow, Cell } from "@/lib/model/types";
 
 const headClass = "h-10 px-3 text-xs font-medium text-muted-foreground";
@@ -81,12 +82,12 @@ export default async function BoardPage() {
               the API banner's cause) is one line that opens on tap, and a run of such lines shares
               one card; anything else is a card of its own. */}
           <ul className="flex flex-col gap-2 md:hidden">
-            {foldRuns(group.repos, (row) => (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products").map((run, i) =>
+            {foldRuns(group.repos, (row) => (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products").map((run) =>
               run.folded ? (
-                <li key={`folded-${i}`}>
+                <li key={`folded-${run.items[0].name}`}>
                   <Card className="gap-0 overflow-hidden rounded-xl py-0 shadow-none">
                     <ul className="divide-y divide-line">
-                      {run.rows.map((row) => (
+                      {run.items.map((row) => (
                         <li key={row.name}>
                           <Collapsible>
                             <div className="flex min-h-11 items-center gap-2 px-4">
@@ -108,7 +109,7 @@ export default async function BoardPage() {
                   </Card>
                 </li>
               ) : (
-                run.rows.map((row) => (
+                run.items.map((row) => (
                   <li key={row.name}>
                     <Card className="gap-3 rounded-xl px-4 py-3 shadow-none">
                       <RepoName row={row} />
@@ -123,18 +124,6 @@ export default async function BoardPage() {
       ))}
     </div>
   );
-}
-
-/** Splits rows into runs, in order, of rows that fold to one line and rows that do not. */
-function foldRuns(rows: BoardRow[], folds: (row: BoardRow) => boolean): { folded: boolean; rows: BoardRow[] }[] {
-  const runs: { folded: boolean; rows: BoardRow[] }[] = [];
-  for (const row of rows) {
-    const folded = folds(row);
-    const last = runs.at(-1);
-    if (last && last.folded === folded) last.rows.push(row);
-    else runs.push({ folded, rows: [row] });
-  }
-  return runs;
 }
 
 function Fields({ row, now, product }: { row: BoardRow; now: Date; product: boolean }) {
@@ -166,11 +155,11 @@ function RepoName({ row }: { row: BoardRow }) {
   return (
     <span className="flex flex-col">
       {row.registered ? (
-        <Link href={`/repos/${row.name}`} className="font-medium underline-offset-2 hover:underline">
+        <Link href={`/repos/${row.name}`} className="font-medium wrap-anywhere underline-offset-2 hover:underline">
           {row.name}
         </Link>
       ) : (
-        <a href={row.url} className="font-medium underline-offset-2 hover:underline" rel="noreferrer">
+        <a href={row.url} className="font-medium wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
           {row.name}
         </a>
       )}

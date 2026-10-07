@@ -103,7 +103,7 @@ function ItemList({ items, now }: { items: TodayItem[]; now: Date }) {
               </Link>
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-              <a href={item.url} className="text-sm break-words underline-offset-2 hover:underline" rel={item.url.startsWith("/") ? undefined : "noreferrer"}>
+              <a href={item.url} className="text-sm wrap-anywhere underline-offset-2 hover:underline" rel={item.url.startsWith("/") ? undefined : "noreferrer"}>
                 {item.title}
                 {item.demo ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">planted demo, not counted</span> : null}
                 {item.cleared && (item.state === "red" || item.state === "held") ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">since cleared</span> : null}

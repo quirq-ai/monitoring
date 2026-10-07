@@ -11,7 +11,7 @@ export function CellView({ cell, now, title, exact = false }: { cell: Cell; now:
     <div className="flex flex-col gap-1">
       {title ? <span className="text-xs text-muted-foreground">{title}</span> : null}
       {cell.state === "none" ? null : <StateBadge state={cell.state} />}
-      <a href={cell.url} className={`text-sm break-words underline-offset-2 hover:underline ${cell.state === "none" ? "text-muted-foreground" : ""}`} rel="noreferrer">
+      <a href={cell.url} className={`text-sm wrap-anywhere underline-offset-2 hover:underline ${cell.state === "none" ? "text-muted-foreground" : ""}`} rel="noreferrer">
         {cell.text}
       </a>
       {cell.at ? <TimeAgo iso={cell.at} now={now} exact={exact} className="text-xs text-muted-foreground" /> : null}
@@ -24,7 +24,7 @@ export function CellInline({ cell, now }: { cell: Cell; now: Date }) {
   return (
     <span className="flex flex-col gap-0.5">
       {cell.state === "none" ? null : <StateBadge state={cell.state} />}
-      <a href={cell.url} className={`text-xs break-words underline-offset-2 hover:underline ${cell.state === "none" ? "text-muted-foreground" : ""}`} rel="noreferrer">
+      <a href={cell.url} className={`text-xs wrap-anywhere underline-offset-2 hover:underline ${cell.state === "none" ? "text-muted-foreground" : ""}`} rel="noreferrer">
         {cell.text}
       </a>
       {cell.at ? <TimeAgo iso={cell.at} now={now} className="text-xs text-muted-foreground" /> : null}

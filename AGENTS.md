@@ -355,13 +355,15 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   marker; `unknown` is an outlined dot, so a missing value never looks like a quiet one) and the
   state word in the text color, on a quiet muted pill so a badge inside a sentence does not run
   into the words after it; `StateDot` is the dot alone, for the count tiles. Health's Sources list
-  says "ok", not "green", for a read that answered: readable is not healthy or fresh. It never
-  uses shadcn's `destructive`
+  says "ok" on a plain pill with no state color for a read that answered (readable is not healthy,
+  and every API read comes through the data cache, so never fresh either); a read older than twice
+  its cache window is the `stale` badge with "read N ago". It never uses shadcn's `destructive`
   variant. Stock shadcn Button and Badge hard-code `text-white` on `destructive`; when you copy
   them, change that to `text-destructive-foreground`, drop the `dark:bg-destructive/60` overlay
   (with it, dark text is only 3.5:1), and add `--color-destructive-foreground:
-  var(--destructive-foreground)` to the `@theme inline` block, or the class applies no color. Colors
-  come from CSS variables, never hex in components.
+  var(--destructive-foreground)` to the `@theme inline` block, or the class applies no color. The
+  copied Button's focus ring is `ring-ring`, not stock `ring-ring/50` (2:1 on a ghost button).
+  Colors come from CSS variables, never hex in components.
 - Numbers before charts. A chart only for a trend (canary strip, perf history), in plain SVG.
 - No popup, dialog or popover that scrolls; detail belongs on a page. A Sheet on a phone is fine
   only if it fits without scrolling.

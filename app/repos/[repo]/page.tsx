@@ -56,7 +56,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
             <ul className="divide-y divide-line overflow-hidden rounded-xl border bg-card text-card-foreground">
               {pulls.value.map((pr) => (
                 <li key={pr.number} className="flex flex-col gap-0.5 px-4 py-2.5 text-sm">
-                  <a href={pr.url} className="break-words underline-offset-2 hover:underline" rel="noreferrer">
+                  <a href={pr.url} className="wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
                     #{pr.number} {pr.title}
                     {pr.draft ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">draft</span> : null}
                   </a>
@@ -92,7 +92,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
                 {checks.value.checks.map((c, i) => (
                   <li key={`${c.name}-${i}`} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm">
                     <StateBadge state={c.conclusion === "success" ? "green" : c.status !== "completed" ? "pending" : c.conclusion === "neutral" || c.conclusion === "skipped" ? "unknown" : "red"} />
-                    <a href={c.url} className="break-words underline-offset-2 hover:underline" rel="noreferrer">
+                    <a href={c.url} className="wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
                       {c.name}
                     </a>
                     <span className="text-xs text-muted-foreground">
@@ -169,7 +169,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
           <h2 className="text-lg">Perf</h2>
           {view.perfReason ? (
             <p className="text-sm text-muted-foreground">
-              <StateBadge state="unknown" /> <span className="break-words">{view.perfReason}</span>
+              <StateBadge state="unknown" /> <span className="wrap-anywhere">{view.perfReason}</span>
             </p>
           ) : perf.length === 0 ? (
             <p className="text-sm text-muted-foreground">No metrics recorded.</p>
@@ -190,7 +190,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
                       </span>
                     </>
                   ) : (
-                    <span className="text-xs break-words text-muted-foreground">{m.reason ?? "no records"}</span>
+                    <span className="text-xs wrap-anywhere text-muted-foreground">{m.reason ?? "no records"}</span>
                   )}
                 </li>
               ))}
