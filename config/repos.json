@@ -24,6 +24,8 @@
       "title": "Other",
       "repos": {
         "monitoring": "this dashboard",
+        "setup": "plans qq setup for an org or a machine; this version only reads",
+        "agent-skills": "skills that let an agent do a whole job from one prompt",
         "xo-cowork-api": "an older repo",
         "environment": "an older repo",
         "quirq_ai": "an older repo",

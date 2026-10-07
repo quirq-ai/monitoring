@@ -37,19 +37,25 @@ export type RawResult =
 
 // Next caches only 200s, so a missing file would be fetched again on every render. A 404 is
 // remembered here for the same window instead (per server process; on Vercel, per instance).
-const missing = new Map<string, number>();
+const missing = new Map<string, { until: number; message?: string }>();
 
-export function rememberMissing(url: string, seconds: number): void {
-  missing.set(url, Date.now() + seconds * 1000);
-  if (missing.size > 500) for (const [key, until] of missing) if (until < Date.now()) missing.delete(key);
+/** `message` is what the server said with the 404 (GitHub's own `message`), kept with it. */
+export function rememberMissing(url: string, seconds: number, message?: string): void {
+  missing.set(url, { until: Date.now() + seconds * 1000, message });
+  if (missing.size > 500) for (const [key, entry] of missing) if (entry.until < Date.now()) missing.delete(key);
 }
 
 export function isRememberedMissing(url: string): boolean {
-  const until = missing.get(url);
-  if (until === undefined) return false;
-  if (until > Date.now()) return true;
+  const entry = missing.get(url);
+  if (entry === undefined) return false;
+  if (entry.until > Date.now()) return true;
   missing.delete(url);
   return false;
+}
+
+/** The message remembered with a 404, if any. */
+export function rememberedMissingMessage(url: string): string | undefined {
+  return isRememberedMissing(url) ? missing.get(url)?.message : undefined;
 }
 
 /** Tests call this between cases; nothing else should. */

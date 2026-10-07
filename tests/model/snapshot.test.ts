@@ -248,12 +248,17 @@ describe("snapshot", () => {
     // The fixture written for the real day (`{{today}}`) is only in the strip on that one day.
     const pinned = "2026-10-07";
     const { release } = await buildSnapshot({ now: new Date(`${pinned}T12:00:00Z`) });
-    const channels = JSON.parse(fixture("raw/release/release-state/channels.json")) as Record<string, Record<string, { commit: string; generation: number }>>;
+    const channels = (JSON.parse(fixture("raw/release/release-state/channels.json")) as { repos: Record<string, Record<string, { commit: string; generation: number }>> }).repos;
+    let compared = 0;
     for (const r of release.repos) {
       for (const [name, entry] of Object.entries(channels[r.repo] ?? {})) {
         expect(r.channels[name], `${r.repo} ${name}`).toMatchObject({ state: "green", text: `${short(entry.commit)} gen ${entry.generation}` });
+        compared += 1;
       }
     }
+    const total = Object.values(channels).reduce((n, byChannel) => n + Object.keys(byChannel).length, 0);
+    expect(compared, "every channel entry in the fixture was compared").toBe(total);
+    expect(total).toBeGreaterThan(0);
     const xo = release.repos.find((r) => r.repo === "xo-space");
     const byDate = Object.fromEntries((xo?.days ?? []).map((d) => [d.date, d.outcome]));
     // The templated file for the request day wins over a captured file of the same date.
@@ -275,6 +280,55 @@ describe("snapshot", () => {
     expect(unregistered).toEqual(["zz-not-registered"]);
     expect(board.at(-1)?.id).toBe("unregistered");
     expect(board.at(-1)?.repos[0]).toMatchObject({ name: "zz-not-registered", registered: false });
+  });
+
+  it("lists the perf reads on Health, and a refused run listing", async () => {
+    const fixtures = await withFixtures([
+      { path: "/repos/quirq-ai/release/contents/canary/xo-space/runs", status: 403, body: JSON.stringify({ message: "Resource not accessible by personal access token" }) },
+    ]);
+    const { sources, board } = await buildSnapshot();
+    const ids = sources.map((s) => s.source);
+    expect(ids).toContain("perf/metrics/innernet");
+    expect(ids).toContain("perf/innernet/build-size");
+    expect(sources.find((s) => s.source === "perf/innernet/build-size")?.ok).toBe(true);
+    // Perf has no website directory (a 404): not measured, so no row and nothing unknown.
+    expect(ids.some((id) => id.startsWith("perf/metrics/website") || id.startsWith("perf/website/")), "website is not measured, so no perf row").toBe(false);
+    expect(fixtures.log.misses.some((m) => m.includes("/perf/contents/website")), "the website listing was asked and answered 404").toBe(true);
+    const website = board.find((g) => g.id === "products")?.repos.find((r) => r.name === "website");
+    expect(website?.canary).toMatchObject({ state: "none" });
+    const listing = sources.find((s) => s.source === "release/canary-listing/xo-space");
+    expect(listing?.ok).toBe(false);
+    expect(listing?.reason).toContain("refused (403)");
+    expect(ids).not.toContain("release/canary-listing/innernet");
+    // A product outside the canary has no run files by design, so none are listed or probed.
+    expect(ids.some((id) => id.startsWith("release/canary-listing/website") || id.startsWith("release/canary/website/"))).toBe(false);
+    expect(fixtures.log.misses.some((m) => m.includes("/release/contents/canary/website/runs")), "no run listing is asked for website").toBe(false);
+    expect(fixtures.log.misses.some((m) => m.includes("/canary/website/runs/")), "no run file is probed for website").toBe(false);
+  });
+
+  it("shows every perf listing unknown when the 404 says the perf-data branch is missing", async () => {
+    const gone = (repo: string) => ({ path: `/repos/quirq-ai/perf/contents/${repo}`, status: 404, body: JSON.stringify({ message: "No commit found for the ref perf-data", documentation_url: "https://docs.github.com/rest/repos/contents" }) });
+    await withFixtures([gone("innernet"), gone("xo-space"), gone("website")]);
+    const { sources, counts } = await buildSnapshot();
+    for (const repo of ["innernet", "xo-space", "website"]) {
+      expect(sources.find((s) => s.source === `perf/metrics/${repo}`), repo).toMatchObject({ ok: false, reason: "perf-data: GitHub API returned 404: No commit found for the ref perf-data" });
+    }
+    expect(sources.some((s) => s.source.startsWith("perf/innernet/")), "no series is read behind a missing branch").toBe(false);
+    expect(counts.unknownOrStale).toBeGreaterThanOrEqual(3);
+  });
+
+  it("shows a refused perf listing and a malformed metric file on Health, with the reason", async () => {
+    await withFixtures([
+      { path: "/repos/quirq-ai/perf/contents/xo-space", status: 403, body: JSON.stringify({ message: "Resource not accessible by personal access token" }) },
+      { raw: "perf/perf-data/innernet/innernet-search.jsonl", body: "not json\n" },
+    ]);
+    const { sources, counts } = await buildSnapshot();
+    const by = (id: string) => sources.find((s) => s.source === id);
+    expect(by("perf/metrics/xo-space")).toMatchObject({ ok: false, reason: "perf-data: GitHub API refused (403): Resource not accessible by personal access token" });
+    expect(sources.some((s) => s.source.startsWith("perf/xo-space/")), "no series is read behind a refused listing").toBe(false);
+    expect(by("perf/innernet/innernet-search")).toMatchObject({ ok: false, reason: expect.stringContaining("has no qq-perf-record/1 records") });
+    expect(by("perf/innernet/build-size")?.ok).toBe(true);
+    expect(counts.unknownOrStale).toBeGreaterThanOrEqual(2);
   });
 
   it("makes at most 70 API requests for one cold render", async () => {

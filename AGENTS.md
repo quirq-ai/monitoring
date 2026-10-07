@@ -104,7 +104,7 @@ use it. In cloud sessions the shadcn registry (`ui.shadcn.com`) is blocked, so `
 ```
 app/
   layout.tsx             fonts, theme, header with wordmark
-  page.tsx               Today
+  (today)/page.tsx       Today (a route group, so it has its own loading.tsx)
   waiting/page.tsx       Waiting on you
   board/page.tsx         Board
   release/page.tsx       Release
@@ -215,9 +215,9 @@ export type Signal<T> = {
   limit (`x-ratelimit-remaining: 0`) carries GitHub's own `message` from the body, one line cut at
   120 characters ("GitHub API refused (403): Resource not accessible by personal access token"),
   so Health shows GitHub's reason, whatever it is: a missing permission, or a secondary rate limit
-  ("You have exceeded a secondary rate limit", with a `retry-after` header and remaining above 0),
-  which today takes the same path with no back-off (listed under "What is not built" in the
-  README: treat a 403 that carries `retry-after` as rate limited). Such a reason is the row's own
+  ("You have exceeded a secondary rate limit", remaining above 0, sometimes with a `retry-after`
+  header), which today takes the same path with no back-off (listed under "What is not built" in
+  the README: treat such a 403 as rate limited). Such a reason is the row's own
   and does not fold the row as quiet; the banner repeats it only when every GitHub read fails.
 
 ### Freshness
@@ -251,7 +251,7 @@ whether the writer is alive. So:
 | release `lkgr` | every 10 min | 30 min |
 | perf `perf` | :17 and :47 | 90 min |
 | test-pipelines `scorecard` | every 6 h | 13 h |
-| release `canary` | daily, schedule from infra-config `channels.toml` | 26 h after the scheduled time (derived, not restated) |
+| release `canary` | daily, schedule from infra-config `channels.toml` | 26 h (fixed in `config/freshness.ts`, not yet derived from the schedule) |
 | release `canary-watchdog` | 09:43 and 13:43 daily | 26 h |
 | rollers `roll-toolchains` | weekly, Monday 06:23 (cadence in infra-config `rollers.toml`) | 8 days |
 | depot `e2e-sync` | daily 06:17 | 26 h |
@@ -279,10 +279,20 @@ cloud session, and REST with the issue search covers the same questions in a han
 - One `actions/workflows/<file>/runs` call per writer workflow (9), cached 300 s: about 108 an
   hour.
 - Directory listings through the contents API, cached 300 s: test-pipelines `results` failures/
-  (raw cannot list a directory), gardener `ledger` reverts/ and landed/, perf `perf-data` per
-  product, and release `canary/<repo>/runs/` per product, so only the days that have a file are
-  read (raw answers 404 for the rest, which Next never caches). Without a token the days are
-  probed one by one instead. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
+  (raw cannot list a directory), gardener `ledger` reverts/ and landed/, and release
+  `canary/<repo>/runs/` per product in the canary (a product with no channels has no run files by
+  design, so none is listed or probed for it), so only the days that have a file are read (raw
+  answers 404 for the rest, which Next never caches). Without a token the days are probed one by
+  one instead; a refused or malformed listing is a source failure on Health
+  (`release/canary-listing/<repo>`, with "days read one by one" in its reason) and the days are
+  probed. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
+- The perf `perf-data` listing per product, cached 1 h, and each metric file read raw, cached
+  600 s: on the repo page, and on Health so a refused or malformed file is seen. Perf decides on
+  its own which products it measures, so a product with no directory there (a plain "Not Found"
+  404) is "not measured": an empty list on the repo page and no row on Health, never an unknown.
+  A 404 whose message says the ref is missing is the `perf-data` branch gone, and is a failure
+  with that message (`lib/github.ts` keeps GitHub's message with a 404; the same rule tells a
+  missing `canary/<repo>/runs/` directory from a missing `release-state` branch).
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is the no-token fallback:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
@@ -306,8 +316,8 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 |---|---|---|
 | infra-config `repos` | `config/repos.toml` | products: kinds, channels, deploy target |
 | infra-config `channels` | `config/channels.toml` | channel order, cadence, canary schedule |
-| infra-config `health` | `config/health.toml` | probes and v0 signals |
-| gate `settings` | `settings/github.toml` | `[[repo]]`: 13 infra repos plus xo-space and innernet |
+| infra-config `health` | `config/health.toml` | probes and v0 signals (not read yet: no module in `lib/sources/` reads it) |
+| gate `settings` | `settings/github.toml` | `[[repo]]`: 13 infra repos plus the products xo-space, innernet and website (file as of gate 2a73334, 2026-10-06; website merged there, not yet applied) |
 
 **State branches (raw):**
 
@@ -474,5 +484,6 @@ pnpm live          # every source once against the real branches; paste the summ
   publish yet, propose it to that repo in its own PR instead of scraping around it.
 - Environment variables: `GITHUB_TOKEN` (optional, read-only), `MONITORING_ORG` (default
   `quirq-ai`), `MONITORING_OWNER` (the login "waiting on you" is about, default `sharmasuraj0123`),
-  and for tests only `MONITORING_RAW_BASE` and `MONITORING_API_BASE` (the fixture server). Document
-  any new one here and in `.env.example` with an empty value.
+  and for tests only `MONITORING_RAW_BASE` and `MONITORING_API_BASE` (the fixture server) and
+  `PW_CHROMIUM_PATH` (Playwright's Chromium, for local runs). Document any new one here and in
+  `.env.example` with an empty value.

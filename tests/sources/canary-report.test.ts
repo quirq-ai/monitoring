@@ -14,6 +14,13 @@ describe("canary report", () => {
     expect(signal.value.markdown.length).toBeGreaterThan(50);
   });
 
+  it("falls back to an older day when the newest has no report", async () => {
+    await withFixtures([{ raw: "release/release-state/reports/2026-10-06.md", status: 404, body: "404: Not Found" }]);
+    const signal = await readLatestCanaryReport(3, new Date("2026-10-06T12:00:00Z"));
+    expect(signal.ok).toBe(true);
+    if (signal.ok) expect(signal.value.date).toBe("2026-10-05");
+  });
+
   it("is unknown when no day has a report", async () => {
     await withFixtures();
     const signal = await readLatestCanaryReport(3, new Date("2026-09-10T12:00:00Z"));

@@ -1,5 +1,5 @@
 import "server-only";
-import { describeError, forgetMissing, isRememberedMissing, ORG, rememberMissing, REQUEST_TIMEOUT_MS } from "@/lib/fetch";
+import { describeError, forgetMissing, isRememberedMissing, ORG, rememberedMissingMessage, rememberMissing, REQUEST_TIMEOUT_MS } from "@/lib/fetch";
 import { readAt } from "@/lib/signal";
 
 // The only GitHub API client. GET only: the dashboard never writes. The token is sent only to
@@ -8,7 +8,7 @@ import { readAt } from "@/lib/signal";
 
 export type ApiResult<T> =
   | { ok: true; data: T; url: string; fetchedAt: string; maxAge: number; status: number }
-  | { ok: false; reason: string; url: string; status?: number; fetchedAt: string; maxAge: number };
+  | { ok: false; reason: string; url: string; status?: number; message?: string; fetchedAt: string; maxAge: number };
 
 // Once GitHub answers with the rate limit, every further call until the reset would be refused
 // too, so the reset time is kept here and calls are skipped until then (per server process). A
@@ -120,7 +120,17 @@ export type ApiOptions = {
  * body is JSON the API wrote; anything else, or no body at all, gives nothing.
  */
 const REFUSAL_MESSAGE_MAX = 120;
-async function refusalMessage(res: Response): Promise<string | undefined> {
+/** True for GitHub's plain "Not Found" (or no message at all): the path is missing, not the ref. */
+export function isPlainNotFound(message: string | undefined): boolean {
+  return message === undefined || /^not found\.?$/i.test(message);
+}
+
+/** "GitHub API returned 404", with GitHub's message when it says more than "Not Found". */
+function missingReason(message: string | undefined): string {
+  return isPlainNotFound(message) ? "GitHub API returned 404" : `GitHub API returned 404: ${message}`;
+}
+
+async function responseMessage(res: Response): Promise<string | undefined> {
   try {
     const body: unknown = await res.json();
     if (typeof body !== "object" || body === null || !("message" in body)) return undefined;
@@ -146,7 +156,10 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
   if (!token) return { ok: false, reason: "no token", url, fetchedAt: new Date().toISOString(), maxAge };
   const limited = rateLimitedUntil();
   if (limited) return { ok: false, reason: `${RATE_LIMIT_REASON} ${limited}`, url, status: 403, fetchedAt: new Date().toISOString(), maxAge };
-  if (isRememberedMissing(url)) return { ok: false, reason: "GitHub API returned 404", url, status: 404, fetchedAt: new Date().toISOString(), maxAge };
+  if (isRememberedMissing(url)) {
+    const message = rememberedMissingMessage(url);
+    return { ok: false, reason: missingReason(message), url, status: 404, message, fetchedAt: new Date().toISOString(), maxAge };
+  }
   const waiting = backedOff(url);
   if (waiting) return { ok: false, reason: waiting, url, fetchedAt: new Date().toISOString(), maxAge };
 
@@ -173,14 +186,20 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
         limitedUntil = Math.max(limitedUntil ?? 0, resetAt);
         return { ok: false, reason: `${RATE_LIMIT_REASON} ${new Date(resetAt).toISOString()}`, url, status: res.status, fetchedAt, maxAge };
       }
-      const said = await refusalMessage(res);
+      const said = await responseMessage(res);
       return { ok: false, reason: `GitHub API refused (${res.status})${said ? `: ${said}` : ""}`, url, status: res.status, fetchedAt, maxAge };
     }
     if (res.status === 401) {
       return { ok: false, reason: "token rejected", url, status: 401, fetchedAt, maxAge };
     }
+    if (res.status === 404) {
+      // GitHub answers 404 for a missing path ("Not Found") and for a missing ref ("No commit
+      // found for the ref <branch>"); the message tells them apart, so it is kept with the 404.
+      const message = await responseMessage(res);
+      rememberMissing(url, options.revalidate, message);
+      return { ok: false, reason: missingReason(message), url, status: 404, message, fetchedAt, maxAge };
+    }
     if (!res.ok) {
-      if (res.status === 404) rememberMissing(url, options.revalidate);
       const reason = `GitHub API returned ${res.status}`;
       if (res.status >= 500) backOff(url, reason);
       return { ok: false, reason, url, status: res.status, fetchedAt, maxAge };
