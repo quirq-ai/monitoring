@@ -92,6 +92,17 @@ describe("canary runs", () => {
     expect(fixtures.log.requests, "one listing call, then one raw read per day").toBe(4);
   });
 
+  it("reports a 404 that says the release-state branch is missing, and still probes each day", async () => {
+    const fixtures = await withFixtures([
+      { path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: JSON.stringify({ message: "No commit found for the ref release-state" }) },
+    ]);
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing?.ok).toBe(false);
+    if (listing && !listing.ok) expect(listing.reason).toBe("release-state: canary/innernet/runs listing: GitHub API returned 404: No commit found for the ref release-state; days read one by one");
+    expect(days[1].run.ok && days[1].run.value?.outcome).toBe("shipped");
+    expect(fixtures.log.requests).toBe(4);
+  });
+
   it("treats a directory that does not exist yet as no runs, not a failure", async () => {
     await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: "{}" }]);
     const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));

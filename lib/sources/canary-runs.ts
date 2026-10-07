@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { blobUrl, fetchRaw, parseJson, schemaReason, treeUrl } from "@/lib/fetch";
-import { assertRepoName, ghGet, hasToken, repoPath } from "@/lib/github";
+import { assertRepoName, ghGet, hasToken, isPlainNotFound, repoPath } from "@/lib/github";
 import { failSignal, okSignal, type Signal } from "@/lib/signal";
 
 // release release-state canary/<repo>/runs/<date>.json: one outcome per repo per day. A day with
@@ -92,7 +92,8 @@ export async function listCanaryRunDates(repo: string): Promise<Signal<string[]>
   const sourceUrl = treeUrl(REPO, BRANCH, `canary/${repo}/runs`);
   const api = await ghGet<unknown>(repoPath(REPO, `contents/canary/${repo}/runs`), { revalidate: REVALIDATE, params: { ref: BRANCH } });
   if (!api.ok) {
-    if (api.status === 404) return okSignal(source, sourceUrl, [], undefined, api);
+    // A missing directory is no runs yet; a 404 that says the ref is missing is the branch gone.
+    if (api.status === 404 && isPlainNotFound(api.message)) return okSignal(source, sourceUrl, [], undefined, api);
     return failSignal(source, sourceUrl, `release-state: canary/${repo}/runs listing: ${api.reason}; days read one by one`, api);
   }
   const parsed = ListingSchema.safeParse(api.data);

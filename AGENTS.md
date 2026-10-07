@@ -288,8 +288,11 @@ cloud session, and REST with the issue search covers the same questions in a han
   probed. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
 - The perf `perf-data` listing per product, cached 1 h, and each metric file read raw, cached
   600 s: on the repo page, and on Health so a refused or malformed file is seen. Perf decides on
-  its own which products it measures, so a product with no directory there (a 404) is "not
-  measured": an empty list on the repo page and no row on Health, never an unknown.
+  its own which products it measures, so a product with no directory there (a plain "Not Found"
+  404) is "not measured": an empty list on the repo page and no row on Health, never an unknown.
+  A 404 whose message says the ref is missing is the `perf-data` branch gone, and is a failure
+  with that message (`lib/github.ts` keeps GitHub's message with a 404; the same rule tells a
+  missing `canary/<repo>/runs/` directory from a missing `release-state` branch).
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is the no-token fallback:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
@@ -314,7 +317,7 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | infra-config `repos` | `config/repos.toml` | products: kinds, channels, deploy target |
 | infra-config `channels` | `config/channels.toml` | channel order, cadence, canary schedule |
 | infra-config `health` | `config/health.toml` | probes and v0 signals (not read yet: no module in `lib/sources/` reads it) |
-| gate `settings` | `settings/github.toml` | `[[repo]]`: 13 infra repos plus the products xo-space, innernet and website (gate 2a73334, 2026-10-06) |
+| gate `settings` | `settings/github.toml` | `[[repo]]`: 13 infra repos plus the products xo-space, innernet and website (file as of gate 2a73334, 2026-10-06; website merged there, not yet applied) |
 
 **State branches (raw):**
 

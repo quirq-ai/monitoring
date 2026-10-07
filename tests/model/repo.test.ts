@@ -39,6 +39,14 @@ describe("repo view", () => {
     expect(view.perfReason).toBeUndefined();
   });
 
+  it("says why when the perf-data branch is missing, instead of showing no metrics", async () => {
+    await withFixtures([{ path: "/repos/quirq-ai/perf/contents/innernet", status: 404, body: JSON.stringify({ message: "No commit found for the ref perf-data", documentation_url: "https://docs.github.com/rest/repos/contents" }) }]);
+    const view = await buildRepoView("innernet");
+    if (!view || "unavailable" in view) throw new Error("expected a repo view");
+    expect(view.perf).toEqual([]);
+    expect(view.perfReason).toBe("perf-data: GitHub API returned 404: No commit found for the ref perf-data");
+  });
+
   it("is unavailable, not a 404, when the registries cannot be read", async () => {
     await withFixtures([
       { raw: "infra-config/main/config/repos.toml", status: 502, body: "" },

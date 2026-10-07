@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { blobUrl, fetchRaw, parseValue, treeUrl } from "@/lib/fetch";
-import { assertRepoName, ghGet, isSafeName, repoPath } from "@/lib/github";
+import { assertRepoName, ghGet, isPlainNotFound, isSafeName, repoPath } from "@/lib/github";
 import { failSignal, okSignal, type Signal } from "@/lib/signal";
 
 // perf perf-data <repo>/<metric>.jsonl: one qq-perf-record/1 per line, write-once. Raw cannot
@@ -43,8 +43,9 @@ export async function listPerfMetrics(repo: string): Promise<Signal<string[]>> {
   });
   if (!api.ok) {
     // Perf decides on its own which products it measures (its workflow matrix), so a directory
-    // that is not there is "not measured": an empty list, a fact, never an unknown.
-    if (api.status === 404) return okSignal(source, sourceUrl, [], undefined, api);
+    // that is not there is "not measured": an empty list, a fact, never an unknown. A 404 that
+    // says the ref is missing is the whole branch gone, which is a failure, not "not measured".
+    if (api.status === 404 && isPlainNotFound(api.message)) return okSignal(source, sourceUrl, [], undefined, api);
     return failSignal(source, sourceUrl, `perf-data: ${api.reason}`, api);
   }
   const parsed = parseValue(z.array(EntrySchema), api.data, `perf-data: ${repo}/`);

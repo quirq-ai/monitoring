@@ -302,6 +302,19 @@ describe("snapshot", () => {
     expect(ids).not.toContain("release/canary-listing/innernet");
     // A product outside the canary has no run files by design, so none are listed or probed.
     expect(ids.some((id) => id.startsWith("release/canary-listing/website") || id.startsWith("release/canary/website/"))).toBe(false);
+    expect(fixtures.log.misses.some((m) => m.includes("/release/contents/canary/website/runs")), "no run listing is asked for website").toBe(false);
+    expect(fixtures.log.misses.some((m) => m.includes("/canary/website/runs/")), "no run file is probed for website").toBe(false);
+  });
+
+  it("shows every perf listing unknown when the 404 says the perf-data branch is missing", async () => {
+    const gone = (repo: string) => ({ path: `/repos/quirq-ai/perf/contents/${repo}`, status: 404, body: JSON.stringify({ message: "No commit found for the ref perf-data", documentation_url: "https://docs.github.com/rest/repos/contents" }) });
+    await withFixtures([gone("innernet"), gone("xo-space"), gone("website")]);
+    const { sources, counts } = await buildSnapshot();
+    for (const repo of ["innernet", "xo-space", "website"]) {
+      expect(sources.find((s) => s.source === `perf/metrics/${repo}`), repo).toMatchObject({ ok: false, reason: "perf-data: GitHub API returned 404: No commit found for the ref perf-data" });
+    }
+    expect(sources.some((s) => s.source.startsWith("perf/innernet/")), "no series is read behind a missing branch").toBe(false);
+    expect(counts.unknownOrStale).toBeGreaterThanOrEqual(3);
   });
 
   it("shows a refused perf listing and a malformed metric file on Health, with the reason", async () => {
