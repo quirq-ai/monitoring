@@ -115,6 +115,26 @@ export type ApiOptions = {
 };
 
 /**
+ * GitHub's own one-line `message` from a refusal body (for example "Resource not accessible by
+ * personal access token"), cut to one line and 120 characters, so a 403 on Health says why. The
+ * body is JSON the API wrote; anything else, or no body at all, gives nothing.
+ */
+const REFUSAL_MESSAGE_MAX = 120;
+async function refusalMessage(res: Response): Promise<string | undefined> {
+  try {
+    const body: unknown = await res.json();
+    if (typeof body !== "object" || body === null || !("message" in body)) return undefined;
+    const message = (body as { message: unknown }).message;
+    if (typeof message !== "string") return undefined;
+    const line = message.replace(/\s+/g, " ").trim();
+    if (!line) return undefined;
+    return line.length > REFUSAL_MESSAGE_MAX ? `${line.slice(0, REFUSAL_MESSAGE_MAX - 1)}…` : line;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * GET `/<path>` from the GitHub API. Without a token it returns `no token` without calling: the
  * anonymous limit (60 an hour) is too small to be useful and would show as a confusing failure.
  */
@@ -153,7 +173,8 @@ export async function ghGet<T>(path: string, options: ApiOptions): Promise<ApiRe
         limitedUntil = Math.max(limitedUntil ?? 0, resetAt);
         return { ok: false, reason: `${RATE_LIMIT_REASON} ${new Date(resetAt).toISOString()}`, url, status: res.status, fetchedAt, maxAge };
       }
-      return { ok: false, reason: `GitHub API refused (${res.status})`, url, status: res.status, fetchedAt, maxAge };
+      const said = await refusalMessage(res);
+      return { ok: false, reason: `GitHub API refused (${res.status})${said ? `: ${said}` : ""}`, url, status: res.status, fetchedAt, maxAge };
     }
     if (res.status === 401) {
       return { ok: false, reason: "token rejected", url, status: 401, fetchedAt, maxAge };
