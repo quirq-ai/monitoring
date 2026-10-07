@@ -173,7 +173,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground font-sans;
@@ -254,25 +254,6 @@
 .markdown ol {
   padding-left: 1.25rem;
   list-style: disc;
-}
-
-.state-green {
-  color: var(--state-green);
-}
-.state-red {
-  color: var(--state-red);
-}
-.state-held {
-  color: var(--state-held);
-}
-.state-pending {
-  color: var(--state-pending);
-}
-.state-unknown {
-  color: var(--state-unknown);
-}
-.state-stale {
-  color: var(--state-stale);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -40,8 +40,8 @@ export default async function WaitingPage() {
           {snapshot.counts.waitingComplete ? "Nothing is waiting on you." : read.asOf ? "Nothing is waiting on you in the sources that could be read." : "No data could be read for this page."}
         </Card>
       ) : (
-        <Card className="gap-0 divide-y divide-line overflow-hidden rounded-xl py-0 shadow-none">
-          <ol>
+        <Card className="gap-0 overflow-hidden rounded-xl py-0 shadow-none">
+          <ol className="divide-y divide-line">
             {snapshot.waiting.map((item, i) => (
               <li key={`${item.kind}-${item.url}-${i}`} className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/50">
                 <span className="flex flex-wrap items-center gap-2">
@@ -51,7 +51,7 @@ export default async function WaitingPage() {
                     {item.repo}
                   </Link>
                 </span>
-                <a href={item.url} className="text-base underline-offset-2 hover:underline" rel="noreferrer">
+                <a href={item.url} className="text-base break-words underline-offset-2 hover:underline" rel="noreferrer">
                   {item.title}
                 </a>
                 <span className="text-sm text-muted-foreground">

@@ -26,7 +26,7 @@ export function SiteNav() {
                 href={p.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 text-sm md:min-h-14",
+                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 text-sm -outline-offset-2 md:min-h-14",
                   current ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >

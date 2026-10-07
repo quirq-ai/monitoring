@@ -78,35 +78,44 @@ export default async function BoardPage() {
             </Table>
           </div>
           {/* On a phone, a non-product repo with nothing to look at (green, or unknown only because
-              the API banner's cause) is one line that opens on tap; anything else is a card. */}
+              the API banner's cause) is one line that opens on tap, and a run of such lines shares
+              one card; anything else is a card of its own. */}
           <ul className="flex flex-col gap-2 md:hidden">
-            {group.repos.map((row) =>
-              (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products" ? (
-                <li key={row.name}>
-                  <Collapsible>
-                    <Card className="gap-0 rounded-xl py-0 shadow-none">
-                      <div className="flex items-center gap-2 px-4">
-                        <Link href={`/repos/${row.name}`} className="min-h-11 flex-1 py-2 text-sm font-medium underline-offset-2 hover:underline">
-                          <span className="flex min-h-7 items-center">{row.name}</span>
-                        </Link>
-                        <StateBadge state={row.worst} />
-                        <CollapsibleTrigger className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180" aria-label={`Details for ${row.name}`}>
-                          <ChevronDown className="size-5 transition-transform" aria-hidden="true" />
-                        </CollapsibleTrigger>
-                      </div>
-                      <CollapsibleContent>
-                        <Fields row={row} now={now} product={false} />
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
-                </li>
-              ) : (
-                <li key={row.name}>
-                  <Card className="gap-3 rounded-xl px-4 py-3 shadow-none">
-                    <RepoName row={row} />
-                    <Fields row={row} now={now} product={group.id === "products"} />
+            {foldRuns(group.repos, (row) => (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products").map((run, i) =>
+              run.folded ? (
+                <li key={`folded-${i}`}>
+                  <Card className="gap-0 overflow-hidden rounded-xl py-0 shadow-none">
+                    <ul className="divide-y divide-line">
+                      {run.rows.map((row) => (
+                        <li key={row.name}>
+                          <Collapsible>
+                            <div className="flex min-h-11 items-center gap-2 px-4">
+                              <Link href={`/repos/${row.name}`} className="min-h-11 flex-1 py-2 text-sm font-medium underline-offset-2 hover:underline">
+                                <span className="flex min-h-7 items-center">{row.name}</span>
+                              </Link>
+                              <StateBadge state={row.worst} />
+                              <CollapsibleTrigger className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180" aria-label={`Details for ${row.name}`}>
+                                <ChevronDown className="size-5 transition-transform" aria-hidden="true" />
+                              </CollapsibleTrigger>
+                            </div>
+                            <CollapsibleContent>
+                              <Fields row={row} now={now} product={false} />
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </li>
+                      ))}
+                    </ul>
                   </Card>
                 </li>
+              ) : (
+                run.rows.map((row) => (
+                  <li key={row.name}>
+                    <Card className="gap-3 rounded-xl px-4 py-3 shadow-none">
+                      <RepoName row={row} />
+                      <Fields row={row} now={now} product={group.id === "products"} />
+                    </Card>
+                  </li>
+                ))
               ),
             )}
           </ul>
@@ -114,6 +123,18 @@ export default async function BoardPage() {
       ))}
     </div>
   );
+}
+
+/** Splits rows into runs, in order, of rows that fold to one line and rows that do not. */
+function foldRuns(rows: BoardRow[], folds: (row: BoardRow) => boolean): { folded: boolean; rows: BoardRow[] }[] {
+  const runs: { folded: boolean; rows: BoardRow[] }[] = [];
+  for (const row of rows) {
+    const folded = folds(row);
+    const last = runs.at(-1);
+    if (last && last.folded === folded) last.rows.push(row);
+    else runs.push({ folded, rows: [row] });
+  }
+  return runs;
 }
 
 function Fields({ row, now, product }: { row: BoardRow; now: Date; product: boolean }) {

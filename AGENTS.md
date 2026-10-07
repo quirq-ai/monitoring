@@ -353,7 +353,10 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   title attribute; phones have no hover, so the repo page shows exact times.
 - One `StateBadge` component for every state, everywhere: a dot in the state color (the 3:1
   marker; `unknown` is an outlined dot, so a missing value never looks like a quiet one) and the
-  state word in the text color. It never uses shadcn's `destructive`
+  state word in the text color, on a quiet muted pill so a badge inside a sentence does not run
+  into the words after it; `StateDot` is the dot alone, for the count tiles. Health's Sources list
+  says "ok", not "green", for a read that answered: readable is not healthy or fresh. It never
+  uses shadcn's `destructive`
   variant. Stock shadcn Button and Badge hard-code `text-white` on `destructive`; when you copy
   them, change that to `text-destructive-foreground`, drop the `dark:bg-destructive/60` overlay
   (with it, dark text is only 3.5:1), and add `--color-destructive-foreground:
@@ -364,7 +367,7 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   only if it fits without scrolling.
 - Phone first: what needs a look comes first (Today's "Needs a look", the Board's row order by
   worst state), and a green or quiet non-product repo on the Board is one line that opens on tap
-  (Collapsible). Every page segment has a `loading.tsx` (Skeleton) except the repo page, where a
+  (Collapsible), a run of such lines sharing one card. Every page segment has a `loading.tsx` (Skeleton) except the repo page, where a
   Suspense boundary would stream a 200 before `notFound()` can answer 404; `app/error.tsx` shows
   one fixed sentence and the digest (production replaces the message with a minified one) and
   offers a retry. A page cannot set a 503, so a repo whose registries could not be read is a 200
@@ -374,7 +377,7 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   host learns a viewer's address.
 - Tap targets are at least 44 px tall on a phone (nav links, the theme toggle, the window links).
 - Do not reuse PostHog's site design or assets (website was derived from it and its UI is being
-  replaced). The look comes from the quirq brand below.
+  replaced). The look comes from the Brand and themes section below.
 
 ## Brand and themes
 
@@ -383,7 +386,8 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - **Look.** Vercel's: suraj asked for it on 2026-10-07 ("sleek, professional, modern Vercel-type
   UI"), on shadcn components. Near-monochrome surfaces and text, hairline dividers, color only for
   the six states; a compact sticky header with the wordmark, a "/ Monitoring" label and underlined
-  tabs; stat tiles with the label above a large tabular number. Until then the palette was mapped
+  tabs; stat tiles with the label above a large tabular number. The sticky header needs
+  `scroll-padding-top` on `<html>`, or a focused element can land under it (WCAG 2.4.11). Until then the palette was mapped
   from xo-space's `quirq` and `linen` themes (`space_ui/css/themes.css`); see this file at
   e148ad9 for that mapping.
 - **Colors.** The tokens live in `app/globals.css`, in three blocks the contrast test parses:

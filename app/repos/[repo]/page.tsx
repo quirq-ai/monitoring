@@ -34,7 +34,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       <PageTitle title={row.name} lead={row.description || `${row.group} repo`}>
-        <a href={row.url} className="inline-flex min-h-9 w-fit items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-card-foreground transition-colors hover:bg-muted" rel="noreferrer">
+        <a href={row.url} className="inline-flex min-h-11 w-fit items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-card-foreground transition-colors hover:bg-muted md:min-h-9" rel="noreferrer">
           open on GitHub <ArrowUpRight aria-hidden="true" className="size-3.5" />
         </a>
       </PageTitle>
@@ -56,7 +56,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
             <ul className="divide-y divide-line overflow-hidden rounded-xl border bg-card text-card-foreground">
               {pulls.value.map((pr) => (
                 <li key={pr.number} className="flex flex-col gap-0.5 px-4 py-2.5 text-sm">
-                  <a href={pr.url} className="underline-offset-2 hover:underline" rel="noreferrer">
+                  <a href={pr.url} className="break-words underline-offset-2 hover:underline" rel="noreferrer">
                     #{pr.number} {pr.title}
                     {pr.draft ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">draft</span> : null}
                   </a>
@@ -92,7 +92,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
                 {checks.value.checks.map((c, i) => (
                   <li key={`${c.name}-${i}`} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm">
                     <StateBadge state={c.conclusion === "success" ? "green" : c.status !== "completed" ? "pending" : c.conclusion === "neutral" || c.conclusion === "skipped" ? "unknown" : "red"} />
-                    <a href={c.url} className="underline-offset-2 hover:underline" rel="noreferrer">
+                    <a href={c.url} className="break-words underline-offset-2 hover:underline" rel="noreferrer">
                       {c.name}
                     </a>
                     <span className="text-xs text-muted-foreground">

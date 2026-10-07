@@ -32,7 +32,7 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
               href={w === "24h" ? "/" : "/?since=7d"}
               aria-current={w === window ? "page" : undefined}
               className={cn(
-                "inline-flex min-h-10 items-center rounded-md px-3 transition-colors md:min-h-8",
+                "inline-flex min-h-11 items-center rounded-md px-3 transition-colors md:min-h-8",
                 w === window ? "border border-border bg-card font-medium text-card-foreground" : "text-muted-foreground hover:text-foreground",
               )}
             >
@@ -92,8 +92,8 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
 
 function ItemList({ items, now }: { items: TodayItem[]; now: Date }) {
   return (
-    <Card className="gap-0 divide-y divide-line overflow-hidden rounded-xl py-0 shadow-none">
-      <ol>
+    <Card className="gap-0 overflow-hidden rounded-xl py-0 shadow-none">
+      <ol className="divide-y divide-line">
         {items.map((item, i) => (
           <li key={`${item.kind}-${item.at}-${i}`} className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-start sm:gap-4">
             <span className="flex shrink-0 items-center gap-2 sm:w-44">
@@ -103,7 +103,7 @@ function ItemList({ items, now }: { items: TodayItem[]; now: Date }) {
               </Link>
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-              <a href={item.url} className="text-sm underline-offset-2 hover:underline" rel={item.url.startsWith("/") ? undefined : "noreferrer"}>
+              <a href={item.url} className="text-sm break-words underline-offset-2 hover:underline" rel={item.url.startsWith("/") ? undefined : "noreferrer"}>
                 {item.title}
                 {item.demo ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">planted demo, not counted</span> : null}
                 {item.cleared && (item.state === "red" || item.state === "held") ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">since cleared</span> : null}

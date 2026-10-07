@@ -1,8 +1,12 @@
-import { StateBadge } from "@/components/state-badge";
+import { StateBadge, StateDot } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
 import type { SourceStatus } from "@/lib/model/types";
 
-/** Every source this render read, with its state and the data's own time, as a plain list. */
+/**
+ * Every source this render read, with its state and the data's own time, as a plain list. A read
+ * that answered is "ok", not "green": `ok` says the file or API page could be read, not that what
+ * it says is healthy or fresh (the Board and the writers' cards judge that).
+ */
 export function SourcesList({ sources, now }: { sources: SourceStatus[]; now: Date }) {
   const sorted = [...sources].sort((a, b) => Number(a.ok) - Number(b.ok) || a.source.localeCompare(b.source));
   return (
@@ -10,7 +14,14 @@ export function SourcesList({ sources, now }: { sources: SourceStatus[]; now: Da
       {sorted.map((s, i) => (
         <li key={`${s.source}-${i}`} className="flex flex-col gap-0.5 px-4 py-2.5 text-sm">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <StateBadge state={s.ok ? "green" : "unknown"} />
+            {s.ok ? (
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
+                <StateDot state="green" />
+                ok
+              </span>
+            ) : (
+              <StateBadge state="unknown" />
+            )}
             <a href={s.sourceUrl} className="font-mono text-xs break-all underline-offset-2 hover:underline sm:text-sm" rel="noreferrer">
               {s.source}
             </a>

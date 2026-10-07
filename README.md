@@ -149,7 +149,7 @@ Next.js 16 (App Router, server components), TypeScript strict, Tailwind 4 and sh
 Alert, Table, Collapsible, Skeleton, Button), zod for every file read, react-markdown for the
 report, Vitest and Playwright. The look is the Vercel one suraj asked for on 2026-10-07: the
 quirq wordmark from innernet, a near-monochrome palette (white and black surfaces, neutral text,
-color only for the six states), Geist Sans for text and Geist Mono for ids and numbers. Phone
+color only for the six states), Geist Sans for text and Geist Mono for ids. Phone
 first; text contrast at least 4.5:1 and markers at least 3:1 in both themes, checked by a test.
 No popup ever scrolls. Titles and reports written by others are shown as text, never as HTML.
 
