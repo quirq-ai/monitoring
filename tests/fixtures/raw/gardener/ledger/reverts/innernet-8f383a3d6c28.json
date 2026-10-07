@@ -1,0 +1,21 @@
+{
+  "schema": "qq-revert/1",
+  "id": "innernet-8f383a3d6c28",
+  "repo": "innernet",
+  "culprit": "8f383a3d6c28f1e4495ff177efe70dca43d17604",
+  "kind": "test",
+  "action": "propose",
+  "created_at": "{{now-9h}}",
+  "reason": "innernet-postsubmit red since 8f383a3",
+  "group": "innernet-postsubmit",
+  "revert": "",
+  "runs": [
+    "https://github.com/quirq-ai/innernet/actions/runs/37500000002"
+  ],
+  "last_good": "d70c48aed3dda27ee73fbc44d9b00cd60073356c",
+  "title": "Search: rank recent sources first",
+  "culprit_landed_at": "{{now-10h}}",
+  "tests": [
+    "test_search_rank"
+  ]
+}

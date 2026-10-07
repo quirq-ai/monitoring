@@ -1,0 +1,22 @@
+[
+  {
+    "name": "build-size.jsonl",
+    "path": "innernet/build-size.jsonl",
+    "type": "file",
+    "size": 0,
+    "sha": "0000000000000000000000000000000000000000",
+    "url": "https://api.github.com/repos/quirq-ai/x/contents/innernet/build-size.jsonl",
+    "html_url": "https://github.com/quirq-ai/x/blob/main/innernet/build-size.jsonl",
+    "download_url": "https://raw.githubusercontent.com/quirq-ai/x/main/innernet/build-size.jsonl"
+  },
+  {
+    "name": "innernet-search.jsonl",
+    "path": "innernet/innernet-search.jsonl",
+    "type": "file",
+    "size": 0,
+    "sha": "0000000000000000000000000000000000000000",
+    "url": "https://api.github.com/repos/quirq-ai/x/contents/innernet/innernet-search.jsonl",
+    "html_url": "https://github.com/quirq-ai/x/blob/main/innernet/innernet-search.jsonl",
+    "download_url": "https://raw.githubusercontent.com/quirq-ai/x/main/innernet/innernet-search.jsonl"
+  }
+]

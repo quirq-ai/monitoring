@@ -1,0 +1,182 @@
+[
+  {
+    "path": "/search/issues",
+    "query": {
+      "q": "org:quirq-ai is:pr is:open"
+    },
+    "file": "api/search_pulls_open.json"
+  },
+  {
+    "path": "/search/issues",
+    "query": {
+      "q": "org:quirq-ai is:pr is:merged merged:>=*"
+    },
+    "file": "api/search_pulls_merged.json"
+  },
+  {
+    "path": "/search/issues",
+    "query": {
+      "q": "org:quirq-ai is:pr is:open review-requested:sharmasuraj0123"
+    },
+    "file": "api/search_pulls_review-requested.json"
+  },
+  {
+    "path": "/search/issues",
+    "query": {
+      "q": "org:quirq-ai is:pr is:open reviewed-by:sharmasuraj0123"
+    },
+    "file": "api/search_pulls_reviewed-by.json"
+  },
+  {
+    "path": "/search/issues",
+    "query": {
+      "q": "org:quirq-ai is:issue label:qq-failure is:open"
+    },
+    "file": "api/search_issues_qq-failure.json"
+  },
+  {
+    "path": "/search/issues",
+    "query": {
+      "q": "org:quirq-ai is:issue label:canary-report is:open"
+    },
+    "file": "api/search_issues_canary-report.json"
+  },
+  {
+    "path": "/repos/quirq-ai/xo-space/pulls/77",
+    "file": "api/xo-space_pull_77.json"
+  },
+  {
+    "path": "/repos/quirq-ai/xo-space/pulls/77/reviews",
+    "file": "api/xo-space_pull_77_reviews.json"
+  },
+  {
+    "path": "/repos/quirq-ai/gardener/commits",
+    "query": {
+      "sha": "tree-status"
+    },
+    "file": "api/gardener_tree-status_commits.json"
+  },
+  {
+    "path": "/repos/quirq-ai/test-pipelines/contents/failures",
+    "query": {
+      "ref": "results"
+    },
+    "file": "api/test-pipelines_contents_failures.json"
+  },
+  {
+    "path": "/repos/quirq-ai/perf/contents/innernet",
+    "query": {
+      "ref": "perf-data"
+    },
+    "file": "api/perf_contents_innernet.json"
+  },
+  {
+    "path": "/repos/quirq-ai/perf/contents/xo-space",
+    "query": {
+      "ref": "perf-data"
+    },
+    "file": "api/perf_contents_xo-space.json"
+  },
+  {
+    "path": "/orgs/quirq-ai/repos",
+    "file": "api/org_repos.json"
+  },
+  {
+    "path": "/repos/quirq-ai/release/contents/canary/innernet/runs",
+    "query": {
+      "ref": "release-state"
+    },
+    "file": "api/release_contents_canary_innernet_runs.json"
+  },
+  {
+    "path": "/repos/quirq-ai/release/contents/canary/xo-space/runs",
+    "query": {
+      "ref": "release-state"
+    },
+    "file": "api/release_contents_canary_xo-space_runs.json"
+  },
+  {
+    "path": "/repos/quirq-ai/gardener/actions/workflows/tree-status.yml/runs",
+    "file": "api/runs_gardener_tree-status.json"
+  },
+  {
+    "path": "/repos/quirq-ai/release/actions/workflows/lkgr.yml/runs",
+    "file": "api/runs_release_lkgr.json"
+  },
+  {
+    "path": "/repos/quirq-ai/perf/actions/workflows/perf.yml/runs",
+    "file": "api/runs_perf_perf.json"
+  },
+  {
+    "path": "/repos/quirq-ai/test-pipelines/actions/workflows/scorecard.yml/runs",
+    "file": "api/runs_test-pipelines_scorecard.json"
+  },
+  {
+    "path": "/repos/quirq-ai/release/actions/workflows/canary.yml/runs",
+    "file": "api/runs_release_canary.json"
+  },
+  {
+    "path": "/repos/quirq-ai/release/actions/workflows/canary-watchdog.yml/runs",
+    "file": "api/runs_release_canary-watchdog.json"
+  },
+  {
+    "path": "/repos/quirq-ai/rollers/actions/workflows/roll-toolchains.yml/runs",
+    "file": "api/runs_rollers_roll-toolchains.json"
+  },
+  {
+    "path": "/repos/quirq-ai/depot/actions/workflows/e2e-sync.yml/runs",
+    "file": "api/runs_depot_e2e-sync.json"
+  },
+  {
+    "path": "/repos/quirq-ai/installer/actions/workflows/live-manifest.yml/runs",
+    "file": "api/runs_installer_live-manifest.json"
+  },
+  {
+    "path": "/repos/quirq-ai/xo-space/commits/main/check-runs",
+    "file": "api/checks_red.json"
+  },
+  {
+    "path": "/repos/quirq-ai/gate/commits/main/check-runs",
+    "file": "api/checks_pending.json"
+  },
+  {
+    "path": "/repos/quirq-ai/wiki/commits/main/check-runs",
+    "file": "api/checks_none.json"
+  },
+  {
+    "path": "/repos/quirq-ai/monitoring/commits/main/check-runs",
+    "file": "api/monitoring_check-runs.json"
+  },
+  {
+    "path": "/repos/quirq-ai/*/commits/main/check-runs",
+    "file": "api/checks_green.json"
+  },
+  {
+    "path": "/repos/quirq-ai/innernet/deployments",
+    "file": "api/deployments_innernet.json"
+  },
+  {
+    "path": "/repos/quirq-ai/innernet/deployments/*/statuses",
+    "file": "api/deployments_innernet_statuses.json"
+  },
+  {
+    "path": "/repos/quirq-ai/website/deployments",
+    "file": "api/deployments_website.json"
+  },
+  {
+    "path": "/repos/quirq-ai/website/deployments/*/statuses",
+    "file": "api/deployments_website_statuses.json"
+  },
+  {
+    "path": "/repos/quirq-ai/monitoring/deployments",
+    "file": "api/monitoring_deployments.json"
+  },
+  {
+    "path": "/repos/quirq-ai/monitoring/deployments/*/statuses",
+    "file": "api/monitoring_deployment_statuses.json"
+  },
+  {
+    "path": "/repos/quirq-ai/*/deployments",
+    "file": "api/deployments_empty.json"
+  }
+]

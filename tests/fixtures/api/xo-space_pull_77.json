@@ -1,0 +1,19 @@
+{
+  "number": 77,
+  "state": "closed",
+  "title": "Inbox: poll connections every 30 s",
+  "html_url": "https://github.com/quirq-ai/xo-space/pull/77",
+  "draft": false,
+  "merged": true,
+  "mergeable": null,
+  "mergeable_state": "unknown",
+  "created_at": "2026-10-06T14:53:07Z",
+  "updated_at": "2026-10-06T17:14:54Z",
+  "head": {
+    "sha": "9b1d3f5a7c2e4d6b8a0f1e2d3c4b5a69788796a5",
+    "ref": "inbox-poll"
+  },
+  "base": {
+    "ref": "main"
+  }
+}

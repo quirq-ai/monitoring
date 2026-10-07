@@ -48,15 +48,13 @@ async function computedTokens(page: Page): Promise<Record<string, string>> {
   });
 }
 
-test.describe("empty shell", () => {
+test.describe("theme and contrast", () => {
   for (const theme of themes) {
     for (const viewport of viewports) {
       test(`${viewport.name} ${theme}`, async ({ page }) => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await openThemed(page, theme);
         await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
-        await expect(page.getByText("sources not connected")).toHaveCount(3);
-        await expect(page.locator("[data-state='unknown']")).toHaveCount(3);
         await expect(page.getByRole("img", { name: "quirq" })).toBeVisible();
 
         const tokens = await computedTokens(page);
@@ -66,9 +64,7 @@ test.describe("empty shell", () => {
         ].map(([fg, bg]) => `${fg} on ${bg}`);
         expect(failures).toEqual([]);
 
-        await page.screenshot({
-          path: `test-results/screenshots/today-${viewport.name}-${theme}.png`,
-        });
+        await page.screenshot({ path: `test-results/screenshots/today-${viewport.name}-${theme}.png` });
       });
     }
   }

@@ -113,17 +113,25 @@ app/
   api/snapshot/route.ts  GET only: the model as JSON
 components/
   ui/                    shadcn, unmodified where possible
-  state-badge.tsx        the one way to show a state
+  state-badge.tsx        the one way to show a state (a shadcn Badge)
+  api-banner.tsx         one Alert when the GitHub API as a whole is out
+  markdown.tsx           react-markdown with raw HTML off, for the canary report
   source-link.tsx        "from <source>, <age> ago"
 lib/
   sources/               one module per source
   model/                 Signals joined into the model
   github.ts              the only GitHub client
+  fetch.ts               raw reads, zod helpers; the only other fetch
+  signal.ts              the Signal type every source returns
 config/
   repos.json             repos no registry names
   freshness.ts           window per writer job
+  owner.ts               whose "waiting on you" it is (MONITORING_OWNER)
+  demo.ts                planted records that are never counted
 tests/
-  fixtures/              captured files, with origin
+  live-check.ts          `pnpm live`: every source once against GitHub
+  fixtures/              captured and synthetic files, with origin (README.md)
+  fixtures/server.mjs    serves them like raw and the API; GET only
   sources/*.test.ts      each source, good and bad
   e2e/*.spec.ts          pages: phone, desktop, themes
 ```
@@ -160,6 +168,46 @@ export type Signal<T> = {
   id, refuse a different one (for example `qq-channels/2`) with a reason that says the dashboard
   needs updating. `scorecard.json` has no `schema` field: validate its shape only.
 - **Timeouts.** 10 s per request. One failing source never breaks a page; its tiles show `unknown`.
+- **Read times.** `fetchedAt` is the response's own `Date` header, which the data cache keeps, not
+  the render time: Next serves an expired entry once while it refreshes in the background, so after
+  a quiet night the first render carries last night's data. Every signal also carries `maxAge` (its
+  cache window); the model marks a green or pending cell `stale` when its source was read more than
+  twice its window ago. `reads` says per page (Today, Waiting, Board) when its own sources were
+  last read (`asOf`, absent when none answered, so the page says "No data could be read" rather
+  than "just now") and whether any read is past twice its window (`stale`, shown on the count tiles
+  and over the lists). The registries are left out: the hourly org list says nothing about how
+  fresh the PRs or the files are.
+- **Facts are not states.** A cell whose text is a known fact with no health in it ("nothing merged
+  in 7 days", "no deployments", "nothing promoted yet", "not in the canary yet") has state `none`:
+  plain text, no badge, never counted. `green` means healthy, not "a thing exists". A product with
+  no channels in infra-config is outside the canary, so no lkgr pointer is read for it.
+- **The newest event per subject is the current one.** Today marks an older tree, canary or deploy
+  event `superseded` when a newer one exists for the same repo (`markSuperseded`), so "tree
+  closed" at 09:00 leaves "Needs a look" once "tree open" lands at 10:00; it stays in the
+  timeline marked "since cleared" when the newer event is green (`cleared`), and unmarked when
+  the newer event is another alarm. A writer whose last run failed is a "Needs a look" item that
+  opens Health, and counts in the third tile ("unknown, stale or failing") with the unreadable
+  sources and the stale writers; "red or held" counts Board cells only, since it opens the Board.
+- **Writers gate their files.** A tree, lkgr or canary cell is only as current as the job that
+  writes the file (`gateByWriter` in `lib/model/build.ts`): when gardener `tree-status`, release
+  `lkgr` or release `canary` is stale, red or unknown, a green or pending cell becomes stale or
+  unknown and says so (with the writer's reason shortened to "no token" or "rate limited" where
+  the banner explains it). Red and held cells stay, since the file's alarm is real whatever
+  happened since.
+- **Back-off.** `lib/github.ts` keeps the rate-limit reset time in module memory (trusted for at
+  most an hour, so a bad header cannot pin the state) and answers "rate limit" without calling
+  until then; an endpoint that answered 5xx or not at all is not asked again for one minute (per
+  URL, never globally: one 502 from one search must not blank the other cells, and a 5xx reaches
+  the client only when the data cache had nothing to serve, so the wait hides no cached data), with
+  the reason and the retry time in that cell; both clients remember a 404 for the source's window,
+  since Next caches only 200s. Tests call `forgetBackoff()` between cases (`withFixtures` does).
+- **One banner.** `health.api` says whether the API as a whole answers (`ok`, `no-token`,
+  `rate-limited`, `token-rejected`, `down`); every page shows it as one Alert whose description
+  does not repeat its title, and API cells then say just `unknown: no token` or `rate limited`,
+  carrying `because: "api"` (`isApiOutageReason`: no token, rate limit, rejected token, a wait
+  after a 5xx; never a 404, a bad body or a refused name, which are the row's own). A Board row
+  whose only unknowns are that cause is `quiet`, and the phone Board folds it to one line while
+  the banner is up, so a token outage reads as one line, not thirty open cards.
 - **GitHub API.** Always go through `lib/github.ts`. It sends the token only to `api.github.com`,
   reads the rate-limit headers, counts requests per hour, and returns
   `ok: false, reason: "GitHub API rate limit, resets at <time>"` instead of throwing. With no token
@@ -180,6 +228,8 @@ whether the writer is alive. So:
   Fetch the last 10 completed runs (`per_page=10`, still one call) and skip any whose conclusion is
   `cancelled` or `skipped`: every writer queues runs in a concurrency group, and GitHub cancels the
   older pending one, so cancellation is routine. Judge the newest remaining run:
+  - only runs on the writer's default branch count (`branch=main` in the request, and the run's
+    `head_branch` checked again), so a pull-request run of depot `e2e-sync` never reads as alive;
   - completed within the window with conclusion `success`: fresh;
   - completed within the window with any other conclusion: `red`, reason "<workflow> failed", with
     the run's link (the data may still be current; say so);
@@ -205,28 +255,39 @@ GitHub delays and sometimes drops scheduled runs on quiet repos, so `stale` mean
 
 ### API budget
 
-Targets, independent of visitor count: under 500 REST requests an hour (the token's limit is
-5,000) and under 2,500 GraphQL points an hour (limit 5,000; GraphQL is metered in points, not
-requests).
+Target, independent of visitor count: under 500 REST requests an hour (the token's limit is
+5,000). Everything is REST; there is no GraphQL (decided in M1: GraphQL cannot be exercised from a
+cloud session, and REST with the issue search covers the same questions in a handful of calls).
 
-- One GraphQL query, cached 120 s, returns every repo's open PRs (with review requests, assignees
-  and latest reviews), recent merged PRs, the default branch's last 10 commits with the head's
-  check rollup, and latest deployment. The same query also reads gardener's `tree-status` branch
-  history (`ref(qualifiedName: "refs/heads/tree-status")`, last 20 commits: the open/close log, with
-  times, for Today) and the entries of test-pipelines `results:failures` (raw cannot list a
-  directory), so Today and the Repo page need no extra calls. Estimated at about 50 points, so
-  about 1,500 points an hour.
-- One GraphQL issue search across the org for the `canary-report` and `qq-failure` labels, cached
-  300 s. `qq-failure` issues are filed in more than one repo (release and test-pipelines today),
-  so search the org, not one repo. Search can lag a newly filed issue by a few minutes, which is
-  fine here. About 12 an hour.
-- One REST call per writer workflow (9), cached 300 s: about 108 an hour.
-- The org repo list, cached 1 h: 1 an hour. The wiki's manifest is a no-token cross-check:
+- Four org-wide `search/issues` calls, cached 120 s, each one request: every open PR
+  (`is:pr is:open`), PRs merged in the last 7 days, PRs where the owner is a requested reviewer,
+  and PRs the owner has reviewed. The search index can lag a change by a minute or two. For the
+  reviewed PRs (a handful at most) one `pulls/<n>` plus one `pulls/<n>/reviews` call, cached
+  600 s, tells whether the approval is on an older head. About 120 an hour plus the reviews.
+- Two `search/issues` calls for the `canary-report` and `qq-failure` labels, cached 300 s.
+  `qq-failure` issues are filed in more than one repo (release and test-pipelines today), so
+  search the org, not one repo. About 24 an hour.
+- One `commits/<branch>/check-runs` call per board repo, cached 600 s: about 180 an hour for 30
+  repos. Deployments (`deployments` and the latest status) are read for products only.
+- One `actions/workflows/<file>/runs` call per writer workflow (9), cached 300 s: about 108 an
+  hour.
+- Directory listings through the contents API, cached 300 s: test-pipelines `results` failures/
+  (raw cannot list a directory), gardener `ledger` reverts/ and landed/, perf `perf-data` per
+  product, and release `canary/<repo>/runs/` per product, so only the days that have a file are
+  read (raw answers 404 for the rest, which Next never caches). Without a token the days are
+  probed one by one instead. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
+- The org repo list, cached 1 h: 1 an hour. The wiki's manifest is the no-token fallback:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
-`lib/github.ts` logs requests and GraphQL points per hour. Each page declares its sources, and a
-test fails if a cold render calls anything it did not declare or makes more than 12 API calls (the
-whole set above).
+Lists are cut at their page size and say so: an open-PR count is a floor ("3+") when the search
+had more than 100 results, and a head with more than 50 check runs rolls up `unknown`.
+
+`lib/github.ts` counts the client's calls per hour (`requestsThisHour`, per server process, and a
+call the Data Cache answers is counted too) and the Health page shows the count. A model test
+asserts that one cold render of every page makes at most 70 API requests against the fixture
+server, so a new per-repo call cannot slip in unnoticed. Every request carries `per_page`; nothing
+paginates, so a list longer than a page is cut, which is fine for a dashboard that shows the newest
+items.
 
 ## Sources
 
@@ -256,9 +317,10 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | test-pipelines `failures` | `results`: `failures/` | `quirq-results/1` |
 | perf `perf-data` | `perf-data`: `<repo>/<metric>.jsonl` | `qq-perf-record/1`, one per line |
 
-**GitHub API (token):** `pulls` and reviews, `checks`, `deployments` (Vercel's are expected to
-appear here; confirm per repo in M1), `workflow runs` of the writers above, `issues` labelled
-`canary-report` (in release, one per day) and `qq-failure` (in several repos), and `org repos`.
+**GitHub API (token):** `search/issues` for PRs and for the `canary-report` and `qq-failure`
+labels, `pulls/<n>` and its reviews, `check-runs`, `deployments` (Vercel's appear here as environment `Production`:
+confirmed with `pnpm live` on monitoring and innernet in M1), `workflow runs` of the writers above, `contents` listings and
+`org repos`.
 
 Filter out demo records: the only failure record on `results` today is a planted demo
 (`canary-held-aefebec4c11f668b`). Records carry no demo flag; the demo is recognised by its
@@ -281,6 +343,17 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - Numbers before charts. A chart only for a trend (canary strip, perf history), in plain SVG.
 - No popup, dialog or popover that scrolls; detail belongs on a page. A Sheet on a phone is fine
   only if it fits without scrolling.
+- Phone first: what needs a look comes first (Today's "Needs a look", the Board's row order by
+  worst state), and a green or quiet non-product repo on the Board is one line that opens on tap
+  (Collapsible). Every page segment has a `loading.tsx` (Skeleton) except the repo page, where a
+  Suspense boundary would stream a 200 before `notFound()` can answer 404; `app/error.tsx` shows
+  one fixed sentence and the digest (production replaces the message with a minified one) and
+  offers a retry. A page cannot set a 503, so a repo whose registries could not be read is a 200
+  that says "could not be looked up"; `notFound()` is the only status a page can choose.
+- Fetched Markdown: a table in the report sits in a scroll box with `tabIndex=0`, `role="region"`
+  and a label, so a keyboard can reach it; images are not fetched (alt text only), so no outside
+  host learns a viewer's address.
+- Tap targets are at least 44 px tall on a phone (nav links, the theme toggle, the window links).
 - Do not reuse PostHog's site design or assets (website was derived from it and its UI is being
   replaced). The look comes from the quirq brand below.
 
@@ -351,8 +424,18 @@ pnpm typecheck
 pnpm test          # vitest
 pnpm build
 pnpm e2e           # playwright: 390x844 and 1280x800, light and dark
+pnpm live          # every source once against the real branches; paste the summary
 ```
 
+- **Fixtures, not the network.** Tests and the Playwright run point the sources at
+  `tests/fixtures/server.mjs` through `MONITORING_RAW_BASE` and `MONITORING_API_BASE`, with a
+  dummy `GITHUB_TOKEN` that only ever reaches loopback. The server renders `{{now-5m}}` and
+  `{{today}}` tokens per request, so freshness and ages stay meaningful. `tests/fixtures/README.md`
+  names where each file came from; a synthetic file is always marked as such.
+- **Live check in a cloud session.** Node's `fetch` ignores the proxy unless `NODE_USE_ENV_PROXY=1`
+  is set, and the session's GitHub access covers only its configured repositories (other repos
+  and `search/issues` answer 403 there, not on Vercel). Run
+  `NODE_USE_ENV_PROXY=1 pnpm live` and say in the PR which rows could not be checked from there.
 - **Playwright version.** Cloud sessions ship Chromium for Playwright 1.56.1 in `/opt/pw-browsers`
   and must not download browsers, so pin `@playwright/test` to `1.56.1`. When you bump it, read
   the executable path from an environment variable (`PW_CHROMIUM_PATH`) in the config so local
@@ -382,5 +465,7 @@ pnpm e2e           # playwright: 390x844 and 1280x800, light and dark
   going on the safe default.
 - Other repos are read from here, never changed. If the dashboard needs data another repo does not
   publish yet, propose it to that repo in its own PR instead of scraping around it.
-- Environment variables: `GITHUB_TOKEN` (optional, read-only) and `MONITORING_ORG` (default
-  `quirq-ai`). Document any new one here and in `.env.example` with an empty value.
+- Environment variables: `GITHUB_TOKEN` (optional, read-only), `MONITORING_ORG` (default
+  `quirq-ai`), `MONITORING_OWNER` (the login "waiting on you" is about, default `sharmasuraj0123`),
+  and for tests only `MONITORING_RAW_BASE` and `MONITORING_API_BASE` (the fixture server). Document
+  any new one here and in `.env.example` with an empty value.

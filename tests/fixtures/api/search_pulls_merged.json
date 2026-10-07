@@ -1,0 +1,69 @@
+{
+  "total_count": 3,
+  "incomplete_results": false,
+  "items": [
+    {
+      "number": 117,
+      "title": "Fix: sources page scroll on phones",
+      "html_url": "https://github.com/quirq-ai/innernet/pull/117",
+      "state": "closed",
+      "draft": false,
+      "user": {
+        "login": "quirq-gates"
+      },
+      "assignees": [],
+      "labels": [],
+      "created_at": "{{now-1d}}",
+      "updated_at": "{{now-2h}}",
+      "closed_at": "{{now-2h}}",
+      "repository_url": "https://api.github.com/repos/quirq-ai/innernet",
+      "pull_request": {
+        "url": "https://api.github.com/repos/quirq-ai/innernet/pulls/117",
+        "html_url": "https://github.com/quirq-ai/innernet/pull/117",
+        "merged_at": "{{now-2h}}"
+      }
+    },
+    {
+      "number": 41,
+      "title": "Canary: hold when verify fails",
+      "html_url": "https://github.com/quirq-ai/release/pull/41",
+      "state": "closed",
+      "draft": false,
+      "user": {
+        "login": "quirq-gates"
+      },
+      "assignees": [],
+      "labels": [],
+      "created_at": "{{now-2d}}",
+      "updated_at": "{{now-20h}}",
+      "closed_at": "{{now-20h}}",
+      "repository_url": "https://api.github.com/repos/quirq-ai/release",
+      "pull_request": {
+        "url": "https://api.github.com/repos/quirq-ai/release/pulls/41",
+        "html_url": "https://github.com/quirq-ai/release/pull/41",
+        "merged_at": "{{now-20h}}"
+      }
+    },
+    {
+      "number": 2,
+      "title": "M0: Scaffold",
+      "html_url": "https://github.com/quirq-ai/monitoring/pull/2",
+      "state": "closed",
+      "draft": false,
+      "user": {
+        "login": "sharmasuraj0123"
+      },
+      "assignees": [],
+      "labels": [],
+      "created_at": "2026-10-06T16:00:00Z",
+      "updated_at": "2026-10-06T17:16:30Z",
+      "closed_at": "2026-10-06T17:16:30Z",
+      "repository_url": "https://api.github.com/repos/quirq-ai/monitoring",
+      "pull_request": {
+        "url": "https://api.github.com/repos/quirq-ai/monitoring/pulls/2",
+        "html_url": "https://github.com/quirq-ai/monitoring/pull/2",
+        "merged_at": "2026-10-06T17:16:30Z"
+      }
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "_comment": "Repos that neither infra-config config/repos.toml nor gate settings/github.toml names, with their group. Products and infra repos come from those registries, never from here.",
+  "groups": {
+    "apps": {
+      "title": "Apps in progress",
+      "repos": {
+        "euler": "a local workspace that runs Innernet, Quitter and Instants together",
+        "galileo": "the inspector of a space",
+        "instants": "a team collaboration prototype",
+        "quitter": "an agent and thread activity prototype"
+      }
+    },
+    "knowledge": {
+      "title": "Knowledge",
+      "repos": {
+        "research": "research topics, including the interactive infra map",
+        "wiki": "a bot-generated map of every public repo, regenerated daily",
+        "docs": "Space product docs",
+        "marketing": "campaign copy and brand assets",
+        ".github": "the org profile"
+      }
+    },
+    "other": {
+      "title": "Other",
+      "repos": {
+        "monitoring": "this dashboard",
+        "xo-cowork-api": "an older repo",
+        "environment": "an older repo",
+        "quirq_ai": "an older repo",
+        "quirqy": "empty, no commits"
+      }
+    }
+  }
+}
