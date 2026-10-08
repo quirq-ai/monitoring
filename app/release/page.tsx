@@ -42,7 +42,7 @@ export default async function ReleasePage() {
       {release.repos.map((r) => (
         <Card key={r.repo} className="gap-5 rounded-xl px-4 py-4 shadow-none sm:px-5 sm:py-5">
           <h2 className="text-lg">
-            <Link href={`/repos/${r.repo}`} className="underline-offset-2 hover:underline">
+            <Link href={`/repos/${r.repo}`} className="wrap-anywhere underline-offset-2 hover:underline">
               {r.repo}
             </Link>
           </h2>

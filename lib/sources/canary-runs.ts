@@ -105,11 +105,12 @@ export async function readCanaryDays(repo: string, days = 14, now = new Date()):
   assertRepoName(repo);
   const dates = recentDates(days, now);
   const listing = hasToken() ? await listCanaryRunDates(repo) : null;
-  const known = listing?.ok ? new Set(listing.value) : null;
+  // A day the listing has no file for is "no run", dated by the listing's own read.
+  const known = listing?.ok ? { dates: new Set(listing.value), read: listing } : null;
   const runs = await Promise.all(
     dates.map((date) =>
-      known && !known.has(date)
-        ? Promise.resolve(okSignal<CanaryRun | null>(`release/canary/${repo}/${date}`, treeUrl(REPO, BRANCH, `canary/${repo}/runs`), null))
+      known && !known.dates.has(date)
+        ? Promise.resolve(okSignal<CanaryRun | null>(`release/canary/${repo}/${date}`, treeUrl(REPO, BRANCH, `canary/${repo}/runs`), null, undefined, known.read))
         : readCanaryRun(repo, date),
     ),
   );

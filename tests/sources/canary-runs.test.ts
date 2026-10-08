@@ -104,10 +104,28 @@ describe("canary runs", () => {
   });
 
   it("treats a directory that does not exist yet as no runs, not a failure", async () => {
-    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: "{}" }]);
+    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: '{"message":"Not Found"}', headers: { date: "{{now-10m}}" } }]);
     const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
     expect(listing?.ok && listing.value).toEqual([]);
     expect(days.every((d) => d.run.ok && d.run.value === null)).toBe(true);
+    // A "no run" day is only as current as the listing that says so: it carries the listing's read.
+    for (const { run } of days) {
+      expect(run.maxAge).toBe(listing?.maxAge);
+      expect(run.fetchedAt).toBe(listing?.fetchedAt);
+      expect(Date.now() - Date.parse(run.fetchedAt), "dated by the listing's Date header, not the render").toBeGreaterThan(9 * 60_000);
+    }
+  });
+
+  it("does not read a 404 without a message as an empty directory", async () => {
+    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: "{}" }]);
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing?.ok).toBe(false);
+    if (listing && !listing.ok) expect(listing.reason).toBe("release-state: canary/innernet/runs listing: GitHub API returned 404; days read one by one");
+    expect(days, "the days are still probed one by one").toHaveLength(3);
+    // The remembered 404 answers the same way until the window passes.
+    const again = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(again.listing?.ok).toBe(false);
+    if (again.listing && !again.listing.ok) expect(again.listing.reason).toBe("release-state: canary/innernet/runs listing: GitHub API returned 404; days read one by one");
   });
 
   it("accepts the later outcome the writer uses for reruns", async () => {

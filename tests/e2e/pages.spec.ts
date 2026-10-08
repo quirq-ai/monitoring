@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { origin } from "./origin";
 
 const themes = ["light", "dark"] as const;
@@ -107,10 +107,85 @@ test.describe("content from the fixtures", () => {
     await page.goto("/health");
     await expect(page.getByText("ledger not started").first()).toBeVisible();
     await expect(page.getByText(/scorecard failure .*the data may still be current/)).toBeVisible();
-    await expect(page.getByText(/^stale$/)).toHaveCount(0);
-    // A read that answered is "ok", never a green marker: readable is not healthy or fresh.
-    await expect(page.locator("main .bg-state-green:not(.state-badge *)")).toHaveCount(0);
-    await expect(page.getByText("ok", { exact: true }).first()).toBeVisible();
+    // The org list was read three hours ago on a one-hour window (routes.json backdates it): the
+    // one stale read, listed after the unknown rows and before every "ok".
+    const sources = page.locator("main ul > li", { has: page.locator("a.font-mono") });
+    const stale = sources.filter({ has: page.getByText(/^stale$/) });
+    await expect(stale).toHaveCount(1);
+    await expect(stale).toContainText("github/org-repos");
+    await expect(stale).toContainText(/read 3 h ago, not refreshed yet/);
+    const order = await sources.evaluateAll((rows) => rows.map((row) => row.querySelector(".state-badge")?.textContent ?? "ok"));
+    expect(order.indexOf("stale"), "after the unknown rows").toBeGreaterThan(order.lastIndexOf("unknown"));
+    expect(order.indexOf("stale"), "before the first ok row").toBeLessThan(order.indexOf("ok"));
+    // A read that answered is "ok" on the muted pill, in the text color: readable is not healthy
+    // or fresh, so nothing outside a state badge may carry the green marker: not as text, a fill,
+    // a tint, a ring, a shadow, a border side or an outline. Colours are normalised through a
+    // canvas and compared by RGB, so a tint (the marker at low alpha) counts as the marker.
+    const okPill = page.getByText("ok", { exact: true }).first();
+    await expect(okPill).toBeVisible();
+    const colors = await page.evaluate(() => {
+      // Any CSS colour (rgb, hex, or the oklab a Tailwind tint computes to) as sRGB bytes plus its
+      // alpha: the alpha is split off and the opaque colour painted on a canvas and read back, so
+      // a low-alpha tint keeps its hue instead of losing it to premultiplied rounding.
+      const ctx = document.createElement("canvas").getContext("2d")!;
+      const rgba = (value: string): [number, number, number, number] | null => {
+        const v = value.trim();
+        if (!v || v === "none" || v === "transparent") return null;
+        let alpha = 1;
+        let opaque = v;
+        const slash = v.match(/^(.*)\/\s*([\d.]+%?)\s*\)$/);
+        const comma = v.match(/^rgba\(([^)]*),\s*([\d.]+%?)\)$/);
+        if (slash) {
+          alpha = parseFloat(slash[2]) / (slash[2].endsWith("%") ? 100 : 1);
+          opaque = `${slash[1].trim()})`;
+        } else if (comma) {
+          alpha = parseFloat(comma[2]) / (comma[2].endsWith("%") ? 100 : 1);
+          opaque = `rgb(${comma[1]})`;
+        }
+        if (!(alpha > 0)) return null;
+        ctx.fillStyle = "#010203";
+        ctx.fillStyle = opaque;
+        if (String(ctx.fillStyle) === "#010203" && opaque.replace(/\s/g, "").toLowerCase() !== "#010203") return null; // not a colour
+        ctx.clearRect(0, 0, 1, 1);
+        ctx.fillRect(0, 0, 1, 1);
+        const px = ctx.getImageData(0, 0, 1, 1).data;
+        return [px[0], px[1], px[2], alpha];
+      };
+      const computed = (name: string) => {
+        const probe = document.createElement("span");
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const value = getComputedStyle(probe).color;
+        probe.remove();
+        return value;
+      };
+      const green = rgba(computed("--state-green"))!;
+      const isGreen = (value: string) => {
+        const c = rgba(value);
+        return c !== null && c[3] > 0 && Math.max(Math.abs(c[0] - green[0]), Math.abs(c[1] - green[1]), Math.abs(c[2] - green[2])) <= 3;
+      };
+      const colourTokens = (value: string) => value.match(/(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix)\((?:[^()]|\([^()]*\))*\)|#[0-9a-fA-F]{3,8}\b/g) ?? [];
+      const plain = ["color", "backgroundColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor", "outlineColor", "textDecorationColor", "fill", "stroke"] as const;
+      const greenOutsideBadges: string[] = [];
+      for (const el of document.querySelectorAll("main *")) {
+        if (el.closest(".state-badge")) continue;
+        const s = getComputedStyle(el);
+        const values = [...plain.map((p) => s[p]), ...colourTokens(s.boxShadow), ...colourTokens(s.backgroundImage)];
+        if (values.some(isGreen)) greenOutsideBadges.push(`${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 40)}"`);
+      }
+      const pill = [...document.querySelectorAll("main span")].find((el) => el.textContent === "ok");
+      const pillStyle = pill ? getComputedStyle(pill) : undefined;
+      return {
+        green,
+        greenOutsideBadges,
+        pill: pillStyle && { color: rgba(pillStyle.color), background: rgba(pillStyle.backgroundColor) },
+        muted: rgba(computed("--muted")),
+        foreground: rgba(computed("--foreground")),
+      };
+    });
+    expect(colors.green[3], "the marker itself parses").toBe(1);
+    expect(colors.greenOutsideBadges).toEqual([]);
+    expect(colors.pill).toEqual({ color: colors.foreground, background: colors.muted });
   });
 
   test("on a phone the Board folds green repos into one line each and stays short", async ({ page }) => {
@@ -124,12 +199,59 @@ test.describe("content from the fixtures", () => {
     expect(before, "the products and the repos that need a look are open cards").toBeGreaterThanOrEqual(4);
     await details.click();
     await expect(fields).toHaveCount(before + 1);
+    // A repo name at GitHub's 100-character limit wraps inside its folded row: the badge and the
+    // chevron stay in the card and the page does not scroll sideways.
+    const row = details.locator("xpath=parent::*");
+    const link = row.locator('a[href="/repos/depot"]');
+    await link.locator("span").evaluate((el) => (el.textContent = "d".repeat(100)));
+    const card = row.locator("xpath=ancestor::*[@data-slot='card'][1]");
+    const cardBox = await card.boundingBox();
+    const badgeBox = await row.locator(".state-badge").boundingBox();
+    const chevronBox = await details.boundingBox();
+    expect(cardBox && badgeBox && chevronBox, "the row, its badge and its chevron are on the page").toBeTruthy();
+    expect(badgeBox!.x + badgeBox!.width, "the badge stays inside the card").toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+    expect(chevronBox!.x + chevronBox!.width, "the chevron stays inside the card").toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+    expect(await link.evaluate((el) => el.scrollWidth - el.clientWidth), "the name wraps inside its link rather than running under the badge").toBeLessThanOrEqual(0);
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(sideways, "no horizontal page scroll with a long name").toBeLessThanOrEqual(0);
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     expect(height, "under five phone screens, down from ten").toBeLessThan(4200);
     // The rows that need a look come first in each group.
     const names = await page.locator("main a[href^='/repos/']").evaluateAll((els) => els.map((e) => e.textContent?.trim()));
     expect(names.indexOf("xo-space")).toBeLessThan(names.indexOf("innernet"));
     expect(names.indexOf("gate")).toBeLessThan(names.indexOf("depot"));
+  });
+
+  test("a repo name at GitHub's 100-character limit wraps wherever one is shown", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const long = "n".repeat(100);
+    // Each spot is stuffed with the name (appended after a badge, else in place of the text) and
+    // must then wrap: no sideways page scroll, nothing drawn past the viewport, no overflow of its
+    // own box. The Board's "Not in any registry" note is not rendered by the default fixtures.
+    const spots: { path: string; what: string; find: (p: Page) => Locator; append?: boolean }[] = [
+      { path: "/", what: "Today repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
+      { path: "/waiting", what: "Waiting repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
+      { path: "/board", what: "Board product name", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first() },
+      { path: "/board", what: "Board product description", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first().locator("xpath=following-sibling::span[1]") },
+      { path: "/release", what: "Release heading", find: (p) => p.locator("main h2 a").first() },
+      { path: "/repos/website", what: "page title", find: (p) => p.getByRole("heading", { level: 1 }) },
+      { path: "/repos/website", what: "page lead", find: (p) => p.getByRole("heading", { level: 1 }).locator("xpath=following-sibling::p[1]") },
+      { path: "/repos/website", what: "a reason next to an unknown badge", find: (p) => p.locator("main p", { has: p.locator(".state-badge") }).first(), append: true },
+    ];
+    for (const spot of spots) {
+      await page.goto(spot.path);
+      const el = spot.find(page);
+      await expect(el, spot.what).toBeVisible();
+      await el.evaluate((node, [text, append]) => (append ? node.append(` ${text}`) : (node.textContent = text)), [long, spot.append ?? false] as const);
+      const fit = await el.evaluate((node) => ({
+        right: node.getBoundingClientRect().right,
+        own: node.scrollWidth - node.clientWidth,
+        page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      }));
+      expect.soft(fit.page, `${spot.what}: no sideways page scroll`).toBeLessThanOrEqual(0);
+      expect.soft(fit.right, `${spot.what}: nothing drawn past the viewport`).toBeLessThanOrEqual(390);
+      expect.soft(fit.own, `${spot.what}: wraps inside its own box`).toBeLessThanOrEqual(0);
+    }
   });
 
   test("an unknown repo is a 404", async ({ page }) => {

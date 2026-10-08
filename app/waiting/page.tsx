@@ -47,7 +47,7 @@ export default async function WaitingPage() {
                 <span className="flex flex-wrap items-center gap-2">
                   <StateBadge state={item.state} />
                   <span className="text-xs text-muted-foreground">{kindWords[item.kind]}</span>
-                  <Link href={`/repos/${item.repo}`} className="text-sm font-medium underline-offset-2 hover:underline">
+                  <Link href={`/repos/${item.repo}`} className="text-sm font-medium wrap-anywhere underline-offset-2 hover:underline">
                     {item.repo}
                   </Link>
                 </span>

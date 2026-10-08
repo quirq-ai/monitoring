@@ -71,7 +71,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
             <p className="text-sm text-muted-foreground">None open.</p>
           )
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm wrap-anywhere text-muted-foreground">
             <StateBadge state="unknown" /> {pulls.reason}
           </p>
         )}
@@ -107,7 +107,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
             )}
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm wrap-anywhere text-muted-foreground">
             <StateBadge state="unknown" /> {checks.reason}
           </p>
         )}
@@ -150,7 +150,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
               <SourceLink source="gardener tree-status" url={tree.sourceUrl} now={now} />
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm wrap-anywhere text-muted-foreground">
               <StateBadge state="unknown" /> {tree.reason}
             </p>
           )}

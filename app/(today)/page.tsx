@@ -98,7 +98,7 @@ function ItemList({ items, now }: { items: TodayItem[]; now: Date }) {
           <li key={`${item.kind}-${item.at}-${i}`} className="flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-muted/50 sm:flex-row sm:items-start sm:gap-4">
             <span className="flex shrink-0 items-center gap-2 sm:w-44">
               <StateBadge state={item.state} />
-              <Link href={`/repos/${item.repo}`} className="text-sm font-medium underline-offset-2 hover:underline">
+              <Link href={`/repos/${item.repo}`} className="text-sm font-medium wrap-anywhere underline-offset-2 hover:underline">
                 {item.repo}
               </Link>
             </span>

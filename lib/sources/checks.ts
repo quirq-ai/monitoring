@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { parseValue } from "@/lib/fetch";
 import { ghGet, repoPath, web } from "@/lib/github";
-import { failSignal, okSignal, type Signal, type State } from "@/lib/signal";
+import { failSignal, okSignal, type Signal, type State, unreadAt } from "@/lib/signal";
 
 // The check runs on a branch's head commit, rolled up into one state. Branch names come from
 // the registry, never from a visitor.
@@ -36,7 +36,7 @@ export async function readBranchChecks(repo: string, branch: string): Promise<Si
   const source = `github/checks/${repo}`;
   // Git allows almost any branch name; the dashboard only builds URLs from plain ones, and says
   // so for the rest instead of throwing out of the page (one failing source never breaks a page).
-  if (!/^[A-Za-z0-9_.\/-]{1,200}$/.test(branch)) return failSignal(source, web.repo(repo), `not a usable branch name: ${JSON.stringify(branch).slice(0, 60)}`);
+  if (!/^[A-Za-z0-9_.\/-]{1,200}$/.test(branch)) return failSignal(source, web.repo(repo), `not a usable branch name: ${JSON.stringify(branch).slice(0, 60)}`, unreadAt(REVALIDATE));
   const sourceUrl = web.commits(repo, branch);
   const api = await ghGet<unknown>(repoPath(repo, `commits/${encodeURIComponent(branch)}/check-runs`), {
     revalidate: REVALIDATE,

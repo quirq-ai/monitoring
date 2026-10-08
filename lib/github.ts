@@ -114,22 +114,29 @@ export type ApiOptions = {
   accept?: string;
 };
 
+/** How much of GitHub's `message` a reason carries: one line, cut here. */
+const GITHUB_MESSAGE_MAX = 120;
+
 /**
- * GitHub's own one-line `message` from a refusal body (for example "Resource not accessible by
- * personal access token"), cut to one line and 120 characters, so a 403 on Health says why. The
- * body is JSON the API wrote; anything else, or no body at all, gives nothing.
+ * True only for GitHub's plain "Not Found": the path is missing and the ref is there, which is
+ * the one 404 a source may read as "nothing here yet" (no runs, not measured). Any other message
+ * ("No commit found for the ref …", "This repository is empty.") and a 404 with no message at
+ * all are failures, since the dashboard cannot tell what is missing.
  */
-const REFUSAL_MESSAGE_MAX = 120;
-/** True for GitHub's plain "Not Found" (or no message at all): the path is missing, not the ref. */
 export function isPlainNotFound(message: string | undefined): boolean {
-  return message === undefined || /^not found\.?$/i.test(message);
+  return message !== undefined && /^not found\.?$/i.test(message);
 }
 
 /** "GitHub API returned 404", with GitHub's message when it says more than "Not Found". */
 function missingReason(message: string | undefined): string {
-  return isPlainNotFound(message) ? "GitHub API returned 404" : `GitHub API returned 404: ${message}`;
+  return message === undefined || isPlainNotFound(message) ? "GitHub API returned 404" : `GitHub API returned 404: ${message}`;
 }
 
+/**
+ * GitHub's own one-line `message` from a 403 or 404 body (for example "Resource not accessible
+ * by personal access token"), cut to one line and 120 characters, so Health says why. The body
+ * is JSON the API wrote; anything else, or no body at all, gives nothing.
+ */
 async function responseMessage(res: Response): Promise<string | undefined> {
   try {
     const body: unknown = await res.json();
@@ -138,7 +145,7 @@ async function responseMessage(res: Response): Promise<string | undefined> {
     if (typeof message !== "string") return undefined;
     const line = message.replace(/\s+/g, " ").trim();
     if (!line) return undefined;
-    return line.length > REFUSAL_MESSAGE_MAX ? `${line.slice(0, REFUSAL_MESSAGE_MAX - 1)}…` : line;
+    return line.length > GITHUB_MESSAGE_MAX ? `${line.slice(0, GITHUB_MESSAGE_MAX - 1)}…` : line;
   } catch {
     return undefined;
   }
