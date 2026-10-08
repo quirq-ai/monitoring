@@ -1,4 +1,5 @@
 import { states, type State } from "@/lib/signal";
+import { cn } from "@/lib/utils";
 
 export { states, type State };
 
@@ -16,8 +17,8 @@ const dots: Record<State, string> = {
  * is a filled circle except `unknown`, which is an outlined one, so a missing value never reads
  * like a quiet one from across the room. Used by StateBadge and by the count tiles.
  */
-export function StateDot({ state, className = "" }: { state: State; className?: string }) {
-  return <span aria-hidden="true" className={`size-2 shrink-0 rounded-full ${dots[state]} ${className}`} />;
+export function StateDot({ state, className, title }: { state: State; className?: string; title?: string }) {
+  return <span aria-hidden="true" title={title} className={cn("size-2 shrink-0 rounded-full", dots[state], className)} />;
 }
 
 /**

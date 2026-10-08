@@ -159,7 +159,7 @@ function RepoName({ row }: { row: BoardRow }) {
           {row.name}
         </Link>
       ) : (
-        <a href={row.url} className="font-medium wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
+        <a href={row.url} className="font-medium wrap-anywhere underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
           {row.name}
         </a>
       )}

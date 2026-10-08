@@ -28,7 +28,7 @@ export function SourcesList({ sources, now }: { sources: SourceStatus[]; now: Da
               ) : (
                 <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium">ok</span>
               )}
-              <a href={s.sourceUrl} className="font-mono text-xs wrap-anywhere underline-offset-2 hover:underline sm:text-sm" rel="noreferrer">
+              <a href={s.sourceUrl} className="font-mono text-xs wrap-anywhere underline-offset-2 hover:underline sm:text-sm" target="_blank" rel="noopener noreferrer">
                 {s.source}
               </a>
               {stale ? (

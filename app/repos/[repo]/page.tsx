@@ -34,7 +34,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       <PageTitle title={row.name} lead={row.description || `${row.group} repo`}>
-        <a href={row.url} className="inline-flex min-h-11 w-fit items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-card-foreground transition-colors hover:bg-muted md:min-h-9" rel="noreferrer">
+        <a href={row.url} className="inline-flex min-h-11 w-fit items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-card-foreground transition-colors hover:bg-muted md:min-h-9" target="_blank" rel="noopener noreferrer">
           open on GitHub <ArrowUpRight aria-hidden="true" className="size-3.5" />
         </a>
       </PageTitle>
@@ -56,7 +56,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
             <ul className="divide-y divide-line overflow-hidden rounded-xl border bg-card text-card-foreground">
               {pulls.value.map((pr) => (
                 <li key={pr.number} className="flex flex-col gap-0.5 px-4 py-2.5 text-sm">
-                  <a href={pr.url} className="wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
+                  <a href={pr.url} className="wrap-anywhere underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                     #{pr.number} {pr.title}
                     {pr.draft ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">draft</span> : null}
                   </a>
@@ -92,7 +92,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
                 {checks.value.checks.map((c, i) => (
                   <li key={`${c.name}-${i}`} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm">
                     <StateBadge state={c.conclusion === "success" ? "green" : c.status !== "completed" ? "pending" : c.conclusion === "neutral" || c.conclusion === "skipped" ? "unknown" : "red"} />
-                    <a href={c.url} className="wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
+                    <a href={c.url} className="wrap-anywhere underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                       {c.name}
                     </a>
                     <span className="text-xs text-muted-foreground">
@@ -131,7 +131,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
                 {Object.entries(tree.value.builders).map(([name, b]) => (
                   <li key={name} className="flex flex-wrap items-center gap-2">
                     <StateBadge state={b.state === "green" ? "green" : b.state === "red" ? "red" : b.state === "pending" ? "pending" : "unknown"} />
-                    <a href={b.url || tree.sourceUrl} className="underline-offset-2 hover:underline" rel="noreferrer">
+                    <a href={b.url || tree.sourceUrl} className="underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                       {name}
                     </a>
                     {b.commit ? <Sha sha={b.commit} url={web.commit(row.name, b.commit)} /> : null}
@@ -177,7 +177,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {perf.map((m) => (
                 <li key={m.metric} className="flex flex-col gap-1 rounded-xl border bg-card p-3 text-sm text-card-foreground">
-                  <a href={m.url} className="font-medium underline-offset-2 hover:underline" rel="noreferrer">
+                  <a href={m.url} className="font-medium underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                     {m.metric}
                   </a>
                   {m.latest ? (

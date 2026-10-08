@@ -23,7 +23,7 @@ export function CanaryStrip({ days, repo }: { days: CanaryDay[]; repo: string })
       <svg width={width} height={size} viewBox={`0 0 ${width} ${size}`} className="max-w-full overflow-visible">
         <title>{`${repo} canary, last ${days.length} days`}</title>
         {days.map((d, i) => (
-          <a key={d.date} href={d.url} aria-label={`${d.date}: ${look[d.outcome].word}${d.reason ? `, ${d.reason}` : ""}`}>
+          <a key={d.date} href={d.url} target="_blank" rel="noopener noreferrer" aria-label={`${d.date}: ${look[d.outcome].word}${d.reason ? `, ${d.reason}` : ""}`}>
             <rect x={i * (size + gap) + 1} y={1} width={size - 2} height={size - 2} rx={4} className={look[d.outcome].rect} strokeWidth={d.outcome === "unknown" ? 2 : 1}>
               <title>{`${d.date}: ${look[d.outcome].word}${d.reason ? `, ${d.reason}` : ""}`}</title>
             </rect>

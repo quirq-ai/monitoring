@@ -4,7 +4,7 @@ import { TimeAgo } from "@/components/time-ago";
 /** "from release/channels, 4 min ago": where a value came from and how old the data says it is. */
 export function SourceLink({ source, url, at, now, label = "from" }: { source: string; url: string; at?: string; now: Date; label?: string }) {
   return (
-    <a href={url} className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" rel="noreferrer">
+    <a href={url} className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline" target="_blank" rel="noopener noreferrer">
       <span>
         {label} {source}
         {at ? ", " : ""}

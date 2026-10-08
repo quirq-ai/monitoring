@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { ApiBanner } from "@/components/api-banner";
+import { ChangeMatrix } from "@/components/change-matrix";
 import { CountTiles } from "@/components/count-tiles";
 import { PageTitle } from "@/components/page-title";
+import { newTab } from "@/components/new-tab";
 import { StateBadge } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
 import { Card } from "@/components/ui/card";
 import { buildSnapshot } from "@/lib/model/build";
+import { matrixRows } from "@/lib/model/matrix";
 import { ago, parseWindow } from "@/lib/model/time";
 import type { TodayItem } from "@/lib/model/types";
 import { cn } from "@/lib/utils";
@@ -16,15 +19,17 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
   const snapshot = await buildSnapshot({ window });
   const now = new Date(snapshot.generatedAt);
   const words = window === "24h" ? "24 hours" : "7 days";
-  // What needs a look comes first on a phone; the rest is the timeline, newest first. An alarm a
-  // newer event on the same subject has replaced (the tree closed, then opened) is history.
+  // What needs a look comes first on a phone; then everything that changed, one row per tracked
+  // repo (the alarms included, so each repo's count is whole). An alarm a newer event on the same
+  // subject has replaced (the tree closed, then opened) is history.
   const alarms = snapshot.today.filter((t) => (t.state === "red" || t.state === "held") && !t.superseded);
-  const rest = snapshot.today.filter((t) => !alarms.includes(t));
+  const tracked = snapshot.board.flatMap((g) => g.repos.map((r) => r.name));
+  const { changed, quiet } = matrixRows(snapshot.today, tracked);
   const read = snapshot.reads.today;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <PageTitle title="Today" lead="What needs you, then what changed, newest first.">
+      <PageTitle title="Today" lead="What needs you, then what changed, one row per repo.">
         <nav aria-label="Window" className="inline-flex w-fit gap-0.5 rounded-lg bg-muted p-0.5 text-sm">
           {(["24h", "7d"] as const).map((w) => (
             <Link
@@ -60,16 +65,16 @@ export default async function TodayPage({ searchParams }: PageProps<"/">) {
       ) : null}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-lg">{alarms.length ? "Everything else" : "What changed"}</h2>
+        <h2 className="text-lg">What changed</h2>
         {!snapshot.counts.todayComplete ? (
-          <p className="text-sm text-muted-foreground">Some sources could not be read, so this list may be short; Health says which.</p>
+          <p className="text-sm text-muted-foreground">Some sources could not be read, so these rows may be short; Health says which.</p>
         ) : null}
-        {rest.length === 0 ? (
+        {changed.length === 0 ? (
           <Card className="rounded-xl p-4 text-sm text-muted-foreground shadow-none">
             {snapshot.counts.todayComplete ? `Nothing changed in the last ${words}.` : `Nothing could be read for the last ${words} from the sources that answered.`}
           </Card>
         ) : (
-          <ItemList items={rest} now={now} />
+          <ChangeMatrix changed={changed} quiet={quiet} now={now} />
         )}
       </section>
 
@@ -103,7 +108,7 @@ function ItemList({ items, now }: { items: TodayItem[]; now: Date }) {
               </Link>
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-              <a href={item.url} className="text-sm wrap-anywhere underline-offset-2 hover:underline" rel={item.url.startsWith("/") ? undefined : "noreferrer"}>
+              <a href={item.url} className="text-sm wrap-anywhere underline-offset-2 hover:underline" {...(item.url.startsWith("/") ? {} : newTab)}>
                 {item.title}
                 {item.demo ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">planted demo, not counted</span> : null}
                 {item.cleared && (item.state === "red" || item.state === "held") ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">since cleared</span> : null}

@@ -43,6 +43,8 @@ test.describe("pages", () => {
 test.describe("content from the fixtures", () => {
   test("Today shows the merged PR, the held canary, the tree close and the counts", async ({ page }) => {
     await page.goto("/");
+    // The merged PR and the tree close live in innernet's matrix row, which opens into its entries.
+    await page.getByRole("button", { name: /^5 changes for innernet/ }).click();
     await expect(page.getByText("merged #117 Fix: sources page scroll on phones")).toHaveCount(1);
     await expect(page.getByText(/canary held: held at verify/)).toHaveCount(1);
     await expect(page.getByText("tree closed")).toHaveCount(1);
@@ -59,6 +61,83 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByText("since cleared")).toHaveCount(1);
     await expect(page.locator("[data-slot=alert]"), "no API banner with a token and the API answering").toHaveCount(0);
     await expect(page.getByText(/^Data as of/)).toBeVisible();
+  });
+
+  test("Today folds what changed into one row per tracked repo, with a dot per change", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const matrix = page.locator("section").filter({ has: page.getByRole("heading", { name: "What changed" }) });
+    // The row says its counts; the dots are decoration for the eye, one per change, oldest left.
+    const innernet = matrix.getByRole("button", { name: "5 changes for innernet: 4 green, 1 red" });
+    await expect(innernet).toBeVisible();
+    expect(await innernet.locator("span > span").count(), "one dot per change").toBe(5);
+    await expect(matrix.getByRole("link", { name: "innernet", exact: true })).toHaveAttribute("href", "/repos/innernet");
+    // Busiest row first; every other repo with a change has its own row; the rest fold into one line.
+    const rows = matrix.getByRole("button", { name: /changes? for / });
+    expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")?.split(" ")[0]))).toEqual(["5", "2", "1", "1", "1"]);
+    const quiet = matrix.getByRole("button", { name: /^\d+ tracked repos with no change$/ });
+    await expect(quiet).toBeVisible();
+    await expect(matrix.getByRole("link", { name: "depot", exact: true })).toHaveCount(0);
+    await quiet.click();
+    await expect(matrix.getByRole("link", { name: "depot", exact: true })).toHaveAttribute("href", "/repos/depot");
+    const named = await quiet.evaluate((el) => Number(el.textContent?.trim().split(" ")[0]));
+    expect(await matrix.locator("li li a").count(), "the folded line names every quiet repo").toBe(named);
+    // Opening a row lists its entries, newest first, with their links; closed rows show nothing.
+    await expect(matrix.getByText("tree closed")).toHaveCount(0);
+    await innernet.click();
+    const entries = matrix.locator("ol li");
+    await expect(entries).toHaveCount(5);
+    await expect(entries.first()).toContainText("tree open");
+    await expect(entries.nth(1)).toContainText("since cleared");
+    await expect(matrix.getByRole("link", { name: /merged #117/ })).toHaveAttribute("href", "https://github.com/quirq-ai/innernet/pull/117");
+    // Seven days of changes still fit a phone: the dots wrap, the page never scrolls sideways.
+    await page.goto("/?since=7d");
+    const busiest = matrix.getByRole("button", { name: /changes for innernet/ });
+    expect(await busiest.locator("span > span").count()).toBeGreaterThan(5);
+    const fit = await busiest.evaluate((el) => ({ own: el.scrollWidth - el.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+    expect(fit).toEqual({ own: 0, page: 0 });
+  });
+
+  test("the page tabs are centered in the header and never a scroll container", async ({ page }) => {
+    for (const vp of viewports) {
+      await page.setViewportSize({ width: vp.width, height: vp.height });
+      await page.goto("/board");
+      const nav = page.getByRole("navigation", { name: "Pages" });
+      const box = await nav.evaluate((el) => {
+        const header = el.closest("header")!.getBoundingClientRect();
+        const list = el.querySelector("ul")!;
+        const tabs = [...list.querySelectorAll("a")].map((a) => a.getBoundingClientRect());
+        const left = Math.min(...tabs.map((t) => t.left));
+        const right = Math.max(...tabs.map((t) => t.right));
+        return {
+          overflow: getComputedStyle(el).overflowX + "/" + getComputedStyle(el).overflowY,
+          scrolls: el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth,
+          offCenter: Math.abs((left + right) / 2 - (header.left + header.right) / 2),
+          shortest: Math.min(...tabs.map((t) => t.height)),
+        };
+      });
+      expect(box.overflow, `${vp.name}: the tab row is not a scroll container`).toBe("visible/visible");
+      expect(box.scrolls, `${vp.name}: nothing to scroll`).toBe(false);
+      expect(box.offCenter, `${vp.name}: tabs centered in the header`).toBeLessThanOrEqual(1);
+      expect(box.shortest, `${vp.name}: every tab is a 44 px target`).toBeGreaterThanOrEqual(44);
+    }
+  });
+
+  test("links that leave the dashboard open in a new tab; page links stay in this one", async ({ page }) => {
+    for (const p of pages) {
+      await page.goto(p.path);
+      if (p.path === "/") for (const b of await page.getByRole("button", { name: /changes? for / }).all()) await b.click();
+      const links = await page.locator("a[href]").evaluateAll((els) =>
+        els.map((a) => ({ href: a.getAttribute("href") ?? "", target: a.getAttribute("target"), rel: (a.getAttribute("rel") ?? "").split(/\s+/) })),
+      );
+      const outside = links.filter((l) => /^https?:/i.test(l.href));
+      const inside = links.filter((l) => l.href.startsWith("/") || l.href.startsWith("#"));
+      expect(outside.length, `${p.path}: has outside links`).toBeGreaterThan(0);
+      expect(inside.length, `${p.path}: has page links`).toBeGreaterThan(0);
+      expect(outside.filter((l) => l.target !== "_blank" || !l.rel.includes("noopener") || !l.rel.includes("noreferrer")).map((l) => l.href), `${p.path}: every outside link opens a new tab safely`).toEqual([]);
+      expect(inside.filter((l) => l.target).map((l) => l.href), `${p.path}: no page link opens a new tab`).toEqual([]);
+      expect(links.filter((l) => !/^https?:/i.test(l.href) && !l.href.startsWith("/") && !l.href.startsWith("#")).map((l) => l.href), `${p.path}: every link is a page or an https link`).toEqual([]);
+    }
   });
 
   test("Waiting lists the review, the stale approval, the held canary and the failure once each", async ({ page }) => {
@@ -230,6 +309,7 @@ test.describe("content from the fixtures", () => {
     // own box. The Board's "Not in any registry" note is not rendered by the default fixtures.
     const spots: { path: string; what: string; find: (p: Page) => Locator; append?: boolean }[] = [
       { path: "/", what: "Today repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
+      { path: "/", what: "Today matrix repo", find: (p) => p.locator('main a[href="/repos/innernet"]:visible').last() },
       { path: "/waiting", what: "Waiting repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
       { path: "/board", what: "Board product name", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first() },
       { path: "/board", what: "Board product description", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first().locator("xpath=following-sibling::span[1]") },
