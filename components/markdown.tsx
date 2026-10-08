@@ -1,7 +1,9 @@
 import type { ComponentProps } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { newTab } from "@/components/new-tab";
 
+// Links that leave the dashboard open in a new tab, like every other outside link.
 // The report's own headings sit under the page's, so each is demoted two levels. A wide table
 // scrolls sideways inside a box a keyboard can reach, each box labelled by its number so the
 // landmarks are distinct. Images are not fetched: an outside image would tell its host the
@@ -13,7 +15,7 @@ function componentsFor(): ComponentProps<typeof ReactMarkdown>["components"] {
     h2: ({ children }) => <h4>{children}</h4>,
     h3: ({ children }) => <h5>{children}</h5>,
     a: ({ href, children }) => (
-      <a href={href} rel="noreferrer">
+      <a href={href} {...(href && /^https?:/i.test(href) ? newTab : {})}>
         {children}
       </a>
     ),

@@ -29,7 +29,7 @@ export default async function HealthPage() {
             <li key={w.id}>
               <Card className="h-full gap-1 rounded-xl px-4 py-4 shadow-none">
               <span className="flex items-center justify-between gap-2">
-                <a href={w.url} className="font-medium underline-offset-2 hover:underline" rel="noreferrer">
+                <a href={w.url} className="font-medium underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                   {w.id}
                 </a>
                 <StateBadge state={w.state} />
@@ -39,7 +39,7 @@ export default async function HealthPage() {
               </span>
               <span className="text-sm">{w.reason}</span>
               {w.lastRun ? (
-                <a href={w.lastRun.url} className="text-xs text-muted-foreground underline-offset-2 hover:underline" rel="noreferrer">
+                <a href={w.lastRun.url} className="text-xs text-muted-foreground underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                   last run {w.lastRun.conclusion}, <TimeAgo iso={w.lastRun.at} now={now} />
                 </a>
               ) : null}

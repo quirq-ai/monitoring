@@ -8,7 +8,7 @@ It is read-only. It reads the state the other repos already publish, shows it wi
 (`green`, `red`, `held`, `pending`, `unknown`, `stale`) before the color, and links every value to
 the file or GitHub page it came from. It never merges, approves, comments or moves a ref.
 
-<img src="docs/today-phone.png" width="300" alt="Today on a phone, showing fixture data: the three counts, then what needs a look, then what changed">
+<img src="docs/today-phone.png" width="300" alt="Today on a phone, showing fixture data: the three counts, then what needs a look, then what changed as one row per repo with a dot per change">
 
 (Fixture data from the test server, not the live org.)
 
@@ -19,7 +19,7 @@ CI run.
 
 | Page | The question it answers |
 |---|---|
-| **Today** (`/`) | Three counts on top (waiting on you; red or held; unknown, stale or failing), then what needs a look (a closed tree, a held or failed canary, a failed deploy, a new failure, a writer whose last run failed), then what changed in the last 24 hours (or 7 days): merged PRs, lkgr and channel moves, canary results, tree opened or closed, deploys, new failures. An alarm a newer event has cleared stays in the timeline, marked "since cleared". |
+| **Today** (`/`) | Three counts on top (waiting on you; red or held; unknown, stale or failing), then what needs a look (a closed tree, a held or failed canary, a failed deploy, a new failure, a writer whose last run failed), then what changed in the last 24 hours (or 7 days) as one row per tracked repo: the repo, how many changes it had, and one dot per change in its state color, oldest left (merged PRs, lkgr and channel moves, canary results, tree opened or closed, deploys, new failures); a row opens into its entries, and the repos with no change fold into one line. An alarm a newer event has cleared stays in its row, marked "since cleared". |
 | **Waiting on you** (`/waiting`) | PRs where you are a requested reviewer or assignee, PRs you approved on an older head, held canaries, open `qq-failure` issues. |
 | **Board** (`/board`) | One row per repo, grouped, the ones that need a look first: CI on main, open PRs, last merge; for products also tree, lkgr, canary and deploy. On a phone a green repo is one line that opens on tap. |
 | **Release** (`/release`) | Per product: lkgr and each channel, the last 14 canary days as a strip, the hold if one is on, and the latest canary report. |
@@ -28,7 +28,8 @@ CI run.
 | **Snapshot** (`/api/snapshot`) | The same state as JSON (`qq-monitoring-snapshot/1`), for agents. `?since=7d` widens the window. |
 
 Every tile shows the state first, then the detail, then where it came from and how old the data
-says it is. A source that cannot be read shows `unknown` with the reason; a writer that has not run
+says it is. Every link that leaves the dashboard (GitHub, Vercel) opens in a new tab; the page
+links inside it stay in this one. A source that cannot be read shows `unknown` with the reason; a writer that has not run
 inside its window shows `stale`, and so does every tile built from the files that writer keeps (the
 tree, lkgr and canary tiles are only as current as the gardener and release jobs). A known fact
 with no health in it ("nothing merged in 7 days") is plain text with no badge. When the GitHub API

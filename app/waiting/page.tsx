@@ -51,7 +51,7 @@ export default async function WaitingPage() {
                     {item.repo}
                   </Link>
                 </span>
-                <a href={item.url} className="text-base wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
+                <a href={item.url} className="text-base wrap-anywhere underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                   {item.title}
                 </a>
                 <span className="text-sm text-muted-foreground">

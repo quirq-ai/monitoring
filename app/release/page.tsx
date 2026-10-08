@@ -58,7 +58,7 @@ export default async function ReleasePage() {
               {r.latest ? (
                 <>
                   <StateBadge state={outcomeState(r.latest.outcome)} />
-                  <a href={r.latest.url} className="underline-offset-2 hover:underline" rel="noreferrer">
+                  <a href={r.latest.url} className="underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                     {r.latest.date}: {r.latest.outcome}
                     {r.latest.reason ? `, ${r.latest.reason}` : ""}
                   </a>
@@ -74,13 +74,13 @@ export default async function ReleasePage() {
             {r.hold ? (
               <p className="text-sm">
                 <StateBadge state="held" /> held at {r.hold.stage} since {r.hold.date}, commit{" "}
-                <a href={r.hold.url} className="font-mono underline-offset-2 hover:underline" rel="noreferrer">
+                <a href={r.hold.url} className="font-mono underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                   {r.hold.commit.slice(0, 7)}
                 </a>
                 {r.hold.runUrl ? (
                   <>
                     {" · "}
-                    <a href={r.hold.runUrl} className="underline-offset-2 hover:underline" rel="noreferrer">
+                    <a href={r.hold.runUrl} className="underline-offset-2 hover:underline" target="_blank" rel="noopener noreferrer">
                       the run
                     </a>
                   </>

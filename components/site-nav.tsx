@@ -12,12 +12,17 @@ const pages = [
   { href: "/health", label: "Health" },
 ] as const;
 
-/** Underlined tabs: the current page carries a bar in the text color, the rest are muted. */
+/**
+ * Underlined tabs, centered: the current page carries a bar in the text color, the rest are
+ * muted. The row is never a scroll container (a tab row one pixel taller than its box used to
+ * scroll on phones); at a large text size the tabs wrap instead. The bar sits on the header's
+ * hairline, so the list reaches one pixel into the header's border.
+ */
 export function SiteNav() {
   const pathname = usePathname();
   return (
-    <nav aria-label="Pages" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-      <ul className="-mb-px flex gap-1 md:gap-2">
+    <nav aria-label="Pages" className="-mb-px">
+      <ul className="flex flex-wrap justify-center gap-x-1 md:gap-x-2">
         {pages.map((p) => {
           const current = p.href === "/" ? pathname === "/" : pathname.startsWith(p.href);
           return (
@@ -26,7 +31,7 @@ export function SiteNav() {
                 href={p.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 text-sm -outline-offset-2 md:min-h-14",
+                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 text-sm -outline-offset-2 md:min-h-14 md:px-3",
                   current ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >

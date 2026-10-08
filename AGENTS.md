@@ -114,6 +114,8 @@ app/
 components/
   ui/                    shadcn, unmodified where possible
   state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
+  change-matrix.tsx      Today's "what changed": one row per tracked repo, a dot per change
+  new-tab.tsx            the two attributes every link that leaves the dashboard carries
   api-banner.tsx         one Alert when the GitHub API as a whole is out
   markdown.tsx           react-markdown with raw HTML off, for the canary report
   source-link.tsx        "from <source>, <age> ago"
@@ -375,6 +377,21 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - Numbers before charts. A chart only for a trend (canary strip, perf history), in plain SVG.
 - No popup, dialog or popover that scrolls; detail belongs on a page. A Sheet on a phone is fine
   only if it fits without scrolling.
+- Links that leave the dashboard (GitHub, Vercel, a run page) carry `target="_blank"` and
+  `rel="noopener noreferrer"` (`newTab` in `components/new-tab.tsx` for an href decided at render
+  time); page links never do, so the back button keeps working. An e2e test checks every link on
+  every page.
+- Today's "What changed" is a matrix, not a list (`components/change-matrix.tsx`, rows from
+  `matrixRows` in `lib/model/matrix.ts`): one row per tracked repo with a change, busiest first,
+  the repo linked, then one `StateDot` per change in its state color, oldest left and newest
+  right, then the count. The idea is ElevenLabs UI's Matrix (a grid of round cells); the cells
+  are the dashboard's own state markers, so `unknown` stays an outlined dot. The dots are
+  decoration (`aria-hidden`, a hover title each); the row's trigger says the counts in words
+  ("5 changes for innernet: 4 green, 1 red") and opens that repo's entries, newest first, as the
+  old list showed them. The dots wrap inside the row, so a busy week never scrolls sideways. The
+  tracked repos with no change fold into one line that opens into their names, so "nothing
+  changed" is said rather than hidden; the alarms in "Needs a look" also count in their rows, so a
+  row's count is whole.
 - Phone first: what needs a look comes first (Today's "Needs a look", the Board's row order by
   worst state), and a green or quiet non-product repo on the Board is one line that opens on tap
   (Collapsible), a run of such lines sharing one card. Every page segment has a `loading.tsx`
@@ -396,8 +413,10 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   into `public/brand/quirq/` unchanged, and note the source commit in the PR.
 - **Look.** Vercel's: suraj asked for it on 2026-10-07 ("sleek, professional, modern Vercel-type
   UI"), on shadcn components. Near-monochrome surfaces and text, hairline dividers, color only for
-  the six states; a compact sticky header with the wordmark, a "/ Monitoring" label and underlined
-  tabs; stat tiles with the label above a large tabular number. The sticky header needs
+  the six states; a compact sticky header with the wordmark and the theme toggle at the edges and
+  the underlined tabs centered between them (their own centered row on a phone, wrapping at a
+  large text size: never a scroll container, since a tab row one pixel taller than its box used
+  to scroll on phones); stat tiles with the label above a large tabular number. The sticky header needs
   `scroll-padding-top` on `<html>`, or a focused element can land under it (WCAG 2.4.11). Before
   2026-10-07 the palette was mapped from xo-space's `quirq` and `linen` themes
   (`space_ui/css/themes.css`); see this file at e148ad9 for that mapping.
