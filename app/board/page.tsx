@@ -8,7 +8,10 @@ import { Card } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildSnapshot } from "@/lib/model/build";
+import { foldRuns } from "@/lib/model/fold-runs";
 import type { BoardRow, Cell } from "@/lib/model/types";
+
+const headClass = "h-10 px-3 text-xs font-medium text-muted-foreground";
 
 const productColumns: { key: "tree" | "lkgr" | "canary" | "deploy"; label: string }[] = [
   { key: "tree", label: "Tree" },
@@ -26,40 +29,46 @@ export default async function BoardPage() {
       <PageTitle title="Board" lead="One row per repo, the ones that need a look first: main CI, open PRs, last merge, and for products the tree, lkgr, canary and deploy." />
       <ApiBanner api={snapshot.health.api} />
       {snapshot.unregistered.length ? (
-        <Card className="rounded-lg p-3 text-sm shadow-none">
+        <Card className="rounded-xl p-4 text-sm shadow-none">
           Not in any registry: {snapshot.unregistered.join(", ")}. Add them to infra-config, the gate or this repo&apos;s config/repos.json.
         </Card>
       ) : null}
       {snapshot.board.map((group) => (
         <section key={group.id} className="flex flex-col gap-3">
-          <h2 className="text-xl text-foreground">{group.title}</h2>
-          <div className="hidden md:block">
+          <h2 className="text-lg">{group.title}</h2>
+          <div className="hidden overflow-hidden rounded-xl border border-border bg-card text-card-foreground md:block">
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Repo</TableHead>
-                  <TableHead>CI on main</TableHead>
-                  <TableHead>Open PRs</TableHead>
-                  <TableHead>Last merge</TableHead>
-                  {group.id === "products" ? productColumns.map((c) => <TableHead key={c.key}>{c.label}</TableHead>) : null}
+              <TableHeader className="bg-muted/50 [&_tr]:border-line">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className={headClass}>Repo</TableHead>
+                  <TableHead className={headClass}>CI on main</TableHead>
+                  <TableHead className={headClass}>Open PRs</TableHead>
+                  <TableHead className={headClass}>Last merge</TableHead>
+                  {group.id === "products"
+                    ? productColumns.map((c) => (
+                        <TableHead key={c.key} className={headClass}>
+                          {c.label}
+                        </TableHead>
+                      ))
+                    : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {group.repos.map((row) => (
-                  <TableRow key={row.name}>
-                    <TableCell className="max-w-56 whitespace-normal align-top">
+                  <TableRow key={row.name} className="border-line">
+                    <TableCell className="max-w-56 whitespace-normal px-3 py-3 align-top">
                       <RepoName row={row} />
                     </TableCell>
-                    <TableCell className="whitespace-normal align-top">
+                    <TableCell className="whitespace-normal px-3 py-3 align-top">
                       <CellInline cell={row.ci} now={now} />
                     </TableCell>
-                    <TableCell className="whitespace-normal align-top font-mono">{openPulls(row)}</TableCell>
-                    <TableCell className="min-w-40 whitespace-normal align-top">
+                    <TableCell className="whitespace-normal px-3 py-3 align-top tabular-nums">{openPulls(row)}</TableCell>
+                    <TableCell className="min-w-40 whitespace-normal px-3 py-3 align-top">
                       <CellInline cell={row.lastMerge} now={now} />
                     </TableCell>
                     {group.id === "products"
                       ? productColumns.map((c) => (
-                          <TableCell key={c.key} className="min-w-32 whitespace-normal align-top">
+                          <TableCell key={c.key} className="min-w-32 whitespace-normal px-3 py-3 align-top">
                             {row[c.key] ? <CellInline cell={row[c.key] as Cell} now={now} /> : null}
                           </TableCell>
                         ))
@@ -70,35 +79,44 @@ export default async function BoardPage() {
             </Table>
           </div>
           {/* On a phone, a non-product repo with nothing to look at (green, or unknown only because
-              the API banner's cause) is one line that opens on tap; anything else is a card. */}
+              the API banner's cause) is one line that opens on tap, and a run of such lines shares
+              one card; anything else is a card of its own. */}
           <ul className="flex flex-col gap-2 md:hidden">
-            {group.repos.map((row) =>
-              (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products" ? (
-                <li key={row.name}>
-                  <Collapsible>
-                    <Card className="gap-0 rounded-lg py-0 shadow-none">
-                      <div className="flex items-center gap-2 px-3">
-                        <Link href={`/repos/${row.name}`} className="min-h-11 flex-1 py-2 text-sm font-medium underline-offset-2 hover:underline">
-                          <span className="flex min-h-7 items-center">{row.name}</span>
-                        </Link>
-                        <StateBadge state={row.worst} />
-                        <CollapsibleTrigger className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180" aria-label={`Details for ${row.name}`}>
-                          <ChevronDown className="size-5 transition-transform" aria-hidden="true" />
-                        </CollapsibleTrigger>
-                      </div>
-                      <CollapsibleContent>
-                        <Fields row={row} now={now} product={false} />
-                      </CollapsibleContent>
-                    </Card>
-                  </Collapsible>
-                </li>
-              ) : (
-                <li key={row.name}>
-                  <Card className="gap-3 rounded-lg px-3 py-3 shadow-none">
-                    <RepoName row={row} />
-                    <Fields row={row} now={now} product={group.id === "products"} />
+            {foldRuns(group.repos, (row) => (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products").map((run) =>
+              run.folded ? (
+                <li key={`folded-${run.items[0].name}`}>
+                  <Card className="gap-0 overflow-hidden rounded-xl py-0 shadow-none">
+                    <ul className="divide-y divide-line">
+                      {run.items.map((row) => (
+                        <li key={row.name}>
+                          <Collapsible>
+                            <div className="flex min-h-11 items-center gap-2 px-4">
+                              <Link href={`/repos/${row.name}`} className="min-h-11 flex-1 py-2 text-sm font-medium underline-offset-2 hover:underline">
+                                <span className="flex min-h-7 items-center">{row.name}</span>
+                              </Link>
+                              <StateBadge state={row.worst} />
+                              <CollapsibleTrigger className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180" aria-label={`Details for ${row.name}`}>
+                                <ChevronDown className="size-5 transition-transform" aria-hidden="true" />
+                              </CollapsibleTrigger>
+                            </div>
+                            <CollapsibleContent>
+                              <Fields row={row} now={now} product={false} />
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </li>
+                      ))}
+                    </ul>
                   </Card>
                 </li>
+              ) : (
+                run.items.map((row) => (
+                  <li key={row.name}>
+                    <Card className="gap-3 rounded-xl px-4 py-3 shadow-none">
+                      <RepoName row={row} />
+                      <Fields row={row} now={now} product={group.id === "products"} />
+                    </Card>
+                  </li>
+                ))
               ),
             )}
           </ul>
@@ -110,12 +128,12 @@ export default async function BoardPage() {
 
 function Fields({ row, now, product }: { row: BoardRow; now: Date; product: boolean }) {
   return (
-    <dl className="grid grid-cols-2 gap-3 px-0 pb-3 md:pb-0 [[data-slot=collapsible-content]_&]:px-3 [[data-slot=collapsible-content]_&]:pt-1">
+    <dl className="grid grid-cols-2 gap-3 px-0 pb-3 md:pb-0 [[data-slot=collapsible-content]_&]:px-4 [[data-slot=collapsible-content]_&]:pt-1">
       <Field label="CI on main">
         <CellInline cell={row.ci} now={now} />
       </Field>
       <Field label="Open PRs">
-        <span className="font-mono text-sm">{openPulls(row)}</span>
+        <span className="text-sm tabular-nums">{openPulls(row)}</span>
       </Field>
       <Field label="Last merge" wide>
         <CellInline cell={row.lastMerge} now={now} />
@@ -137,11 +155,11 @@ function RepoName({ row }: { row: BoardRow }) {
   return (
     <span className="flex flex-col">
       {row.registered ? (
-        <Link href={`/repos/${row.name}`} className="font-medium underline-offset-2 hover:underline">
+        <Link href={`/repos/${row.name}`} className="font-medium wrap-anywhere underline-offset-2 hover:underline">
           {row.name}
         </Link>
       ) : (
-        <a href={row.url} className="font-medium underline-offset-2 hover:underline" rel="noreferrer">
+        <a href={row.url} className="font-medium wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
           {row.name}
         </a>
       )}

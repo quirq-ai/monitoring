@@ -1,3 +1,4 @@
+import { ArrowUpRight } from "lucide-react";
 import { notFound } from "next/navigation";
 import { ApiBanner } from "@/components/api-banner";
 import { CanaryStrip } from "@/components/canary-strip";
@@ -33,13 +34,13 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
       <PageTitle title={row.name} lead={row.description || `${row.group} repo`}>
-        <a href={row.url} className="text-sm underline-offset-2 hover:underline" rel="noreferrer">
-          open on GitHub
+        <a href={row.url} className="inline-flex min-h-11 w-fit items-center gap-1 rounded-md border border-border bg-card px-3 text-sm text-card-foreground transition-colors hover:bg-muted md:min-h-9" rel="noreferrer">
+          open on GitHub <ArrowUpRight aria-hidden="true" className="size-3.5" />
         </a>
       </PageTitle>
       <ApiBanner api={view.snapshot.health.api} />
 
-      <Card className="grid grid-cols-2 gap-4 rounded-lg px-4 py-4 shadow-none sm:grid-cols-3 lg:grid-cols-6">
+      <Card className="grid grid-cols-2 gap-5 rounded-xl px-4 py-4 shadow-none sm:grid-cols-3 sm:px-5 sm:py-5 lg:grid-cols-6">
         <CellView title={`CI on ${row.defaultBranch}`} cell={row.ci} now={now} exact />
         <CellView title="last merge" cell={row.lastMerge} now={now} exact />
         {row.tree ? <CellView title="tree" cell={row.tree} now={now} /> : null}
@@ -49,15 +50,15 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
       </Card>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xl">Open pull requests</h2>
+        <h2 className="text-lg">Open pull requests</h2>
         {pulls.ok ? (
           pulls.value.length ? (
-            <ul className="divide-y divide-border rounded-lg border bg-card text-card-foreground">
+            <ul className="divide-y divide-line overflow-hidden rounded-xl border bg-card text-card-foreground">
               {pulls.value.map((pr) => (
-                <li key={pr.number} className="flex flex-col gap-0.5 px-3 py-2 text-sm">
-                  <a href={pr.url} className="underline-offset-2 hover:underline" rel="noreferrer">
+                <li key={pr.number} className="flex flex-col gap-0.5 px-4 py-2.5 text-sm">
+                  <a href={pr.url} className="wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
                     #{pr.number} {pr.title}
-                    {pr.draft ? <span className="ml-1 rounded bg-muted px-1 text-xs text-muted-foreground">draft</span> : null}
+                    {pr.draft ? <span className="ml-1.5 rounded-full border border-border px-1.5 text-xs text-muted-foreground">draft</span> : null}
                   </a>
                   <span className="text-xs text-muted-foreground">
                     by {pr.author}
@@ -78,7 +79,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
       </section>
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xl">Checks on {row.defaultBranch}</h2>
+        <h2 className="text-lg">Checks on {row.defaultBranch}</h2>
         {checks.ok ? (
           <>
             {checks.value.headSha ? (
@@ -87,11 +88,11 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
               </p>
             ) : null}
             {checks.value.checks.length ? (
-              <ul className="divide-y divide-border rounded-lg border bg-card text-card-foreground">
+              <ul className="divide-y divide-line overflow-hidden rounded-xl border bg-card text-card-foreground">
                 {checks.value.checks.map((c, i) => (
-                  <li key={`${c.name}-${i}`} className="flex flex-wrap items-center gap-2 px-3 py-2 text-sm">
+                  <li key={`${c.name}-${i}`} className="flex flex-wrap items-center gap-2 px-4 py-2.5 text-sm">
                     <StateBadge state={c.conclusion === "success" ? "green" : c.status !== "completed" ? "pending" : c.conclusion === "neutral" || c.conclusion === "skipped" ? "unknown" : "red"} />
-                    <a href={c.url} className="underline-offset-2 hover:underline" rel="noreferrer">
+                    <a href={c.url} className="wrap-anywhere underline-offset-2 hover:underline" rel="noreferrer">
                       {c.name}
                     </a>
                     <span className="text-xs text-muted-foreground">
@@ -114,7 +115,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
 
       {tree ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xl">Tree</h2>
+          <h2 className="text-lg">Tree</h2>
           {tree.ok ? (
             <>
               <p className="text-sm">
@@ -158,24 +159,24 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
 
       {release ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xl">Canary, last {release.days.length} days</h2>
+          <h2 className="text-lg">Canary, last {release.days.length} days</h2>
           <CanaryStrip days={release.days} repo={row.name} />
         </section>
       ) : null}
 
       {row.product ? (
         <section className="flex flex-col gap-2">
-          <h2 className="text-xl">Perf</h2>
+          <h2 className="text-lg">Perf</h2>
           {view.perfReason ? (
             <p className="text-sm text-muted-foreground">
-              <StateBadge state="unknown" /> {view.perfReason}
+              <StateBadge state="unknown" /> <span className="wrap-anywhere">{view.perfReason}</span>
             </p>
           ) : perf.length === 0 ? (
             <p className="text-sm text-muted-foreground">No metrics recorded.</p>
           ) : (
             <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {perf.map((m) => (
-                <li key={m.metric} className="flex flex-col gap-1 rounded-lg border bg-card p-3 text-sm text-card-foreground">
+                <li key={m.metric} className="flex flex-col gap-1 rounded-xl border bg-card p-3 text-sm text-card-foreground">
                   <a href={m.url} className="font-medium underline-offset-2 hover:underline" rel="noreferrer">
                     {m.metric}
                   </a>
@@ -189,7 +190,7 @@ export default async function RepoPage({ params }: PageProps<"/repos/[repo]">) {
                       </span>
                     </>
                   ) : (
-                    <span className="text-xs text-muted-foreground">{m.reason ?? "no records"}</span>
+                    <span className="text-xs wrap-anywhere text-muted-foreground">{m.reason ?? "no records"}</span>
                   )}
                 </li>
               ))}

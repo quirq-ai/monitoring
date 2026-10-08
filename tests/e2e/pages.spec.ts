@@ -108,6 +108,9 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByText("ledger not started").first()).toBeVisible();
     await expect(page.getByText(/scorecard failure .*the data may still be current/)).toBeVisible();
     await expect(page.getByText(/^stale$/)).toHaveCount(0);
+    // A read that answered is "ok", never a green marker: readable is not healthy or fresh.
+    await expect(page.locator("main .bg-state-green:not(.state-badge *)")).toHaveCount(0);
+    await expect(page.getByText("ok", { exact: true }).first()).toBeVisible();
   });
 
   test("on a phone the Board folds green repos into one line each and stays short", async ({ page }) => {

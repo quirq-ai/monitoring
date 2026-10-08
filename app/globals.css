@@ -13,118 +13,127 @@
   }
 }
 
+/*
+ * A near-monochrome palette in the Vercel style (decided by suraj on 2026-10-07): neutral
+ * surfaces and text, color reserved for the six states. `--line` is the hairline for purely
+ * decorative dividers; anything that outlines a control, a card edge or a state uses `--border`,
+ * which keeps 3:1 on every surface. tests/contrast.test.ts and the e2e suite check every pair.
+ */
+
 /* token-block: light */
 :root {
   color-scheme: light;
   --radius: 0.625rem;
-  --background: #f7f5f0;
-  --foreground: #302b26;
-  --card: #fffefa;
-  --card-foreground: #302b26;
-  --popover: #fffefa;
-  --popover-foreground: #302b26;
-  --primary: #a64d2f;
-  --primary-foreground: #fffefa;
-  --secondary: #eeebe4;
-  --secondary-foreground: #302b26;
-  --muted: #eeebe4;
-  --muted-foreground: #6c6359;
-  --accent: #eeebe4;
-  --accent-foreground: #302b26;
-  --destructive: #ac3434;
+  --background: #fafafa;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary: #171717;
+  --primary-foreground: #ffffff;
+  --secondary: #f2f2f2;
+  --secondary-foreground: #171717;
+  --muted: #f2f2f2;
+  --muted-foreground: #666666;
+  --accent: #f2f2f2;
+  --accent-foreground: #171717;
+  --destructive: #cc1f1a;
   --destructive-foreground: #ffffff;
-  --border: #82786c;
-  --input: #82786c;
-  --ring: #a64d2f;
-  --chart-1: #a64d2f;
-  --chart-2: #506e88;
-  --chart-3: #526b4c;
-  --chart-4: #84658f;
-  --chart-5: #866226;
-  --state-green: #526b4c;
-  --state-red: #ac3434;
-  --state-held: #866226;
-  --state-pending: #4c6882;
-  --state-unknown: #6c6359;
-  --state-stale: #514a42;
+  --border: #858585;
+  --input: #858585;
+  --line: #ebebeb;
+  --ring: #0070f3;
+  --chart-1: #0070f3;
+  --chart-2: #0f7a3e;
+  --chart-3: #b45309;
+  --chart-4: #6d28d9;
+  --chart-5: #cc1f1a;
+  --state-green: #0f7a3e;
+  --state-red: #cc1f1a;
+  --state-held: #b45309;
+  --state-pending: #0070f3;
+  --state-unknown: #666666;
+  --state-stale: #6d28d9;
 }
 
 /* token-block: dark */
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --background: #100f14;
-  --foreground: #f3ece4;
-  --card: #19161e;
-  --card-foreground: #f3ece4;
-  --popover: #19161e;
-  --popover-foreground: #f3ece4;
-  --primary: #f2a2d5;
-  --primary-foreground: #21141e;
-  --secondary: #231e2a;
-  --secondary-foreground: #f3ece4;
-  --muted: #231e2a;
-  --muted-foreground: #b1a2b4;
-  --accent: #231e2a;
-  --accent-foreground: #f3ece4;
-  --destructive: #ed978d;
-  --destructive-foreground: #21141e;
-  --border: #918496;
-  --input: #918496;
-  --ring: #d784bb;
-  --chart-1: #e995ce;
-  --chart-2: #bb9aef;
-  --chart-3: #eac17a;
-  --chart-4: #e59b8d;
-  --chart-5: #b7cc91;
-  --state-green: #b7cc91;
-  --state-red: #ed978d;
-  --state-held: #eac17a;
-  --state-pending: #bb9aef;
-  --state-unknown: #b1a2b4;
-  --state-stale: #d0c3cc;
+  --background: #000000;
+  --foreground: #ededed;
+  --card: #0a0a0a;
+  --card-foreground: #ededed;
+  --popover: #0a0a0a;
+  --popover-foreground: #ededed;
+  --primary: #ededed;
+  --primary-foreground: #0a0a0a;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #ededed;
+  --muted: #1a1a1a;
+  --muted-foreground: #a1a1a1;
+  --accent: #1a1a1a;
+  --accent-foreground: #ededed;
+  --destructive: #ff6166;
+  --destructive-foreground: #0a0a0a;
+  --border: #7d7d7d;
+  --input: #7d7d7d;
+  --line: #262626;
+  --ring: #52a8ff;
+  --chart-1: #52a8ff;
+  --chart-2: #3ecf8e;
+  --chart-3: #f5a623;
+  --chart-4: #b48cff;
+  --chart-5: #ff6166;
+  --state-green: #3ecf8e;
+  --state-red: #ff6166;
+  --state-held: #f5a623;
+  --state-pending: #52a8ff;
+  --state-unknown: #a1a1a1;
+  --state-stale: #b48cff;
 }
 
 @media (prefers-color-scheme: dark) {
   /* token-block: dark-system */
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --background: #100f14;
-    --foreground: #f3ece4;
-    --card: #19161e;
-    --card-foreground: #f3ece4;
-    --popover: #19161e;
-    --popover-foreground: #f3ece4;
-    --primary: #f2a2d5;
-    --primary-foreground: #21141e;
-    --secondary: #231e2a;
-    --secondary-foreground: #f3ece4;
-    --muted: #231e2a;
-    --muted-foreground: #b1a2b4;
-    --accent: #231e2a;
-    --accent-foreground: #f3ece4;
-    --destructive: #ed978d;
-    --destructive-foreground: #21141e;
-    --border: #918496;
-    --input: #918496;
-    --ring: #d784bb;
-    --chart-1: #e995ce;
-    --chart-2: #bb9aef;
-    --chart-3: #eac17a;
-    --chart-4: #e59b8d;
-    --chart-5: #b7cc91;
-    --state-green: #b7cc91;
-    --state-red: #ed978d;
-    --state-held: #eac17a;
-    --state-pending: #bb9aef;
-    --state-unknown: #b1a2b4;
-    --state-stale: #d0c3cc;
+    --background: #000000;
+    --foreground: #ededed;
+    --card: #0a0a0a;
+    --card-foreground: #ededed;
+    --popover: #0a0a0a;
+    --popover-foreground: #ededed;
+    --primary: #ededed;
+    --primary-foreground: #0a0a0a;
+    --secondary: #1a1a1a;
+    --secondary-foreground: #ededed;
+    --muted: #1a1a1a;
+    --muted-foreground: #a1a1a1;
+    --accent: #1a1a1a;
+    --accent-foreground: #ededed;
+    --destructive: #ff6166;
+    --destructive-foreground: #0a0a0a;
+    --border: #7d7d7d;
+    --input: #7d7d7d;
+    --line: #262626;
+    --ring: #52a8ff;
+    --chart-1: #52a8ff;
+    --chart-2: #3ecf8e;
+    --chart-3: #f5a623;
+    --chart-4: #b48cff;
+    --chart-5: #ff6166;
+    --state-green: #3ecf8e;
+    --state-red: #ff6166;
+    --state-held: #f5a623;
+    --state-pending: #52a8ff;
+    --state-unknown: #a1a1a1;
+    --state-stale: #b48cff;
   }
 }
 
 @theme inline {
-  --font-sans: var(--font-inter), "Inter", system-ui, sans-serif;
-  --font-display: var(--font-poppins), "Poppins", var(--font-sans);
-  --font-mono: var(--font-jetbrains), "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: var(--font-geist-sans), "Geist", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -147,6 +156,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
+  --color-line: var(--line);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
@@ -163,22 +173,27 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring;
   }
   body {
     @apply bg-background text-foreground font-sans;
     margin: 0;
+    font-feature-settings: "cv11", "ss01";
   }
   h1,
   h2,
   h3 {
-    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
     text-wrap: balance;
+  }
+  a {
+    transition: color 120ms ease, background-color 120ms ease;
   }
 }
 
 .brand-wordmark {
-  height: 2.25rem;
+  height: 1.5rem;
   width: auto;
 }
 
@@ -199,14 +214,14 @@
 .markdown h3,
 .markdown h4,
 .markdown h5 {
-  font-family: var(--font-display);
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 .markdown h3 {
-  font-size: 1.25rem;
+  font-size: 1.125rem;
 }
 .markdown h4 {
-  font-size: 1.05rem;
+  font-size: 1rem;
 }
 /* The table scrolls inside its focusable wrapper (components/markdown.tsx), never by itself. */
 .markdown table {
@@ -216,16 +231,20 @@
 .markdown th,
 .markdown td {
   border: 1px solid var(--border);
-  padding: 0.25rem 0.5rem;
+  padding: 0.3rem 0.6rem;
   text-align: left;
   vertical-align: top;
 }
 .markdown th {
   background: var(--muted);
+  font-weight: 500;
 }
 .markdown code {
   font-family: var(--font-mono);
   font-size: 0.8125rem;
+  background: var(--muted);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.3rem;
 }
 .markdown a {
   text-decoration: underline;
@@ -235,25 +254,6 @@
 .markdown ol {
   padding-left: 1.25rem;
   list-style: disc;
-}
-
-.state-green {
-  color: var(--state-green);
-}
-.state-red {
-  color: var(--state-red);
-}
-.state-held {
-  color: var(--state-held);
-}
-.state-pending {
-  color: var(--state-pending);
-}
-.state-unknown {
-  color: var(--state-unknown);
-}
-.state-stale {
-  color: var(--state-stale);
 }
 
 @media (prefers-reduced-motion: reduce) {

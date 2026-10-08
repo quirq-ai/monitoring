@@ -1,19 +1,9 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
+import { GeistMono } from "geist/font/mono";
+import { GeistSans } from "geist/font/sans";
 import { cookies } from "next/headers";
 import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: "600",
-  variable: "--font-poppins",
-});
-const jetbrains = JetBrains_Mono({
-  subsets: ["latin"],
-  variable: "--font-jetbrains",
-});
 
 export const metadata: Metadata = {
   title: "quirq monitoring",
@@ -26,15 +16,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const stored = jar.get("theme")?.value;
   const theme = stored === "light" || stored === "dark" ? stored : undefined;
 
+  // Geist Sans and Geist Mono ship with the `geist` package and load through next/font/local:
+  // self-hosted at build time, no runtime font request. scroll-pt keeps a focused element
+  // (Shift+Tab, VoiceOver) out from under the sticky header (WCAG 2.4.11).
   return (
-    <html
-      lang="en"
-      data-theme={theme}
-      className={`${inter.variable} ${poppins.variable} ${jetbrains.variable} h-full antialiased`}
-    >
+    <html lang="en" data-theme={theme} className={`${GeistSans.variable} ${GeistMono.variable} h-full scroll-pt-28 antialiased md:scroll-pt-16`}>
       <body className="flex min-h-full flex-col bg-background text-foreground">
         <SiteHeader />
-        <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
+        <main className="flex-1 px-4 py-8 md:px-8 md:py-10">{children}</main>
       </body>
     </html>
   );

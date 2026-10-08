@@ -9,18 +9,18 @@ export function PageSkeleton() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6" aria-busy="true" aria-label="Loading">
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-9 w-40" />
+        <Skeleton className="h-8 w-40 rounded-lg" />
         <Skeleton className="h-5 w-72 max-w-full" />
       </div>
       <div className="grid grid-cols-3 gap-3">
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
-        <Skeleton className="h-24" />
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-28 rounded-xl" />
+        <Skeleton className="h-28 rounded-xl" />
       </div>
       <div className="flex flex-col gap-2">
-        <Skeleton className="h-12" />
-        <Skeleton className="h-12" />
-        <Skeleton className="h-12" />
+        <Skeleton className="h-12 rounded-xl" />
+        <Skeleton className="h-12 rounded-xl" />
+        <Skeleton className="h-12 rounded-xl" />
       </div>
     </div>
   );

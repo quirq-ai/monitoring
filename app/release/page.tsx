@@ -28,7 +28,7 @@ export default async function ReleasePage() {
       )}
 
       {release.repos.length === 0 ? (
-        <Card className="rounded-lg p-4 text-sm shadow-none">
+        <Card className="rounded-xl p-4 text-sm shadow-none">
           {release.reposReason ? (
             <span className="flex flex-wrap items-center gap-2">
               <StateBadge state="unknown" /> The product registry could not be read: {release.reposReason}
@@ -40,8 +40,8 @@ export default async function ReleasePage() {
       ) : null}
 
       {release.repos.map((r) => (
-        <Card key={r.repo} className="gap-4 rounded-lg px-4 py-4 shadow-none">
-          <h2 className="text-xl">
+        <Card key={r.repo} className="gap-5 rounded-xl px-4 py-4 shadow-none sm:px-5 sm:py-5">
+          <h2 className="text-lg">
             <Link href={`/repos/${r.repo}`} className="underline-offset-2 hover:underline">
               {r.repo}
             </Link>
@@ -92,11 +92,11 @@ export default async function ReleasePage() {
       ))}
 
       <section className="flex flex-col gap-2">
-        <h2 className="text-xl">Latest canary report</h2>
+        <h2 className="text-lg">Latest canary report</h2>
         {release.report ? (
           <>
             <SourceLink source={`release-state reports/${release.report.date}.md`} url={release.report.url} now={now} />
-            <Card className="rounded-lg px-4 py-4 shadow-none">
+            <Card className="rounded-xl px-4 py-4 shadow-none sm:px-6 sm:py-6">
               <Markdown text={release.report.markdown} />
             </Card>
           </>
