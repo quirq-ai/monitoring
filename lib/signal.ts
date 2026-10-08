@@ -50,10 +50,13 @@ export function unreadAt(maxAge: number): Read {
 /**
  * The one stale rule: a read older than twice its cache window was served expired and not
  * refreshed since (Next serves an expired entry once while it refreshes in the background). The
- * model's cells and page reads and Health's Sources list all judge a read by this.
+ * model's cells and page reads and Health's Sources list all judge a read by this. Written so
+ * that a read it cannot judge (an unparseable time, a window that is missing at runtime through
+ * an untyped path) is stale, never fresh: missing is never green.
  */
 export function isStaleRead(read: Read, now: Date): boolean {
-  return (now.getTime() - Date.parse(read.fetchedAt)) / 1000 > 2 * read.maxAge;
+  const ageSeconds = (now.getTime() - Date.parse(read.fetchedAt)) / 1000;
+  return !(ageSeconds <= 2 * read.maxAge);
 }
 
 /** Map a failed signal to another type without touching its reason. */

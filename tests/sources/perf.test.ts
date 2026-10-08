@@ -55,6 +55,9 @@ describe("perf", () => {
     const silent = await listPerfMetrics("innernet");
     expect(silent.ok, "a 404 that says nothing is not 'not measured'").toBe(false);
     if (!silent.ok) expect(silent.reason).toBe("perf-data: GitHub API returned 404");
+    const silentAgain = await listPerfMetrics("innernet");
+    expect(silentAgain.ok, "the remembered 404 stays a failure").toBe(false);
+    if (!silentAgain.ok) expect(silentAgain.reason).toBe("perf-data: GitHub API returned 404");
     const refused = await listPerfMetrics("xo-space");
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.reason).toBe("perf-data: GitHub API refused (403): Resource not accessible by personal access token");

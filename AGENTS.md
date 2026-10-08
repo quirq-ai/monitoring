@@ -150,13 +150,19 @@ export type State = "green" | "red" | "held" | "pending" | "unknown" | "stale"
 export type Signal<T> = {
   source: string       // stable id, e.g. "release/channels"
   sourceUrl: string    // the human link: the file on GitHub or the API page
-  fetchedAt: string    // ISO time we read it
+  fetchedAt: string    // ISO time we read it (the response's Date header)
+  maxAge: number       // the cache window in seconds; required, so a read can always go stale
   observedAt?: string  // ISO time the data says it was written (updated_at, generated_at)
   ok: boolean          // false: value is absent and `reason` says why
   value?: T            // parsed and validated with the source's zod schema
   reason?: string      // one actionable line, e.g. "release-state: channels.json returned 404"
 }
 ```
+
+`okSignal` and `failSignal` (`lib/signal.ts`) build one from the `Read` behind it (`fetchedAt` and
+`maxAge`, which `fetchRaw` and `ghGet` results carry); a source that fails before it calls out
+passes `unreadAt(window)`. `isStaleRead` is the one rule for "read more than twice its window
+ago", and it reads a time or window it cannot judge as stale.
 
 - **State-branch files** are read from
   `https://raw.githubusercontent.com/quirq-ai/<repo>/refs/heads/<branch>/<path>`. The `refs/heads/`

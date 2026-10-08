@@ -115,7 +115,7 @@ export type ApiOptions = {
 };
 
 /** How much of GitHub's `message` a reason carries: one line, cut here. */
-const REFUSAL_MESSAGE_MAX = 120;
+const GITHUB_MESSAGE_MAX = 120;
 
 /**
  * True only for GitHub's plain "Not Found": the path is missing and the ref is there, which is
@@ -145,7 +145,7 @@ async function responseMessage(res: Response): Promise<string | undefined> {
     if (typeof message !== "string") return undefined;
     const line = message.replace(/\s+/g, " ").trim();
     if (!line) return undefined;
-    return line.length > REFUSAL_MESSAGE_MAX ? `${line.slice(0, REFUSAL_MESSAGE_MAX - 1)}…` : line;
+    return line.length > GITHUB_MESSAGE_MAX ? `${line.slice(0, GITHUB_MESSAGE_MAX - 1)}…` : line;
   } catch {
     return undefined;
   }
