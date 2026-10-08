@@ -29,7 +29,7 @@ export default async function BoardPage() {
       <PageTitle title="Board" lead="One row per repo, the ones that need a look first: main CI, open PRs, last merge, and for products the tree, lkgr, canary and deploy." />
       <ApiBanner api={snapshot.health.api} />
       {snapshot.unregistered.length ? (
-        <Card className="rounded-xl p-4 text-sm shadow-none">
+        <Card className="rounded-xl p-4 text-sm wrap-anywhere shadow-none">
           Not in any registry: {snapshot.unregistered.join(", ")}. Add them to infra-config, the gate or this repo&apos;s config/repos.json.
         </Card>
       ) : null}
@@ -84,14 +84,14 @@ export default async function BoardPage() {
           <ul className="flex flex-col gap-2 md:hidden">
             {foldRuns(group.repos, (row) => (row.worst === "green" || (row.quiet && snapshot.health.api.state !== "ok")) && group.id !== "products").map((run) =>
               run.folded ? (
-                <li key={`folded-${run.items[0].name}`}>
+                <li key={`run:${run.items[0].name}`}>
                   <Card className="gap-0 overflow-hidden rounded-xl py-0 shadow-none">
                     <ul className="divide-y divide-line">
                       {run.items.map((row) => (
                         <li key={row.name}>
                           <Collapsible>
                             <div className="flex min-h-11 items-center gap-2 px-4">
-                              <Link href={`/repos/${row.name}`} className="min-h-11 flex-1 py-2 text-sm font-medium underline-offset-2 hover:underline">
+                              <Link href={`/repos/${row.name}`} className="min-h-11 min-w-0 flex-1 py-2 text-sm font-medium wrap-anywhere underline-offset-2 hover:underline">
                                 <span className="flex min-h-7 items-center">{row.name}</span>
                               </Link>
                               <StateBadge state={row.worst} />
@@ -163,7 +163,7 @@ function RepoName({ row }: { row: BoardRow }) {
           {row.name}
         </a>
       )}
-      {row.description ? <span className="text-xs text-muted-foreground">{row.description}</span> : null}
+      {row.description ? <span className="text-xs wrap-anywhere text-muted-foreground">{row.description}</span> : null}
     </span>
   );
 }

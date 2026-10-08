@@ -29,7 +29,7 @@ export const SourceStatusSchema = z.object({
   source: z.string(),
   sourceUrl: z.string(),
   fetchedAt: z.string(),
-  maxAge: z.number().optional(),
+  maxAge: z.number().positive(),
   observedAt: z.string().optional(),
   ok: z.boolean(),
   reason: z.string().optional(),

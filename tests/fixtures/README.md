@@ -56,7 +56,7 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `api/release_contents_canary_innernet_runs.json` | synthetic listing in the contents API shape: the captured run files of innernet plus the synthetic one for the request day |
 | `api/release_contents_canary_xo-space_runs.json` | synthetic listing in the contents API shape: the captured run files of xo-space plus the synthetic one for the request day |
 | `api/gardener_contents_landed.json` | synthetic: an empty ledger landed/ listing |
-| `api/org_repos.json` | synthetic list in the orgs/<org>/repos shape; names are the real public repos from the wiki manifest generated 2026-10-06T12:18Z |
+| `api/org_repos.json` | synthetic list in the orgs/<org>/repos shape; names are the real public repos from the wiki manifest generated 2026-10-06T12:18Z. `routes.json` serves it with a `date` header three hours old (its cache window is one hour), so the default story has one read past twice its window: Health shows it `stale` and nothing else changes, since the registries feed no page read or cell |
 | `api/gardener_tree-status_commits.json` | built from the git log of gardener `tree-status` at ea5544df11ac35cdb9573edc8bbdce0d8dc03255: real shas and messages, except the newest three whose times are set relative to the request and the second of which says innernet closed, so a close and a reopen appear |
 | `api/runs_gardener_tree-status.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-4m}}, then a cancelled one (routine), then an older success |
 | `api/runs_release_lkgr.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-7m}}, then a cancelled one (routine), then an older success |

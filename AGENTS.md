@@ -290,9 +290,10 @@ cloud session, and REST with the issue search covers the same questions in a han
   600 s: on the repo page, and on Health so a refused or malformed file is seen. Perf decides on
   its own which products it measures, so a product with no directory there (a plain "Not Found"
   404) is "not measured": an empty list on the repo page and no row on Health, never an unknown.
-  A 404 whose message says the ref is missing is the `perf-data` branch gone, and is a failure
-  with that message (`lib/github.ts` keeps GitHub's message with a 404; the same rule tells a
-  missing `canary/<repo>/runs/` directory from a missing `release-state` branch).
+  Any other 404 is a failure with GitHub's message: one that says the ref is missing is the
+  `perf-data` branch gone, and one with no message at all cannot be told apart from that
+  (`isPlainNotFound` in `lib/github.ts` accepts only the plain "Not Found"; the same rule tells
+  a missing `canary/<repo>/runs/` directory from a missing `release-state` branch).
 - The org repo list, cached 1 h: 1 an hour. The wiki's manifest is the no-token fallback:
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
@@ -357,9 +358,10 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   into the words after it; `StateDot` is the dot alone, for the count tiles. Health's Sources list
   says "ok" on a plain pill with no state color for a read that answered (readable is not healthy,
   and every API read comes through the data cache, so never fresh either); a read older than twice
-  its cache window is the `stale` badge with "read N ago". It never uses shadcn's `destructive`
-  variant. Stock shadcn Button and Badge hard-code `text-white` on `destructive`; when you copy
-  them, change that to `text-destructive-foreground`, drop the `dark:bg-destructive/60` overlay
+  its cache window is the `stale` badge with "read N ago"; the list is ordered unknown, stale,
+  then ok. `StateBadge` never uses shadcn's `destructive` variant. Stock shadcn Button and Badge
+  hard-code `text-white` on `destructive`; when you copy them, change that to
+  `text-destructive-foreground`, drop the `dark:bg-destructive/60` overlay
   (with it, dark text is only 3.5:1), and add `--color-destructive-foreground:
   var(--destructive-foreground)` to the `@theme inline` block, or the class applies no color. The
   copied Button's focus ring is `ring-ring`, not stock `ring-ring/50` (2:1 on a ghost button).

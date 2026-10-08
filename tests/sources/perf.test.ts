@@ -46,9 +46,15 @@ describe("perf", () => {
   });
 
   it("lists nothing for a repo perf does not measure, and is unknown when the listing is refused or without a token", async () => {
-    await withFixtures([{ path: "/repos/quirq-ai/perf/contents/xo-space", status: 403, body: JSON.stringify({ message: "Resource not accessible by personal access token" }) }]);
+    await withFixtures([
+      { path: "/repos/quirq-ai/perf/contents/xo-space", status: 403, body: JSON.stringify({ message: "Resource not accessible by personal access token" }) },
+      { path: "/repos/quirq-ai/perf/contents/innernet", status: 404, body: "{}" },
+    ]);
     const none = await listPerfMetrics("website");
-    expect(none.ok && none.value, "a 404 is not measured, not a failure").toEqual([]);
+    expect(none.ok && none.value, "a plain Not Found is not measured, not a failure").toEqual([]);
+    const silent = await listPerfMetrics("innernet");
+    expect(silent.ok, "a 404 that says nothing is not 'not measured'").toBe(false);
+    if (!silent.ok) expect(silent.reason).toBe("perf-data: GitHub API returned 404");
     const refused = await listPerfMetrics("xo-space");
     expect(refused.ok).toBe(false);
     if (!refused.ok) expect(refused.reason).toBe("perf-data: GitHub API refused (403): Resource not accessible by personal access token");

@@ -107,10 +107,42 @@ test.describe("content from the fixtures", () => {
     await page.goto("/health");
     await expect(page.getByText("ledger not started").first()).toBeVisible();
     await expect(page.getByText(/scorecard failure .*the data may still be current/)).toBeVisible();
-    await expect(page.getByText(/^stale$/)).toHaveCount(0);
-    // A read that answered is "ok", never a green marker: readable is not healthy or fresh.
-    await expect(page.locator("main .bg-state-green:not(.state-badge *)")).toHaveCount(0);
-    await expect(page.getByText("ok", { exact: true }).first()).toBeVisible();
+    // The org list was read three hours ago on a one-hour window (routes.json backdates it): the
+    // one stale read, listed after the unknown rows and before every "ok".
+    const sources = page.locator("main ul > li", { has: page.locator("a.font-mono") });
+    const stale = sources.filter({ has: page.getByText(/^stale$/) });
+    await expect(stale).toHaveCount(1);
+    await expect(stale).toContainText("github/org-repos");
+    await expect(stale).toContainText(/read 3 h ago, not refreshed yet/);
+    const order = await sources.evaluateAll((rows) => rows.map((row) => row.querySelector(".state-badge")?.textContent ?? "ok"));
+    expect(order.indexOf("stale"), "after the unknown rows").toBeGreaterThan(order.lastIndexOf("unknown"));
+    expect(order.indexOf("stale"), "before the first ok row").toBeLessThan(order.indexOf("ok"));
+    // A read that answered is "ok" on the muted pill, in the text color: readable is not healthy
+    // or fresh, so nothing outside a state badge may carry the green marker, as a tint or as text.
+    const okPill = page.getByText("ok", { exact: true }).first();
+    await expect(okPill).toBeVisible();
+    const colors = await page.evaluate(() => {
+      const computed = (name: string) => {
+        const probe = document.createElement("span");
+        probe.style.color = `var(${name})`;
+        document.body.append(probe);
+        const value = getComputedStyle(probe).color;
+        probe.remove();
+        return value;
+      };
+      const green = computed("--state-green");
+      const greenOutsideBadges: string[] = [];
+      for (const el of document.querySelectorAll("main *")) {
+        if (el.closest(".state-badge")) continue;
+        const s = getComputedStyle(el);
+        if ([s.color, s.backgroundColor, s.borderColor, s.outlineColor].includes(green)) greenOutsideBadges.push(`${el.tagName.toLowerCase()} "${(el.textContent ?? "").trim().slice(0, 40)}"`);
+      }
+      const pill = [...document.querySelectorAll("main span")].find((el) => el.textContent === "ok");
+      const pillStyle = pill ? getComputedStyle(pill) : undefined;
+      return { greenOutsideBadges, pill: pillStyle && { color: pillStyle.color, background: pillStyle.backgroundColor }, muted: computed("--muted"), foreground: computed("--foreground") };
+    });
+    expect(colors.greenOutsideBadges).toEqual([]);
+    expect(colors.pill).toEqual({ color: colors.foreground, background: colors.muted });
   });
 
   test("on a phone the Board folds green repos into one line each and stays short", async ({ page }) => {
@@ -124,6 +156,20 @@ test.describe("content from the fixtures", () => {
     expect(before, "the products and the repos that need a look are open cards").toBeGreaterThanOrEqual(4);
     await details.click();
     await expect(fields).toHaveCount(before + 1);
+    // A repo name at GitHub's 100-character limit wraps inside its folded row: the badge and the
+    // chevron stay in the card and the page does not scroll sideways.
+    const row = details.locator("xpath=parent::*");
+    const link = row.getByRole("link", { name: "depot" });
+    await link.locator("span").evaluate((el) => (el.textContent = "d".repeat(100)));
+    const card = row.locator("xpath=ancestor::*[@data-slot='card'][1]");
+    const cardBox = await card.boundingBox();
+    const badgeBox = await row.locator(".state-badge").boundingBox();
+    const chevronBox = await details.boundingBox();
+    expect(cardBox && badgeBox && chevronBox, "the row, its badge and its chevron are on the page").toBeTruthy();
+    expect(badgeBox!.x + badgeBox!.width, "the badge stays inside the card").toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+    expect(chevronBox!.x + chevronBox!.width, "the chevron stays inside the card").toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(sideways, "no horizontal page scroll with a long name").toBeLessThanOrEqual(0);
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
     expect(height, "under five phone screens, down from ten").toBeLessThan(4200);
     // The rows that need a look come first in each group.

@@ -1,21 +1,23 @@
 import { StateBadge } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
 import type { SourceStatus } from "@/lib/model/types";
+import { isStaleRead } from "@/lib/signal";
 
 /**
  * Every source this render read, with its state and the data's own time, as a plain list. A read
  * that answered is "ok" on a plain pill with no state color: `ok` says the file or API page could
  * be read (through the data cache, so never "fresh"), not that what it says is healthy; the Board
  * and the writers' cards judge that. A read older than twice its cache window is `stale`, the
- * rule the model applies to cells and to the count tiles; one that failed is `unknown`.
+ * rule the model applies to cells and to the count tiles; one that failed is `unknown`. The
+ * list puts what needs a look first: unknown, then stale, then the reads that are fine.
  */
 export function SourcesList({ sources, now }: { sources: SourceStatus[]; now: Date }) {
-  const sorted = [...sources].sort((a, b) => Number(a.ok) - Number(b.ok) || a.source.localeCompare(b.source));
+  const rank = (s: SourceStatus) => (!s.ok ? 0 : isStaleRead(s, now) ? 1 : 2);
+  const sorted = [...sources].sort((a, b) => rank(a) - rank(b) || a.source.localeCompare(b.source));
   return (
     <ul className="divide-y divide-line overflow-hidden rounded-xl border border-border bg-card text-card-foreground">
       {sorted.map((s, i) => {
-        const ageSeconds = (now.getTime() - Date.parse(s.fetchedAt)) / 1000;
-        const stale = s.ok && s.maxAge !== undefined && ageSeconds > 2 * s.maxAge;
+        const stale = s.ok && isStaleRead(s, now);
         return (
           <li key={`${s.source}-${i}`} className="flex flex-col gap-0.5 px-4 py-2.5 text-sm">
             <span className="flex flex-wrap items-center gap-x-3 gap-y-1">

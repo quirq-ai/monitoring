@@ -2,7 +2,7 @@ import { WRITERS } from "@/config/freshness";
 import { OWNER } from "@/config/owner";
 import { ORG, blobUrl, treeUrl } from "@/lib/fetch";
 import { hasToken, isApiOutageReason, RATE_LIMIT_REASON, rateLimitedUntil, requestsThisHour, web } from "@/lib/github";
-import type { Signal, State } from "@/lib/signal";
+import { isStaleRead, type Signal, type State } from "@/lib/signal";
 import { judgeWriter } from "@/lib/model/freshness";
 import { ago, WINDOWS, within, type Window } from "@/lib/model/time";
 import {
@@ -114,10 +114,9 @@ export function gateByWriter(cell: Cell, writer: WriterHealth | undefined): Cell
  * window ago is marked stale rather than shown as current.
  */
 export function gateByAge(cell: Cell, source: SourceStatus | undefined, now: Date): Cell {
-  if (!source || !source.maxAge || !source.ok) return cell;
+  if (!source || !source.ok) return cell;
   if (cell.state !== "green" && cell.state !== "pending") return cell;
-  const ageSeconds = (now.getTime() - new Date(source.fetchedAt).getTime()) / 1000;
-  if (!(ageSeconds > 2 * source.maxAge)) return cell;
+  if (!isStaleRead(source, now)) return cell;
   return { ...cell, state: "stale", text: `${cell.text}; read ${ago(source.fetchedAt, now)}, not refreshed yet` };
 }
 
@@ -142,7 +141,7 @@ export function isQuiet(cells: (Cell | undefined)[]): boolean {
 export function sectionRead(signals: Signal<unknown>[], now: Date): SectionRead {
   const ok = signals.filter((s) => s.ok);
   const asOf = ok.map((s) => s.fetchedAt).sort()[0];
-  const stale = ok.some((s) => s.maxAge !== undefined && (now.getTime() - new Date(s.fetchedAt).getTime()) / 1000 > 2 * s.maxAge);
+  const stale = ok.some((s) => isStaleRead(s, now));
   return { asOf, stale };
 }
 

@@ -79,7 +79,10 @@
   },
   {
     "path": "/orgs/quirq-ai/repos",
-    "file": "api/org_repos.json"
+    "file": "api/org_repos.json",
+    "headers": {
+      "date": "{{now-3h}}"
+    }
   },
   {
     "path": "/repos/quirq-ai/release/contents/canary/innernet/runs",

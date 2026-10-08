@@ -314,7 +314,7 @@ describe("snapshot", () => {
       expect(sources.find((s) => s.source === `perf/metrics/${repo}`), repo).toMatchObject({ ok: false, reason: "perf-data: GitHub API returned 404: No commit found for the ref perf-data" });
     }
     expect(sources.some((s) => s.source.startsWith("perf/innernet/")), "no series is read behind a missing branch").toBe(false);
-    expect(counts.unknownOrStale).toBeGreaterThanOrEqual(3);
+    expect(counts.unknownOrStale, "the three listings on top of the default fixtures' three").toBeGreaterThanOrEqual(6);
   });
 
   it("shows a refused perf listing and a malformed metric file on Health, with the reason", async () => {

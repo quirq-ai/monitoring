@@ -104,10 +104,18 @@ describe("canary runs", () => {
   });
 
   it("treats a directory that does not exist yet as no runs, not a failure", async () => {
-    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: "{}" }]);
+    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: '{"message":"Not Found"}' }]);
     const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
     expect(listing?.ok && listing.value).toEqual([]);
     expect(days.every((d) => d.run.ok && d.run.value === null)).toBe(true);
+  });
+
+  it("does not read a 404 without a message as an empty directory", async () => {
+    await withFixtures([{ path: "/repos/quirq-ai/release/contents/canary/innernet/runs", status: 404, body: "{}" }]);
+    const { listing, days } = await readCanaryDays("innernet", 3, new Date("2026-10-06T12:00:00Z"));
+    expect(listing?.ok).toBe(false);
+    if (listing && !listing.ok) expect(listing.reason).toBe("release-state: canary/innernet/runs listing: GitHub API returned 404; days read one by one");
+    expect(days, "the days are still probed one by one").toHaveLength(3);
   });
 
   it("accepts the later outcome the writer uses for reruns", async () => {
