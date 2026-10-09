@@ -244,7 +244,7 @@ whether the writer is alive. So:
   `cancelled` or `skipped`: every writer queues runs in a concurrency group, and GitHub cancels the
   older pending one, so cancellation is routine. Judge the newest remaining run:
   - only runs on the writer's default branch count (`branch=main` in the request, and the run's
-    `head_branch` checked again), so a pull-request run of depot `e2e-sync` never reads as alive;
+    `head_branch` checked again), so a pull-request run of qq `e2e-sync` never reads as alive;
   - completed within the window with conclusion `success`: fresh;
   - completed within the window with any other conclusion: `red`, reason "<workflow> failed", with
     the run's link (the data may still be current; say so);
@@ -262,7 +262,7 @@ whether the writer is alive. So:
 | release `canary` | daily, schedule from infra-config `channels.toml` | 26 h (fixed in `config/freshness.ts`, not yet derived from the schedule) |
 | release `canary-watchdog` | 09:43 and 13:43 daily | 26 h |
 | rollers `roll-toolchains` | weekly, Monday 06:23 (cadence in infra-config `rollers.toml`) | 8 days |
-| depot `e2e-sync` | daily 06:17 | 26 h |
+| qq `e2e-sync` | daily 06:17 | 26 h |
 | installer `live-manifest` | every 6 h at :17 | 13 h |
 
 GitHub delays and sometimes drops scheduled runs on quiet repos, so `stale` means "look", not
