@@ -65,7 +65,7 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `api/runs_release_canary.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-7h}}, then a cancelled one (routine), then an older success |
 | `api/runs_release_canary-watchdog.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-5h}}, then a cancelled one (routine), then an older success |
 | `api/runs_rollers_roll-toolchains.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-2d}}, then a cancelled one (routine), then an older success |
-| `api/runs_depot_e2e-sync.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-15h}}, then a cancelled one (routine), then an older success |
+| `api/runs_qq_e2e-sync.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-15h}}, then a cancelled one (routine), then an older success |
 | `api/runs_installer_live-manifest.json` | synthetic, in the captured ci.yml runs shape: the newest run is success at {{now-3h}}, then a cancelled one (routine), then an older success |
 | `api/runs_stale.json` | synthetic: one success far outside every window, for the stale test |
 | `api/runs_empty.json` | synthetic: no completed runs |

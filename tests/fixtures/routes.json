@@ -127,8 +127,8 @@
     "file": "api/runs_rollers_roll-toolchains.json"
   },
   {
-    "path": "/repos/quirq-ai/depot/actions/workflows/e2e-sync.yml/runs",
-    "file": "api/runs_depot_e2e-sync.json"
+    "path": "/repos/quirq-ai/qq/actions/workflows/e2e-sync.yml/runs",
+    "file": "api/runs_qq_e2e-sync.json"
   },
   {
     "path": "/repos/quirq-ai/installer/actions/workflows/live-manifest.yml/runs",
