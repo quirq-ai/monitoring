@@ -83,8 +83,8 @@ export const WRITERS: readonly Writer[] = [
     writes: "toolchain roll PRs",
   },
   {
-    id: "depot/e2e-sync",
-    repo: "depot",
+    id: "qq/e2e-sync",
+    repo: "qq",
     workflow: "e2e-sync.yml",
     branch: "main",
     interval: "daily at 06:17 UTC",
