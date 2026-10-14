@@ -40,7 +40,7 @@ const GATE_EFFECT = `nothing changes on GitHub by itself; that happens when ${AP
 const POLICY_EFFECT =
   "nothing changes by itself. The tools in the file's [area] read_by take it up when they move their pin of infra-config past this merge: gate, gardener, release and installer pin it in pins.toml (under Pins here), rollers in infra-config.commit, and recipes and sync in a ref: in their own .github/workflows/presubmit.yml, which this editor cannot move. None of them reads infra-config main.";
 // kinds.toml and pipelines.toml also feed qqcfg generate (lib/editor/generated.ts).
-const GENERATE_EFFECT = `${POLICY_EFFECT} The values qqcfg generate reads are shown read-only: change those in a checkout and run python3 tools/qqcfg.py generate, which rewrites generated/ and .github/workflows/ to match.`;
+const GENERATE_EFFECT = `${POLICY_EFFECT} The values qqcfg generate reads are shown read-only: change those in a checkout and run python3 tools/qqcfg.py generate, which rewrites generated/ and .github/workflows/ to match. Product repos get the new stubs only when qqcfg deliver <repo> redelivers them, and the org-required workflow copies also need their pinned sha moved in gate settings/github.toml (those copies are disabled today).`;
 
 function infraConfig(name: string, title: string, group: SettingsGroup = "policies", effect = POLICY_EFFECT): SettingsFile {
   return { id: `infra-config/config/${name}`, group, repo: "infra-config", branch: "main", path: `config/${name}`, format: "toml", title, effect };

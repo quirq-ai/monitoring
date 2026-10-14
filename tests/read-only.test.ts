@@ -48,9 +48,10 @@ describe("read-only", () => {
       expect(/child_process/.test(text), `${file} must not start processes`).toBe(gh || file.endsWith("lib/editor/launch.mjs"));
       // Any mention at all, so a generic call (ghWrite<T>(...)) or an aliased import is caught too.
       if (!gh && !file.endsWith("lib/editor/apply.ts")) expect(text, `${file} must not use ghWrite`).not.toMatch(/\bghWrite\b/);
-      // gh.ts only by name: no namespace import (aliased or relative) and no dynamic import.
-      expect(text, `${file} must import gh.ts by name`).not.toMatch(/import\s*\*\s*as\s+\w+\s+from\s+["'][^"']*\/gh(\.ts)?["']/);
-      expect(text, `${file} must not import gh.ts dynamically`).not.toMatch(/import\(\s*["'][^"']*\/gh(\.ts)?["']\s*\)/);
+      // gh.ts only by name: no namespace import (aliased, relative, any extension), and no dynamic
+      // import at all, since a template literal or a variable can name any module.
+      expect(text, `${file} must import gh.ts by name`).not.toMatch(/import\s*\*\s*as\s+\w+\s+from\s+["'`][^"'`]*\bgh(\.[cm]?[jt]s)?["'`]/);
+      expect(text, `${file} must not import dynamically`).not.toMatch(/\bimport\s*\(/);
     }
     expect(readFileSync("lib/editor/apply.ts", "utf8")).toMatch(/import \{[^}]*\bghWrite\b[^}]*\} from "@\/lib\/editor\/gh";/);
     const gh = readFileSync("lib/editor/gh.ts", "utf8");

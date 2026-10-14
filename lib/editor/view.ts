@@ -1,6 +1,6 @@
 import { parseCodeowners } from "@/lib/editor/codeowners";
 import { isPinCommit } from "@/lib/editor/commit-file";
-import { GENERATED_NOTE, isGenerateInput } from "@/lib/editor/generated";
+import { GENERATED_NOTE, GENERATED_SHORT, isGenerateInput } from "@/lib/editor/generated";
 import { scanToml } from "@/lib/editor/toml-fields";
 import type { FieldView, RuleView } from "@/lib/editor/types";
 
@@ -20,6 +20,13 @@ export function displayValue(value: unknown): string {
 export function tomlView(text: string, fileId: string): { ok: true; fields: FieldView[] } | { ok: false; reason: string } {
   const scan = scanToml(text);
   if (!scan.ok) return scan;
+  // The full note once per section, the short one after it.
+  const noted = new Set<string>();
+  const lockNote = (section: string) => {
+    if (noted.has(section)) return GENERATED_SHORT;
+    noted.add(section);
+    return GENERATED_NOTE;
+  };
   return {
     ok: true,
     fields: scan.fields.map((f) => {
@@ -31,7 +38,7 @@ export function tomlView(text: string, fileId: string): { ok: true; fields: Fiel
       line: f.line,
       kind: locked ? undefined : f.kind,
       value: f.kind && !locked ? (f.value as FieldView["value"]) : undefined,
-      locked: locked ? GENERATED_NOTE : undefined,
+      locked: locked ? lockNote(f.section) : undefined,
       commitId: isPinCommit(fileId, f.key) ? (true as const) : undefined,
       display: f.id.startsWith("line:") ? String(f.value) : displayValue(f.value),
       note: f.note,
