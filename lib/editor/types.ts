@@ -57,8 +57,10 @@ export type FileView = {
   title: string;
   effect: string;
   url: string;
-  format: "toml" | "codeowners";
+  format: "toml" | "codeowners" | "commit";
   readOnly?: string;
+  /** When the editor read it (absent for a file it does not read). */
+  fetchedAt?: string;
 } & (
   | { ok: true; exists: boolean; fields?: FieldView[]; rules?: RuleView[]; reason?: undefined }
   | { ok: false; reason: string }
@@ -67,7 +69,7 @@ export type FileView = {
 export type PropertyDefView = { name: string; type: string; required: boolean; allowed: string[]; description: string; editableBy: string };
 
 export type PropertiesView =
-  | { ok: true; defs: PropertyDefView[]; repos: { repo: string; values: Record<string, string | string[] | null> }[]; cut: boolean }
+  | { ok: true; defs: PropertyDefView[]; repos: { repo: string; values: Record<string, string | string[] | null> }[]; cut: boolean; sourceUrl: string; fetchedAt: string }
   | { ok: false; reason: string };
 
 export type PlannedFileView = { id: string; path: string; title: string; created: boolean; summary: string[]; diff: DiffLine[]; effect: string };
@@ -76,7 +78,7 @@ export type PlanView =
   | {
       ok: true;
       digest: string;
-      prs: { repo: string; title: string; files: PlannedFileView[] }[];
+      prs: { repo: string; title: string; files: PlannedFileView[]; reviewNote: string }[];
       properties: { repo: string; name: string; from: string | null; to: string | null; needsOrgOwner: boolean }[];
       script: string;
     }

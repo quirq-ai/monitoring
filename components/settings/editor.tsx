@@ -5,6 +5,7 @@ import { ChevronDown, Plus } from "lucide-react";
 import { ConnectCard } from "@/components/settings/connect";
 import { OwnerRuleRow, PropertyField, TomlField, type OwnersDraft } from "@/components/settings/fields";
 import { Review } from "@/components/settings/review";
+import { SourceLink } from "@/components/source-link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,7 +52,23 @@ function matches(filter: string, ...texts: (string | undefined)[]): boolean {
   return texts.some((t) => t?.toLowerCase().includes(f));
 }
 
-export function SettingsEditor({ mode, groups, files, properties, catalogReason }: { mode: Mode; groups: Group[]; files: FileView[]; properties: PropertiesView; catalogReason?: string }) {
+export function SettingsEditor({
+  mode,
+  groups,
+  files,
+  properties,
+  catalogReason,
+  now: nowIso,
+}: {
+  mode: Mode;
+  groups: Group[];
+  files: FileView[];
+  properties: PropertiesView;
+  catalogReason?: string;
+  /** The server's render time, so "read N ago" is the same on the server and in the browser. */
+  now: string;
+}) {
+  const now = useMemo(() => new Date(nowIso), [nowIso]);
   const key = useEditorKey(mode);
   const [toml, setToml] = useState<TomlEdits>({});
   const [owners, setOwners] = useState<OwnerEdits>({});
@@ -140,6 +157,7 @@ export function SettingsEditor({ mode, groups, files, properties, catalogReason 
           <FileCard
             key={file.id}
             file={file}
+            now={now}
             filter={filter}
             toml={toml[file.id] ?? {}}
             owners={owners[file.id] ?? {}}
@@ -194,7 +212,7 @@ export function SettingsEditor({ mode, groups, files, properties, catalogReason 
         );
       })}
 
-      <PropertiesSection properties={properties} filter={filter} edits={props} onChange={setProps} />
+      <PropertiesSection properties={properties} now={now} filter={filter} edits={props} onChange={setProps} />
 
       {count > 0 || bad > 0 ? (
         <div className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-background/95 px-4 py-3 backdrop-blur md:px-8">
@@ -220,6 +238,7 @@ export function SettingsEditor({ mode, groups, files, properties, catalogReason 
 
 function FileCard({
   file,
+  now,
   filter,
   toml,
   owners,
@@ -229,6 +248,7 @@ function FileCard({
   onAdd,
 }: {
   file: FileView;
+  now: Date;
   filter: string;
   toml: Record<string, FieldValue>;
   owners: Record<string, OwnersDraft>;
@@ -241,7 +261,7 @@ function FileCard({
   const changes = Object.keys(toml).length + Object.keys(owners).length + added.length;
   const fields = file.ok ? (file.fields ?? []).filter((f) => matches(filter, f.key, f.section, f.display, f.note, file.title, file.path, file.repo)) : [];
   const rules = file.ok ? (file.rules ?? []).filter((r) => matches(filter, r.pattern, r.owners.join(" "), file.title, file.repo)) : [];
-  const shown = file.format === "toml" ? fields.length : rules.length + (matches(filter, file.title, file.repo, "owners", "codeowners") ? 1 : 0);
+  const shown = file.format !== "codeowners" ? fields.length + (file.readOnly && matches(filter, file.title, file.repo, file.path) ? 1 : 0) : rules.length + (matches(filter, file.title, file.repo, "owners", "codeowners") ? 1 : 0);
   if (filter && shown === 0 && changes === 0) return null;
   const sections = groupBySection(fields);
 
@@ -256,7 +276,7 @@ function FileCard({
             </span>
           </span>
           {!file.ok ? <span className="text-xs text-muted-foreground">unknown</span> : null}
-          {file.ok && !file.exists ? <span className="text-xs text-muted-foreground">none yet</span> : null}
+          {file.ok && !file.exists && !file.readOnly ? <span className="text-xs text-muted-foreground">none yet</span> : null}
           {changes ? (
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium whitespace-nowrap">
               {changes} {changes === 1 ? "change" : "changes"}
@@ -266,17 +286,13 @@ function FileCard({
         </CollapsibleTrigger>
         <CollapsibleContent className="flex flex-col gap-3 px-4 pb-4">
           {file.readOnly ? <p className="text-sm">{file.readOnly}</p> : null}
-          <p className="text-xs text-muted-foreground">
-            {file.effect}{" "}
-            <a href={file.url} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
-              View on GitHub
-            </a>
-          </p>
+          <p className="text-xs text-muted-foreground">After merge: {file.effect}</p>
+          <SourceLink source={`${file.repo} ${file.path}`} url={file.url} at={file.fetchedAt} now={now} label={file.readOnly ? "open" : "read from"} />
           {!file.ok ? (
             <p className="text-sm wrap-anywhere">
               <span className="font-medium">Could not read it:</span> {file.reason}
             </p>
-          ) : file.format === "toml" ? (
+          ) : file.format !== "codeowners" ? (
             sections.map(([section, list]) => (
               <div key={section} className="flex flex-col">
                 <h3 className="pt-2 font-mono text-xs font-medium wrap-anywhere text-muted-foreground">{section}</h3>
@@ -346,7 +362,19 @@ function AddRule({ existing, added, onChange }: { existing: string[]; added: { p
   );
 }
 
-function PropertiesSection({ properties, filter, edits, onChange }: { properties: PropertiesView; filter: string; edits: PropertyEdits; onChange: (next: PropertyEdits) => void }) {
+function PropertiesSection({
+  properties,
+  now,
+  filter,
+  edits,
+  onChange,
+}: {
+  properties: PropertiesView;
+  now: Date;
+  filter: string;
+  edits: PropertyEdits;
+  onChange: (next: PropertyEdits) => void;
+}) {
   return (
     <section className="flex flex-col gap-3" aria-labelledby="group-properties">
       <div className="flex flex-col gap-1">
@@ -356,6 +384,7 @@ function PropertiesSection({ properties, filter, edits, onChange }: { properties
         <p className="text-sm text-muted-foreground">
           The org&apos;s custom properties (role, area, owner and the rest). These have no file: a change takes effect on GitHub as soon as you confirm it, with no pull request.
         </p>
+        {properties.ok ? <SourceLink source="GitHub custom properties" url={properties.sourceUrl} at={properties.fetchedAt} now={now} label="read from" /> : null}
       </div>
       {!properties.ok ? (
         <Alert>

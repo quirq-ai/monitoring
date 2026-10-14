@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { applyEdits } from "@/lib/editor/apply";
 import { ghLogin } from "@/lib/editor/gh";
 import { refuseWrite } from "@/lib/editor/mode";
-import { buildPlan, planFiles } from "@/lib/editor/plan";
+import { buildPlan, planFiles, reviewNote } from "@/lib/editor/plan";
 import { renderScript } from "@/lib/editor/script";
 import { EditRequestSchema, type ApplyView, type PlanView } from "@/lib/editor/types";
 import { summarizeZod } from "@/lib/fetch";
@@ -24,7 +24,7 @@ export async function reviewEdits(input: unknown): Promise<PlanView> {
   return {
     ok: true,
     digest: plan.digest,
-    prs: plan.prs.map((pr, i) => ({ repo: pr.repo, title: pr.title, files: files[i] })),
+    prs: plan.prs.map((pr, i) => ({ repo: pr.repo, title: pr.title, files: files[i], reviewNote: reviewNote(pr.reviewers) })),
     properties: plan.properties.map((p) => ({ repo: p.repo, name: p.name, from: p.from, to: p.to, needsOrgOwner: p.endpoint === "org" })),
     script: renderScript(plan),
   };

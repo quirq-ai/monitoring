@@ -18,7 +18,7 @@ function walk(dir: string): string[] {
   });
 }
 
-const appFiles = ["app", "lib", "components", "config"].flatMap((d) => walk(d)).filter((f) => /\.(ts|tsx)$/.test(f));
+const appFiles = [...["app", "lib", "components", "config"].flatMap((d) => walk(d)), "proxy.ts"].filter((f) => /\.(ts|tsx|mjs)$/.test(f));
 
 describe("read-only", () => {
   it("only lib/fetch.ts and lib/github.ts call fetch, and only with GET", () => {
@@ -40,13 +40,17 @@ describe("read-only", () => {
   it("only the settings editor writes, only through gh, and only from apply", () => {
     // The dashboard's own code never writes. The settings editor's writes go through one function,
     // ghWrite in lib/editor/gh.ts, which refuses unless the editor runs locally (pnpm editor), and
-    // only lib/editor/apply.ts calls it. Nothing else may start a process.
+    // only lib/editor/apply.ts calls it. Nothing else may start a process, except the `pnpm editor`
+    // launcher, which runs `gh auth login` and `next start` and is not part of the app.
     for (const file of appFiles) {
       const text = readFileSync(file, "utf8");
       const gh = file.endsWith("lib/editor/gh.ts");
-      expect(/child_process/.test(text), `${file} must not start processes`).toBe(gh);
-      if (!gh && !file.endsWith("lib/editor/apply.ts")) expect(text, `${file} must not call ghWrite`).not.toMatch(/\bghWrite\(/);
+      expect(/child_process/.test(text), `${file} must not start processes`).toBe(gh || file.endsWith("lib/editor/launch.mjs"));
+      // Any mention at all, so a generic call (ghWrite<T>(...)) or an aliased import is caught too.
+      if (!gh && !file.endsWith("lib/editor/apply.ts")) expect(text, `${file} must not use ghWrite`).not.toMatch(/\bghWrite\b/);
+      expect(text, `${file} must import gh.ts by name`).not.toMatch(/import\s*\*\s*as\s+\w+\s+from\s+["']@\/lib\/editor\/gh["']/);
     }
+    expect(readFileSync("lib/editor/apply.ts", "utf8")).toMatch(/import \{[^}]*\bghWrite\b[^}]*\} from "@\/lib\/editor\/gh";/);
     const gh = readFileSync("lib/editor/gh.ts", "utf8");
     expect(gh.match(/spawn\(/g)).toHaveLength(1);
     expect(gh).toContain('spawn("gh", args');

@@ -1,7 +1,8 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type { SettingsFile } from "@/config/settings";
-import { applyOwnersEdits } from "@/lib/editor/codeowners";
+import { applyOwnersEdits, ownersFor } from "@/lib/editor/codeowners";
+import { applyCommitEdit } from "@/lib/editor/commit-file";
 import { lineDiff } from "@/lib/editor/diff";
 import { checkPropertyValue } from "@/lib/editor/properties";
 import { applyTomlEdits } from "@/lib/editor/toml-fields";
@@ -24,7 +25,8 @@ export type PlannedFile = {
   summary: string[];
 };
 
-export type PlannedPr = { repo: string; title: string; body: string; files: PlannedFile[] };
+/** `reviewers`: who the repo's CODEOWNERS on main asks to review these paths (empty: nobody named). */
+export type PlannedPr = { repo: string; title: string; body: string; files: PlannedFile[]; reviewers: string[] };
 
 export type PlannedProperty = {
   repo: string;
@@ -62,6 +64,12 @@ export async function buildPlan(request: EditRequest): Promise<{ ok: true; plan:
       if (!result.ok) return { ok: false, reason: `${file.path}: ${result.reason}` };
       after = result.text;
       summary = result.changed.map((c) => `${c.field.section} ${c.field.key}: ${displayValue(c.field.value)} → ${displayValue(c.to)}`);
+    } else if (file.format === "commit") {
+      if (edit.owners?.length || !edit.toml?.length) return { ok: false, reason: `${file.id}: expected a commit edit` };
+      const result = applyCommitEdit(text, edit.toml);
+      if (!result.ok) return { ok: false, reason: `${file.repo} ${file.path}: ${result.reason}` };
+      after = result.text;
+      summary = result.summary;
     } else {
       if (edit.toml?.length || !edit.owners?.length) return { ok: false, reason: `${file.id}: expected owner edits` };
       const result = applyOwnersEdits(text, edit.owners);
@@ -98,10 +106,13 @@ export async function buildPlan(request: EditRequest): Promise<{ ok: true; plan:
   if (planned.length === 0 && properties.length === 0) return { ok: false, reason: "nothing to change: every value is what the file already says" };
 
   const repos = [...new Set(planned.map((p) => p.file.repo))];
-  const prs = repos.map((repo) => {
+  const prs: PlannedPr[] = [];
+  for (const repo of repos) {
     const files = planned.filter((p) => p.file.repo === repo);
-    return { repo, title: prTitle(files), body: prBody(files), files };
-  });
+    const reviewers = await codeReviewers(repo, files, catalog.files);
+    if (!reviewers.ok) return reviewers;
+    prs.push({ repo, title: prTitle(files), body: prBody(files, reviewers.owners), files, reviewers: reviewers.owners });
+  }
   const digest = createHash("sha256")
     .update(JSON.stringify({ files: planned.map((p) => [p.file.id, p.baseSha, p.after]), properties }))
     .digest("hex");
@@ -114,8 +125,26 @@ function prTitle(files: PlannedFile[]): string {
   return `Settings: ${lines.length} changes in ${files.map((f) => f.file.path).join(", ")}`.slice(0, 200);
 }
 
-function prBody(files: PlannedFile[]): string {
-  const parts = [`Opened with the monitoring settings editor (${EDITOR_URL}).`, ""];
+/**
+ * Who must review the pull request: the owners the repo's CODEOWNERS on main names for the edited
+ * paths (an edit to CODEOWNERS itself is reviewed under the rules it replaces, as on GitHub).
+ */
+async function codeReviewers(repo: string, files: PlannedFile[], catalog: SettingsFile[]): Promise<{ ok: true; owners: string[] } | { ok: false; reason: string }> {
+  const owners = catalog.find((f) => f.repo === repo && f.format === "codeowners");
+  if (!owners) return { ok: true, owners: [] };
+  const read = await readSettingsFile(owners);
+  if (!read.ok) return { ok: false, reason: `${repo}: could not read its CODEOWNERS to say who reviews this: ${read.reason}` };
+  return { ok: true, owners: [...new Set(files.flatMap((f) => ownersFor(read.value.text, f.file.path)))] };
+}
+
+/** One line on who approves, for the review screen and the pull request. */
+export function reviewNote(reviewers: string[]): string {
+  if (reviewers.length === 0) return "No code owner is named for these paths: the repo's own review rules decide.";
+  return `Needs approval from ${reviewers.join(", ")} (the repo's CODEOWNERS). GitHub never counts an approval from the pull request's own author, so if you are the only owner named, another owner has to approve it.`;
+}
+
+function prBody(files: PlannedFile[], reviewers: string[]): string {
+  const parts = [`Opened with the monitoring settings editor (${EDITOR_URL}).`, "", reviewNote(reviewers), ""];
   for (const f of files) {
     parts.push(`**${f.file.path}**${f.baseSha ? "" : " (new file)"}`, "", ...f.summary.map((s) => `- ${s}`), "", `After merge: ${f.file.effect}`, "");
   }

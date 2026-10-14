@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { request as httpRequest } from "node:http";
 import { expect, test, type Page } from "@playwright/test";
 import { EDITOR_KEY, editorOrigin, FAKE_GH_LOG } from "./origin";
 
@@ -48,6 +49,21 @@ test.describe("settings editor, deployed form", () => {
 });
 
 test.describe("settings editor, local with gh", () => {
+  test("a page reached under another name (DNS rebinding) gets nothing", async () => {
+    const { port } = new URL(editorOrigin);
+    const status = (host: string) =>
+      new Promise<number>((done, fail) => {
+        httpRequest({ host: "127.0.0.1", port, path: "/settings", headers: { host } }, (res) => {
+          res.resume();
+          done(res.statusCode ?? 0);
+        })
+          .on("error", fail)
+          .end();
+      });
+    expect(await status(`evil.example:${port}`)).toBe(403);
+    expect(await status(`127.0.0.1:${port}`)).toBe(200);
+  });
+
   test("without the printed link's key the page says so and cannot write", async ({ page }) => {
     await page.goto(`${editorOrigin}/settings`);
     await expect(page.getByTestId("connect")).toContainText("Open the link pnpm editor printed");

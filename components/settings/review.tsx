@@ -93,6 +93,7 @@ export function Review({ mode, editorKey, request, onBack, onDone }: { mode: "gh
         <Card key={pr.repo} className="gap-3 rounded-xl px-4 py-4 shadow-none">
           <span className="text-xs text-muted-foreground">Pull request on {pr.repo}</span>
           <span className="font-medium wrap-anywhere">{pr.title}</span>
+          <p className="text-sm">{pr.reviewNote}</p>
           {pr.files.map((f) => (
             <div key={f.id} className="flex flex-col gap-2">
               <span className="font-mono text-sm wrap-anywhere">
@@ -148,7 +149,7 @@ export function Review({ mode, editorKey, request, onBack, onDone }: { mode: "gh
         <Card className="gap-3 rounded-xl px-4 py-4 shadow-none">
           <span className="font-medium">Make the change with your gh login</span>
           <p className="text-sm">
-            Save this as <code className="font-mono">{SCRIPT_NAME}</code> and run <code className="font-mono">bash {SCRIPT_NAME}</code>. It checks that nothing changed since this page read the files, shows what it will do, asks you
+            Save this as <code className="font-mono">{SCRIPT_NAME}</code> and run <code className="font-mono">bash {SCRIPT_NAME}</code>. It checks that each file is still the version this page read and each property still its old value, shows what it will do, asks you
             to type yes, then opens the pull requests{propCount ? " and sets the properties" : ""} as you. Nothing is sent from this page.
           </p>
           {needsTick && !confirmed ? (
@@ -203,13 +204,16 @@ function Diff({ lines, label }: { lines: DiffLine[]; label: string }) {
             …
           </div>
         ) : (
-          <div key={i} className={cn("flex gap-2 px-2 py-0.5", l.kind === "add" && "bg-card", l.kind === "del" && "text-muted-foreground line-through")}>
+          // A removed line is muted and marked "-", not struck through: a strike over trailing
+          // spaces ran past the box on phones.
+          <div key={i} className={cn("flex gap-2 px-2 py-0.5", l.kind === "add" && "bg-card", l.kind === "del" && "text-muted-foreground")}>
             <span aria-hidden="true" className="w-8 shrink-0 text-right text-muted-foreground">
               {l.kind === "add" ? l.new : l.old}
             </span>
-            <span className="w-3 shrink-0" aria-label={l.kind === "add" ? "added" : l.kind === "del" ? "removed" : undefined}>
+            <span aria-hidden="true" className="w-3 shrink-0">
               {l.kind === "add" ? "+" : l.kind === "del" ? "-" : " "}
             </span>
+            {l.kind !== "same" ? <span className="sr-only">{l.kind === "add" ? "added:" : "removed:"}</span> : null}
             <span className="min-w-0 flex-1 whitespace-pre-wrap wrap-anywhere">{l.text || " "}</span>
           </div>
         ),

@@ -89,6 +89,12 @@ describe("applyTomlEdits", () => {
     expect(r.text).toContain("# keep");
   });
 
+  it("keeps a float a float when it is set to a whole number", () => {
+    const r = applyTomlEdits("[detection]\nflake_rate_target_pct = 1.5\n", [{ id: "detection.flake_rate_target_pct", from: 1.5, to: 2 }]);
+    if (!r.ok) throw new Error(r.reason);
+    expect(r.text).toBe("[detection]\nflake_rate_target_pct = 2.0\n");
+  });
+
   it("refuses an edit made against a value the file no longer has", () => {
     const r = applyTomlEdits(gate, [{ id: "repo[0].allow_auto_merge", from: true, to: false }]);
     expect(r).toEqual({ ok: false, reason: "repo[0].allow_auto_merge: the file changed since you loaded it; reload and edit again" });

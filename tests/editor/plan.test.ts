@@ -80,7 +80,9 @@ describe("buildPlan", () => {
     ]);
     expect(plan.prs[0].files[0].baseSha).toBe(blobSha(gateToml));
     expect(plan.prs[1].title).toBe("Settings: [policy] daily_cap: 10 → 5");
-    expect(plan.prs[0].body).toContain("an org admin then runs gate's settings apply");
+    expect(plan.prs[0].body).toContain("that happens when an org admin runs gate's settings apply");
+    expect(plan.prs[0].body).toContain("Needs approval from @sharmasuraj0123");
+    expect(plan.prs[1].reviewers).toEqual(["@sharmasuraj0123"]);
     expect(plan.properties).toEqual([
       { repo: "monitoring", name: "stage", from: null, to: "active", endpoint: "repo" },
       { repo: "innernet", name: "area", from: "product", to: "infra", endpoint: "org" },
@@ -142,6 +144,32 @@ describe("the gh script", { timeout: 20_000 }, () => {
     checkWrites(built.plan.prs[0].files[0].after);
   });
 
+  it("creates a CODEOWNERS where GitHub answers Not Found (gh prints that answer on stdout)", async () => {
+    await withFixtures();
+    const built = await buildPlan(newOwners);
+    if (!built.ok) throw new Error(built.reason);
+    expect(built.plan.prs[0].files[0].baseSha).toBeNull();
+    const r = runScript(renderScript(built.plan), "yes");
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    checkNewOwners();
+  });
+
+  it("reads the answer to yes exactly: surrounding spaces are not yes", async () => {
+    await withFixtures();
+    const built = await buildPlan(newOwners);
+    if (!built.ok) throw new Error(built.reason);
+    expect(runScript(renderScript(built.plan), " yes").stdout).toContain("Nothing was written.");
+    expect(writes()).toEqual([]);
+  });
+
+  it("sends every call to github.com, whatever gh's default host", async () => {
+    await withFixtures();
+    const built = await buildPlan(request);
+    if (!built.ok) throw new Error(built.reason);
+    const calls = renderScript(built.plan).split("\n").filter((l) => /\bgh api\b/.test(l));
+    expect(calls).toEqual(['api() { gh api --hostname github.com "$@"; }']);
+  });
+
   it("keeps a value with quotes and dollars as text", async () => {
     await withFixtures();
     const nasty = `it's "$HOME" \`whoami\` $(id)`;
@@ -154,6 +182,22 @@ describe("the gh script", { timeout: 20_000 }, () => {
     expect(put.body.message).toContain("`whoami` $(id)");
   });
 });
+
+const newOwners: EditRequest = {
+  files: [{ id: "xo-space/.github/CODEOWNERS", owners: [{ op: "add", pattern: "/infra/", to: ["@sharmasuraj0123"] }] }],
+  properties: [],
+};
+
+function checkNewOwners() {
+  const w = writes();
+  expect(w.map((x) => `${x.method} ${x.path}`)).toEqual([
+    "POST repos/quirq-ai/xo-space/git/refs",
+    "PUT repos/quirq-ai/xo-space/contents/.github/CODEOWNERS",
+    "POST repos/quirq-ai/xo-space/pulls",
+  ]);
+  expect(w[1].body.sha).toBeUndefined();
+  expect(Buffer.from(String(w[1].body.content), "base64").toString("utf8")).toMatch(/^\/infra\/ +@sharmasuraj0123\n$/m);
+}
 
 function checkWrites(gateAfter: string) {
   const w = writes();
@@ -192,6 +236,15 @@ describe("the local editor (gh mode)", { timeout: 20_000 }, () => {
     expect(result).toMatchObject({ ok: true, login: "sam-example" });
     expect(result.steps.map((s) => s.url ?? null)).toEqual(["https://github.com/quirq-ai/gate/pull/101", "https://github.com/quirq-ai/infra-config/pull/101", null, null]);
     checkWrites(built.plan.prs[0].files[0].after);
+  });
+
+  it("creates a CODEOWNERS that does not exist yet", async () => {
+    await withFixtures();
+    const built = await buildPlan(newOwners);
+    if (!built.ok) throw new Error(built.reason);
+    const result = await applyEdits(newOwners, built.plan.digest);
+    expect(result).toMatchObject({ ok: true });
+    checkNewOwners();
   });
 
   it("refuses a plan other than the one reviewed, a moved file and a signed-out gh, writing nothing", async () => {

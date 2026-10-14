@@ -270,8 +270,10 @@ export function formatValue(kind: FieldKind, value: FieldValue): string {
     case "boolean":
       return value ? "true" : "false";
     case "integer":
-    case "float":
       return String(value);
+    case "float":
+      // A whole number keeps its ".0", or TOML would read it back as an integer.
+      return Number.isInteger(value) && Math.abs(value as number) < 1e21 ? (value as number).toFixed(1) : String(value);
     case "string":
       return tomlString(String(value));
     case "string-list":

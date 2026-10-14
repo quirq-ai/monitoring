@@ -27,7 +27,7 @@ CI run.
 | **Release** (`/release`) | Per product: lkgr and each channel, the last 14 canary days as a strip, the hold if one is on, and the latest canary report. |
 | **Health** (`/health`) | Whether each of the 9 scheduled writers ran on time, the scorecard, the gardener ledger, and every source this render read with its state. |
 | **Repo** (`/repos/<name>`) | One repo's Board row (CI, last merge; for a product also tree, lkgr, canary and deploy), its open PRs, the checks on its head, and for a product its tree builders, its canary strip and its perf metrics. |
-| **Settings** (`/settings`) | Edit what the infra is set up with: the gates (gate `settings/github.toml`, infra-config `gate.toml`, gate `pins.toml`), the policies (every infra-config `config/*.toml`), the owners (org roles, repo owners and rotations in `org.toml`, each repo's `.github/CODEOWNERS`) and the org's custom properties per repo. On/off values are switches. Each product's `infra/repo.toml` is shown read-only, since qqsync edits it. See [The settings editor](#the-settings-editor). |
+| **Settings** (`/settings`, the gear in the header) | Edit what the infra is set up with: the gates (gate `settings/github.toml`, infra-config `gate.toml`, gate `guard/terms.toml`), the pins (`pins.toml` in gate, gardener, release, installer and test-pipelines, rollers `infra-config.commit`), the policies (every infra-config `config/*.toml`), the owners (org roles, repo owners and rotations in `org.toml`, each repo's `.github/CODEOWNERS`) and the org's custom properties per repo. On/off values are switches. Each product's `infra/repo.toml` is only linked, since its header says to read and edit it only through qqsync. Left out on purpose: toolchains `promoted.toml` ("written by `qqtc promote` … do not edit by hand") and `toolchains.toml` (qqtc's own registry and backend). See [The settings editor](#the-settings-editor). |
 | **Snapshot** (`/api/snapshot`) | The same state as JSON (`qq-monitoring-snapshot/1`), for agents. `?since=7d` widens the window. |
 
 Every tile shows the state first, then the detail, then where it came from and how old the data
@@ -84,12 +84,16 @@ is the same every time. The screenshots land in `test-results/screenshots/`, and
 
 `/settings` lists every value in those files with the comment written next to it, grouped by
 section (`[[repo]] xo-space`, `[policy]`), with a search box. Change what you want, then **Review**:
-the editor reads every file again, makes the change line by line (comments and layout stay as they
+the editor reads every file again (on the deployed site that read may be up to a minute old; the
+script checks the live file before it writes), makes the change line by line (comments and layout stay as they
 are, and the edited file must parse to the old one with only your values changed), and shows each
 pull request as a diff. One pull request per repo, on a new `settings-editor/<repo>-<time>` branch,
 never a push to `main`, so that repo's checks, CODEOWNERS, approvals and merge queue decide whether
-it lands. A gate settings change takes effect only when an org admin then runs gate's settings
-apply. Org custom properties have no file: they change on GitHub at once, so the review asks you to
+it lands. The review names the code owners who must approve; GitHub never counts the author's own
+approval, so a change to a path you alone own needs another owner. Merging is not taking effect:
+the tools read infra-config at a commit they pin, so a policy change reaches each of them when its
+pin moves, and a gate settings change reaches GitHub only when an org admin runs gate's settings
+apply. Each card and pull request says which. Org custom properties have no file: they change on GitHub at once, so the review asks you to
 tick a box first.
 
 Every change is made with **your own GitHub login through [gh](https://cli.github.com)**. Nothing
@@ -97,8 +101,8 @@ signs in to this site and no token is kept. Two ways:
 
 - **On the deployed site**, the review gives you a script, `settings-change.sh`. Run it with
   `bash settings-change.sh`: it uses only gh (macOS bash 3.2 is fine), ignores any token in the
-  environment, checks that nothing changed on `main` since the page read it (and stops, writing
-  nothing, if it did), shows what it will do and waits for you to type `yes`.
+  environment, checks that each file it edits is still the version on `main` the page read, and
+  each property still its old value (and stops, writing nothing, if not), shows what it will do and waits for you to type `yes`.
 - **On your machine**, `pnpm editor` in a checkout of this repo builds the site and serves it at
   `127.0.0.1:3020`. It checks gh is signed in (and runs `gh auth login` for you if not), then
   prints a link to `/settings`. From that page, **Open pull requests** does the same steps through

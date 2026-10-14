@@ -108,3 +108,23 @@ export function applyOwnersEdits(text: string, edits: OwnersEdit[]): OwnersResul
   }
   return { ok: true, text: out.join("\n"), summary };
 }
+
+/** A CODEOWNERS pattern as a test on a repo path (no leading slash), following GitHub's rules. */
+function patternMatcher(pattern: string): RegExp {
+  const dir = pattern.endsWith("/");
+  const body = pattern.replace(/^\//, "").replace(/\/$/, "");
+  // A pattern with a slash at the start or in the middle is anchored to the repo root.
+  const anchored = pattern.startsWith("/") || body.includes("/");
+  const glob = body
+    .split(/(\*\*|\*|\?)/)
+    .map((part) => (part === "**" ? ".*" : part === "*" ? "[^/]*" : part === "?" ? "[^/]" : part.replace(/[.+^${}()|[\]\\]/g, "\\$&")))
+    .join("");
+  return new RegExp(`^${anchored ? "" : "(?:.*/)?"}${glob}${dir ? "/.*" : "(?:/.*)?"}$`);
+}
+
+/** The owners GitHub asks to review a change to `path`: the last matching rule wins. */
+export function ownersFor(text: string, path: string): string[] {
+  let owners: string[] = [];
+  for (const rule of parseCodeowners(text)) if (patternMatcher(rule.pattern).test(path)) owners = rule.owners;
+  return owners;
+}

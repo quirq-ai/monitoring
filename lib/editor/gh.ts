@@ -8,6 +8,10 @@ import { editorMode } from "@/lib/editor/mode";
 // sees, so an edit is always made as the person who is signed in to gh, never as the dashboard.
 
 const TOKEN_VARS = ["GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GH_HOST"];
+// The run's key is the page's, not gh's: gh never sees it.
+const HIDDEN_VARS = [...TOKEN_VARS, "MONITORING_EDITOR_KEY"];
+/** gh processes at once: one render reads about 50 files, and each gh is a whole process. */
+const MAX_RUNNING = 8;
 const TIMEOUT_MS = 30_000;
 const REASON_MAX = 200;
 
@@ -15,7 +19,7 @@ export type GhResult = { ok: true; stdout: string } | { ok: false; reason: strin
 
 function ghEnv(): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, GH_PROMPT_DISABLED: "1", NO_COLOR: "1", GH_NO_UPDATE_NOTIFIER: "1" };
-  for (const name of TOKEN_VARS) delete env[name];
+  for (const name of HIDDEN_VARS) delete env[name];
   return env;
 }
 
@@ -25,7 +29,23 @@ function firstLine(text: string): string {
   return line.length > REASON_MAX ? `${line.slice(0, REASON_MAX - 1)}…` : line;
 }
 
-function run(args: string[], input?: string): Promise<GhResult> {
+let running = 0;
+const waiting: (() => void)[] = [];
+
+async function run(args: string[], input?: string): Promise<GhResult> {
+  if (running < MAX_RUNNING) running++;
+  // A finished run hands its slot straight to the next one waiting.
+  else await new Promise<void>((go) => waiting.push(go));
+  try {
+    return await runNow(args, input);
+  } finally {
+    const next = waiting.shift();
+    if (next) next();
+    else running--;
+  }
+}
+
+function runNow(args: string[], input?: string): Promise<GhResult> {
   return new Promise((resolve) => {
     let stdout = "";
     let stderr = "";

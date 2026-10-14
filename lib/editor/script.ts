@@ -27,19 +27,23 @@ export function renderScript(plan: Plan): string {
     "unset GH_TOKEN GITHUB_TOKEN GH_ENTERPRISE_TOKEN GITHUB_ENTERPRISE_TOKEN GH_HOST",
     `O=${sq(ORG)}`,
     'command -v gh >/dev/null 2>&1 || { echo "STOP: gh is not installed (https://cli.github.com). Nothing was written."; exit 1; }',
-    'ME=$(gh api user --jq .login) || { echo "STOP: gh is not signed in. Run: gh auth login, then this again. Nothing was written."; exit 1; }',
+    "# Every call goes to github.com, whichever host gh would pick by default.",
+    'api() { gh api --hostname github.com "$@"; }',
+    'ME=$(api user --jq .login) || { echo "STOP: gh is not signed in. Run: gh auth login, then this again. Nothing was written."; exit 1; }',
     'echo "Signed in to gh as $ME."',
     "",
     'echo "Checking that nothing changed since the editor read it (read-only)..."',
-    "# file_sha REPO PATH: the blob id on main, or none.",
-    'file_sha() { gh api "repos/$O/$1/contents/$2?ref=main" --jq .sha 2>/dev/null || echo none; }',
-    'prop_value() { gh api "repos/$O/$1/properties/values" --jq "[.[] | select(.property_name == \\"$2\\") | .value][0] // \\"\\""; }',
+    "# file_sha REPO PATH: the blob id on main, none when GitHub answers Not Found, else unreadable.",
+    "# On an error gh prints GitHub's JSON answer to stdout, so only its exit status says it failed.",
+    'file_sha() { local out; if out=$(api "repos/$O/$1/contents/$2?ref=main" --jq .sha 2>/dev/null); then printf \'%s\\n\' "$out"; else case "$out" in *\'"Not Found"\'*) echo none ;; *) echo unreadable ;; esac; fi; }',
+    'prop_value() { api "repos/$O/$1/properties/values" --jq "[.[] | select(.property_name == \\"$2\\") | .value][0] // \\"\\""; }',
   );
   for (const pr of plan.prs) {
     for (const f of pr.files) {
       const want = f.baseSha ?? "none";
       L.push(
         `got=$(file_sha ${sq(f.file.repo)} ${sq(f.file.path)})`,
+        `[ "$got" != unreadable ] || { echo "STOP: could not read ${f.file.repo} ${f.file.path} through gh. Nothing was written."; exit 1; }`,
         `[ "$got" = ${sq(want)} ] || { echo "STOP: ${f.file.repo} ${f.file.path} changed since you edited it (main has $got, you edited ${want}). Nothing was written. Reload the editor and edit again."; exit 1; }`,
       );
     }
@@ -59,11 +63,11 @@ export function renderScript(plan: Plan): string {
     L.push(`echo ${sq(`  set property ${p.name} on ${p.repo}: ${p.from ?? "(not set)"} -> ${p.to ?? "(not set)"} (takes effect at once, no pull request)`)}`);
   }
   if (plan.properties.some((p) => p.endpoint === "org")) {
-    L.push(`echo "  (an org-owned property needs gh's admin:org scope: gh auth refresh -s admin:org, and gh auth refresh --remove-scopes admin:org after)"`);
+    L.push(`echo "  (an org-owned property needs gh's admin:org scope: gh auth refresh -h github.com -s admin:org)"`);
   }
   L.push(
     'printf "Type yes to go ahead: "',
-    "read -r answer",
+    "IFS= read -r answer",
     '[ "$answer" = "yes" ] || { echo "Nothing was written."; exit 1; }',
     "",
     'STAMP=$(date -u +%Y%m%d-%H%M%S)',
@@ -72,17 +76,17 @@ export function renderScript(plan: Plan): string {
     L.push(
       "",
       `B${i}="settings-editor/${pr.repo}-$STAMP"`,
-      `BASE=$(gh api "repos/$O/${pr.repo}/git/ref/heads/main" --jq .object.sha) || { echo "STOP: could not read ${pr.repo} main. Pull requests above this line were opened; this one and the rest were not."; exit 1; }`,
-      `gh api --method POST "repos/$O/${pr.repo}/git/refs" -f ref="refs/heads/$B${i}" -f sha="$BASE" >/dev/null || { echo "STOP: could not create branch $B${i} in ${pr.repo} (do you have write access?). Nothing more was written."; exit 1; }`,
+      `BASE=$(api "repos/$O/${pr.repo}/git/ref/heads/main" --jq .object.sha) || { echo "STOP: could not read ${pr.repo} main. Pull requests above this line were opened; this one and the rest were not."; exit 1; }`,
+      `api --method POST "repos/$O/${pr.repo}/git/refs" -f ref="refs/heads/$B${i}" -f sha="$BASE" >/dev/null || { echo "STOP: could not create branch $B${i} in ${pr.repo} (do you have write access?). Nothing more was written."; exit 1; }`,
     );
     for (const f of pr.files) {
       const content = Buffer.from(f.after, "utf8").toString("base64");
       L.push(
-        `gh api --method PUT ${sq(contentsPath(f))} -f message=${sq(commitMessage(f))} -f content=${sq(content)}${f.baseSha ? ` -f sha=${sq(f.baseSha)}` : ""} -f branch="$B${i}" >/dev/null || { echo "STOP: could not write ${f.file.path} on $B${i} in ${pr.repo}. Delete that branch on GitHub if you want; nothing more was written."; exit 1; }`,
+        `api --method PUT ${sq(contentsPath(f))} -f message=${sq(commitMessage(f))} -f content=${sq(content)}${f.baseSha ? ` -f sha=${sq(f.baseSha)}` : ""} -f branch="$B${i}" >/dev/null || { echo "STOP: could not write ${f.file.path} on $B${i} in ${pr.repo}. Delete that branch on GitHub if you want; nothing more was written."; exit 1; }`,
       );
     }
     L.push(
-      `url=$(gh api --method POST "repos/$O/${pr.repo}/pulls" -f title=${sq(pr.title)} -f head="$B${i}" -f base=main -f body=${sq(pr.body)} --jq .html_url) || { echo "STOP: branch $B${i} is pushed in ${pr.repo} but the pull request was not opened. Open it on GitHub."; exit 1; }`,
+      `url=$(api --method POST "repos/$O/${pr.repo}/pulls" -f title=${sq(pr.title)} -f head="$B${i}" -f base=main -f body=${sq(pr.body)} --jq .html_url) || { echo "STOP: branch $B${i} is pushed in ${pr.repo} but the pull request was not opened. Open it on GitHub."; exit 1; }`,
       'echo "opened: $url"',
     );
   });
@@ -93,7 +97,7 @@ export function renderScript(plan: Plan): string {
         : { repository_names: [p.repo], properties: [{ property_name: p.name, value: p.to }] };
     const path = p.endpoint === "repo" ? `repos/$O/${p.repo}/properties/values` : "orgs/$O/properties/values";
     L.push(
-      `gh api --method PATCH "${path}" --input - >/dev/null <<'JSON' || { echo "STOP: GitHub refused ${p.name} on ${p.repo}. Changes above this line were made; this one and the rest were not."; exit 1; }`,
+      `api --method PATCH "${path}" --input - >/dev/null <<'JSON' || { echo "STOP: GitHub refused ${p.name} on ${p.repo}. Changes above this line were made; this one and the rest were not."; exit 1; }`,
       JSON.stringify(body),
       "JSON",
       `echo ${sq(`set: ${p.repo} ${p.name} = ${p.to ?? "(not set)"}`)}`,

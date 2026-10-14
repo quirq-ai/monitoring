@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { applyOwnersEdits, checkOwners, parseCodeowners } from "@/lib/editor/codeowners";
+import { applyOwnersEdits, checkOwners, ownersFor, parseCodeowners } from "@/lib/editor/codeowners";
 
 const gate = readFileSync("tests/fixtures/raw/gate/main/.github/CODEOWNERS", "utf8");
 
@@ -41,5 +41,19 @@ describe("CODEOWNERS", () => {
   it("creates a file from nothing", () => {
     const r = applyOwnersEdits("", [{ op: "add", pattern: "*", to: ["@a"] }]);
     expect(r.ok && r.text).toBe("* @a\n");
+  });
+});
+
+describe("ownersFor", () => {
+  const text = ["*            @all", "/config/     @policy", "docs/        @docs", "*.md         @writers", "/pins.toml   @pins", "/src/a/**/b  @deep"].join("\n");
+  it("takes the last matching rule, as GitHub does", () => {
+    expect(ownersFor(text, "config/gate.toml")).toEqual(["@policy"]);
+    expect(ownersFor(text, "config/README.md")).toEqual(["@writers"]);
+    expect(ownersFor(text, "pins.toml")).toEqual(["@pins"]);
+    expect(ownersFor(text, "x/pins.toml")).toEqual(["@all"]);
+    expect(ownersFor(text, "a/docs/x.txt")).toEqual(["@docs"]);
+    expect(ownersFor(text, "src/a/x/y/b")).toEqual(["@deep"]);
+    expect(ownersFor("/settings/ @s", "settings/github.toml")).toEqual(["@s"]);
+    expect(ownersFor("/settings/ @s", "other.toml")).toEqual([]);
   });
 });

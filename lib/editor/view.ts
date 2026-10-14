@@ -14,8 +14,7 @@ export function displayValue(value: unknown): string {
   return String(value);
 }
 
-/** `readOnly` shows every value as text: the file says it is edited some other way. */
-export function tomlView(text: string, readOnly = false): { ok: true; fields: FieldView[] } | { ok: false; reason: string } {
+export function tomlView(text: string): { ok: true; fields: FieldView[] } | { ok: false; reason: string } {
   const scan = scanToml(text);
   if (!scan.ok) return scan;
   return {
@@ -25,8 +24,8 @@ export function tomlView(text: string, readOnly = false): { ok: true; fields: Fi
       key: f.key,
       section: f.section,
       line: f.line,
-      kind: readOnly ? undefined : f.kind,
-      value: f.kind && !readOnly ? (f.value as FieldView["value"]) : undefined,
+      kind: f.kind,
+      value: f.kind ? (f.value as FieldView["value"]) : undefined,
       display: f.id.startsWith("line:") ? String(f.value) : displayValue(f.value),
       note: f.note,
       help: f.help,

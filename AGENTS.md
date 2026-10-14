@@ -26,7 +26,10 @@ before asking for review.
    `main`), plus org custom property values after a ticked confirm; only from `pnpm editor` on the
    person's machine (`MONITORING_EDITOR=gh`, never on Vercel, only from 127.0.0.1 with the run's
    key); and only through `ghWrite` in `lib/editor/gh.ts`, called only from `lib/editor/apply.ts`.
-   The deployed site hands over a gh script instead. `tests/read-only.test.ts` holds all of this.
+   In that mode even reads go through the person's gh, so `proxy.ts` answers 403 to any Host that
+   is not loopback. The deployed site hands over a gh script instead. `tests/read-only.test.ts`
+   holds the code paths; `tests/editor/plan.test.ts` and `tests/editor/proxy.test.ts` the mode, the
+   key and the loopback checks.
 2. **Bound to the source.** Every value on screen comes from exactly one source module in
    `lib/sources/`, carries that source's URL and fetch time, and links to it. Pages never call
    `fetch` or the GitHub API directly.
@@ -119,6 +122,7 @@ app/
   repos/[repo]/page.tsx  Repo page
   api/snapshot/route.ts  GET only: the model as JSON
   settings/page.tsx      the settings editor; settings/actions.ts its server functions
+proxy.ts                 only in the local editor's gh mode: 403 to a Host that is not loopback
 components/
   ui/                    shadcn, unmodified where possible
   state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
@@ -135,15 +139,14 @@ lib/
   fetch.ts               raw reads, zod helpers; the only other fetch
   signal.ts              the Signal type every source returns
   editor/                settings editor: comment-keeping TOML and CODEOWNERS edits, the plan
-                         (a PR per repo), the gh script, gh itself (the only writer), apply
+                         (a PR per repo), the gh script, gh itself (the only writer), apply,
+                         and launch.mjs (`pnpm editor`: checks gh, serves on 127.0.0.1 with a key)
 config/
   repos.json             repos no registry names
   freshness.ts           window per writer job
   owner.ts               whose "waiting on you" it is (MONITORING_OWNER)
   demo.ts                planted records that are never counted
   settings.ts            the files the settings editor edits, and what a merged edit does
-scripts/
-  editor.mjs             `pnpm editor`: checks gh, serves on 127.0.0.1 with a fresh key
 tests/
   live-check.ts          `pnpm live`: every source once against GitHub
   fixtures/              captured and synthetic files, with origin (README.md)

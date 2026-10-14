@@ -44,10 +44,13 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `raw/release/release-state/canary/xo-space/held/14b21a41668bc8124b4cf5cf9cd59fb44dc7d419.json` | synthetic: built from release `src/qqrelease/canary.py` `_hold_record` at 581fdf2 (no real hold exists yet) |
 | `raw/infra-config/main/config/{auto_revert,flakes,fuzz,gate,kinds,org,perf,pipelines,postmortem}.toml` | captured from infra-config `main` at b344eaf848b43f6096b0247c9b21ca6ed10b08a8 (for the settings editor) |
 | `raw/infra-config/main/.github/CODEOWNERS` | captured from infra-config `main` at b344eaf848b43f6096b0247c9b21ca6ed10b08a8 |
-| `raw/gate/main/pins.toml`, `raw/gate/main/.github/CODEOWNERS` | captured from gate `main` at d7234b758aaf111db7cffe062567b92cf6a4857d |
+| `raw/gate/main/pins.toml`, `raw/gate/main/guard/terms.toml`, `raw/gate/main/.github/CODEOWNERS` | captured from gate `main` at d7234b758aaf111db7cffe062567b92cf6a4857d |
+| `raw/gardener/main/pins.toml` | captured from gardener `main` at 1eb981e22e33bd76fca376dcd1f107e655be8e81 |
+| `raw/release/main/pins.toml` | captured from release `main` at b3f6ee5622fa3dc60745fcd71c9a790501146147 |
+| `raw/installer/main/pins.toml` | captured from installer `main` at ca288255da24fa4477aa459c2110d10f5278374c |
+| `raw/test-pipelines/main/pins.toml` | captured from test-pipelines `main` at 0ad06a230fabf7c2d85ee4bdb5e03e0f9c828a6e |
+| `raw/rollers/main/infra-config.commit` | captured from rollers `main` at 631361042aa69bf1b337aaf7ca8448dbf7c30b2e |
 | `raw/qq/main/.github/CODEOWNERS` | captured from qq `main` at b205b0ecb5b528db5e582b7371ca39dba53f638a |
-| `raw/xo-space/main/infra/repo.toml` | captured from xo-space `main` at 3bb8687307144ab604723e7c13f49753b22dc0e0 |
-| `raw/innernet/main/infra/repo.toml` | captured from innernet `main` at 7afd5031c40bf857c21599018a364035a3bef0a9 |
 | `api/org_properties_schema.json` | synthetic, in the shape of GET orgs/<org>/properties/schema: `role` as the live definition (single select, required, default project, editable by repo actors; github-commands file 29), `area`, `owner` and `stage` as vision/org/naming.md §4 plans them, and a multi select to show the read-only case |
 | `api/org_properties_values.json` | synthetic, in the shape of GET orgs/<org>/properties/values: real repo names, role values from github-commands file 29 |
 | `api/monitoring_check-runs.json` | captured 2026-10-06 from GET repos/quirq-ai/monitoring/commits/main/check-runs |

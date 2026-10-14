@@ -18,6 +18,12 @@ function fail(message) {
   process.stderr.write(`${message}\n`);
   process.exit(1);
 }
+// As real gh does for an HTTP error: GitHub's JSON answer on stdout (even with --jq), the error on
+// stderr, exit status 1.
+function notFound() {
+  process.stdout.write(JSON.stringify({ message: "Not Found", documentation_url: "https://docs.github.com/rest", status: "404" }));
+  fail("gh: Not Found (HTTP 404)");
+}
 let out = (value) => {
   process.stdout.write(value === undefined ? "" : JSON.stringify(value));
   process.exit(0);
@@ -77,7 +83,7 @@ if (method === "GET") {
     try {
       text = readFileSync(join(fixtures, "raw", m[1], "main", m[2]), "utf8");
     } catch {
-      fail("gh: Not Found (HTTP 404)");
+      notFound();
     }
     if (process.env.FAKE_GH_MOVED === m[2]) text += "\n# moved on main\n";
     out({ sha: blobSha(text), content: Buffer.from(text).toString("base64"), encoding: "base64" });
@@ -89,10 +95,10 @@ if (method === "GET") {
   m = /^repos\/quirq-ai\/([^/]+)\/properties\/values$/.exec(path);
   if (m) {
     const repo = values().find((r) => r.repository_name === m[1]);
-    if (!repo) fail("gh: Not Found (HTTP 404)");
+    if (!repo) notFound();
     out(repo.properties);
   }
-  fail("gh: Not Found (HTTP 404)");
+  notFound();
 }
 
 const body = input ? JSON.parse(readFileSync(0, "utf8")) : fields;
@@ -102,4 +108,4 @@ if (method === "POST" && m) out({ number: 101, html_url: `https://github.com/qui
 if (method === "POST" && /\/git\/refs$/.test(path)) out({ ref: body.ref, object: { sha: body.sha } });
 if (method === "PUT" && /\/contents\//.test(path)) out({ content: { path }, commit: { sha: "2".repeat(40) } });
 if (method === "PATCH" && /properties\/values$/.test(path)) out(undefined);
-fail(`gh: Not Found (HTTP 404)`);
+notFound();

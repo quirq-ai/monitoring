@@ -5,9 +5,10 @@
 // Each edit becomes a pull request on the repo that owns the file, so CODEOWNERS, required
 // approvals and the merge queue there decide whether it lands. Nothing here writes to main.
 
-export type SettingsFormat = "toml" | "codeowners";
+/** `commit`: a file that holds one 40-character commit id and nothing else. */
+export type SettingsFormat = "toml" | "codeowners" | "commit";
 
-export type SettingsGroup = "gates" | "policies" | "owners" | "manifests";
+export type SettingsGroup = "gates" | "pins" | "policies" | "owners" | "manifests";
 
 export type SettingsFile = {
   /** Stable id, e.g. `gate/settings/github.toml`. The only thing a browser may name. */
@@ -25,32 +26,69 @@ export type SettingsFile = {
 };
 
 export const GROUPS: { id: SettingsGroup; title: string; blurb: string }[] = [
-  { id: "gates", title: "Gates", blurb: "Merge rules, required checks and approvals, org workflows and pins." },
+  { id: "gates", title: "Gates", blurb: "Merge rules, required checks and approvals, org workflows and the guard's terms." },
+  { id: "pins", title: "Pins", blurb: "The commits each tool reads infra-config and the other qq repos at." },
   { id: "policies", title: "Policies", blurb: "infra-config: reverts, channels, flakes, perf, rollers and the rest." },
   { id: "owners", title: "Owners", blurb: "Policy owners, rotations and each repo's CODEOWNERS." },
-  { id: "manifests", title: "Repo manifests", blurb: "Each product's infra/repo.toml, shown read-only: qqsync edits them." },
+  { id: "manifests", title: "Repo manifests", blurb: "Each product's infra/repo.toml, linked only: qqsync reads and edits them." },
 ];
 
-const GATE_EFFECT =
-  "Merged, it changes nothing on GitHub by itself: an org admin then runs gate's settings apply (scripts/apply.sh), which writes the rulesets and repo settings.";
-const POLICY_EFFECT = "Read from infra-config main by the tools named in the file's [area] read_by once merged.";
+const APPLY = "an org admin runs gate's settings apply (scripts/apply.sh), which writes the rulesets and repo settings";
+const GATE_EFFECT = `nothing changes on GitHub by itself; that happens when ${APPLY}.`;
+// None of the tools that read infra-config reads its main: each reads it at a commit pinned in its
+// own repo (gate/README.md "How it works", gate scripts/apply.sh refuses any other commit).
+const POLICY_EFFECT =
+  "nothing changes by itself. The tools in the file's [area] read_by take it up when they move their pin of infra-config past this merge: gate, gardener, release and installer pin it in pins.toml, rollers in infra-config.commit. None of them reads infra-config main.";
 
-function infraConfig(name: string, title: string, group: SettingsGroup = "policies"): SettingsFile {
-  return { id: `infra-config/config/${name}`, group, repo: "infra-config", branch: "main", path: `config/${name}`, format: "toml", title, effect: POLICY_EFFECT };
+function infraConfig(name: string, title: string, group: SettingsGroup = "policies", effect = POLICY_EFFECT): SettingsFile {
+  return { id: `infra-config/config/${name}`, group, repo: "infra-config", branch: "main", path: `config/${name}`, format: "toml", title, effect };
+}
+
+function pins(repo: string, reads: string): SettingsFile {
+  return {
+    id: `${repo}/pins.toml`,
+    group: "pins",
+    repo,
+    branch: "main",
+    path: "pins.toml",
+    format: "toml",
+    title: `${repo} pins`,
+    effect: `${repo} reads ${reads} at these commits from its next run.`,
+  };
 }
 
 export const FIXED_FILES: SettingsFile[] = [
   { id: "gate/settings/github.toml", group: "gates", repo: "gate", branch: "main", path: "settings/github.toml", format: "toml", title: "Rulesets and repo settings", effect: GATE_EFFECT },
-  infraConfig("gate.toml", "Gate policy: merge queue, admission, change classes", "gates"),
+  infraConfig(
+    "gate.toml",
+    "Gate policy: merge queue, admission, change classes",
+    "gates",
+    `${POLICY_EFFECT} For the gate, that is gate's pins.toml; the rulesets on GitHub then change only when ${APPLY}.`,
+  ),
   {
-    id: "gate/pins.toml",
+    id: "gate/guard/terms.toml",
     group: "gates",
     repo: "gate",
     branch: "main",
-    path: "pins.toml",
+    path: "guard/terms.toml",
     format: "toml",
-    title: "Commits gate reads (pins)",
-    effect: "gate reads infra-config and sync at these commits once merged.",
+    title: "Agnosticism guard terms",
+    effect: "The repos that run gate's guard pin gate by commit (gardener, release and test-pipelines in pins.toml), so each uses the new terms once its gate pin moves past this merge.",
+  },
+  { ...pins("gate", "infra-config and sync"), effect: `gate reads infra-config and sync at these commits; the rulesets on GitHub change only when ${APPLY}.` },
+  pins("gardener", "infra-config, test-pipelines and gate"),
+  pins("release", "infra-config and gate"),
+  pins("installer", "release, infra-config, xo-space's install.sh and gardener"),
+  pins("test-pipelines", "gate"),
+  {
+    id: "rollers/infra-config.commit",
+    group: "pins",
+    repo: "rollers",
+    branch: "main",
+    path: "infra-config.commit",
+    format: "commit",
+    title: "rollers pin of infra-config",
+    effect: "rollers reads infra-config at this commit from its next run.",
   },
   infraConfig("auto_revert.toml", "Auto-revert caps"),
   infraConfig("channels.toml", "Channels and the canary schedule"),
@@ -90,8 +128,9 @@ export function manifestFile(repo: string): SettingsFile {
     path: "infra/repo.toml",
     format: "toml",
     title: `${repo} infra/repo.toml`,
-    effect: "qq and sync read it from the repo's main once merged.",
-    // The manifest's own header: "Read and edit it only through qqsync ... no other parser."
-    readOnly: "Shown read-only: its header says to edit it only through qqsync (qqsync show, qqsync pin), and rollers move its pins.",
+    effect: "qqsync changes it in its own pull requests.",
+    // The manifest's own header: "Read and edit it only through qqsync ... no other parser." So the
+    // editor does not read it at all, and only links to it.
+    readOnly: "Not read or edited here: its header says to read and edit it only through qqsync (qqsync show, qqsync pin), and rollers move its pins.",
   };
 }
