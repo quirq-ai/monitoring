@@ -10,6 +10,7 @@ const pages = [
   { href: "/board", label: "Board" },
   { href: "/release", label: "Release" },
   { href: "/health", label: "Health" },
+  { href: "/settings", label: "Settings" },
 ] as const;
 
 /**

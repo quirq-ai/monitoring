@@ -3,8 +3,10 @@ The files in this folder are copied from shadcn/ui
 295a1f114a138f23b5dfee0e0c6812394dfeb90c), with import paths pointed at
 @/lib/utils. button.tsx and badge.tsx also replace text-white on the
 destructive variant with text-destructive-foreground and drop the
-dark:bg-destructive/60 overlay, as AGENTS.md requires. They are used under
-the licence below.
+dark:bg-destructive/60 overlay, as AGENTS.md requires. checkbox, input,
+label, native-select, switch and textarea (same commit) use ring-ring
+for the focus ring instead of ring-ring/50, as the Button does. They are
+used under the licence below.
 
 MIT License
 

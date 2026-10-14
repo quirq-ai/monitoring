@@ -37,6 +37,22 @@ describe("read-only", () => {
     }
   });
 
+  it("only the settings editor writes, only through gh, and only from apply", () => {
+    // The dashboard's own code never writes. The settings editor's writes go through one function,
+    // ghWrite in lib/editor/gh.ts, which refuses unless the editor runs locally (pnpm editor), and
+    // only lib/editor/apply.ts calls it. Nothing else may start a process.
+    for (const file of appFiles) {
+      const text = readFileSync(file, "utf8");
+      const gh = file.endsWith("lib/editor/gh.ts");
+      expect(/child_process/.test(text), `${file} must not start processes`).toBe(gh);
+      if (!gh && !file.endsWith("lib/editor/apply.ts")) expect(text, `${file} must not call ghWrite`).not.toMatch(/\bghWrite\(/);
+    }
+    const gh = readFileSync("lib/editor/gh.ts", "utf8");
+    expect(gh.match(/spawn\(/g)).toHaveLength(1);
+    expect(gh).toContain('spawn("gh", args');
+    expect(gh).toMatch(/export async function ghWrite[\s\S]*?if \(editorMode\(\) !== "gh"\) return/);
+  });
+
   it("sends no request that is not a GET and no token to raw", async () => {
     const fixtures = await withFixtures();
     await Promise.all([readReleaseChannels(), readOpenPulls(), ...WRITERS.map((w) => readWriterRuns(w))]);

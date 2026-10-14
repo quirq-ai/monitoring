@@ -1,0 +1,133 @@
+[
+  {
+    "repository_id": 1000,
+    "repository_name": "gate",
+    "repository_full_name": "quirq-ai/gate",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "tool"
+      },
+      {
+        "property_name": "area",
+        "value": "infra"
+      },
+      {
+        "property_name": "owner",
+        "value": "sharmasuraj0123"
+      },
+      {
+        "property_name": "topics-extra",
+        "value": [
+          "a",
+          "b"
+        ]
+      }
+    ]
+  },
+  {
+    "repository_id": 1001,
+    "repository_name": "infra-config",
+    "repository_full_name": "quirq-ai/infra-config",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "config"
+      },
+      {
+        "property_name": "area",
+        "value": "infra"
+      }
+    ]
+  },
+  {
+    "repository_id": 1002,
+    "repository_name": "innernet",
+    "repository_full_name": "quirq-ai/innernet",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "project"
+      },
+      {
+        "property_name": "area",
+        "value": "product"
+      }
+    ]
+  },
+  {
+    "repository_id": 1003,
+    "repository_name": "monitoring",
+    "repository_full_name": "quirq-ai/monitoring",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "project"
+      }
+    ]
+  },
+  {
+    "repository_id": 1004,
+    "repository_name": "qq",
+    "repository_full_name": "quirq-ai/qq",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "tool"
+      },
+      {
+        "property_name": "area",
+        "value": "infra"
+      }
+    ]
+  },
+  {
+    "repository_id": 1005,
+    "repository_name": "website",
+    "repository_full_name": "quirq-ai/website",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "project"
+      },
+      {
+        "property_name": "area",
+        "value": "website"
+      }
+    ]
+  },
+  {
+    "repository_id": 1006,
+    "repository_name": "wiki",
+    "repository_full_name": "quirq-ai/wiki",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "docs"
+      },
+      {
+        "property_name": "area",
+        "value": "org"
+      }
+    ]
+  },
+  {
+    "repository_id": 1007,
+    "repository_name": "xo-space",
+    "repository_full_name": "quirq-ai/xo-space",
+    "properties": [
+      {
+        "property_name": "role",
+        "value": "project"
+      },
+      {
+        "property_name": "area",
+        "value": "product"
+      },
+      {
+        "property_name": "owner",
+        "value": "sharmasuraj0123"
+      }
+    ]
+  }
+]

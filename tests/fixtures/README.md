@@ -40,7 +40,16 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `raw/wiki/main/.quirq-wiki-manifest.json` | captured from wiki `main` on 2026-10-06 (raw.githubusercontent.com) |
 | `raw/release/release-state/canary/xo-space/runs/{{today}}.json` | synthetic: the captured xo-space 2026-10-05 run with `verify` failed and the date set to the request day |
 | `raw/release/release-state/canary/innernet/runs/{{today}}.json` | synthetic: the captured innernet 2026-10-05 run with the date set to the request day |
+| `raw/release/release-state/canary/innernet/runs/{{today-3d}}.json` | synthetic: the same run three days before the request day, so the 7-day window always holds more than the last day (the captured 2026-10-05 and -06 runs aged out of it on 2026-10-13) |
 | `raw/release/release-state/canary/xo-space/held/14b21a41668bc8124b4cf5cf9cd59fb44dc7d419.json` | synthetic: built from release `src/qqrelease/canary.py` `_hold_record` at 581fdf2 (no real hold exists yet) |
+| `raw/infra-config/main/config/{auto_revert,flakes,fuzz,gate,kinds,org,perf,pipelines,postmortem}.toml` | captured from infra-config `main` at b344eaf848b43f6096b0247c9b21ca6ed10b08a8 (for the settings editor) |
+| `raw/infra-config/main/.github/CODEOWNERS` | captured from infra-config `main` at b344eaf848b43f6096b0247c9b21ca6ed10b08a8 |
+| `raw/gate/main/pins.toml`, `raw/gate/main/.github/CODEOWNERS` | captured from gate `main` at d7234b758aaf111db7cffe062567b92cf6a4857d |
+| `raw/qq/main/.github/CODEOWNERS` | captured from qq `main` at b205b0ecb5b528db5e582b7371ca39dba53f638a |
+| `raw/xo-space/main/infra/repo.toml` | captured from xo-space `main` at 3bb8687307144ab604723e7c13f49753b22dc0e0 |
+| `raw/innernet/main/infra/repo.toml` | captured from innernet `main` at 7afd5031c40bf857c21599018a364035a3bef0a9 |
+| `api/org_properties_schema.json` | synthetic, in the shape of GET orgs/<org>/properties/schema: `role` as the live definition (single select, required, default project, editable by repo actors; github-commands file 29), `area`, `owner` and `stage` as vision/org/naming.md §4 plans them, and a multi select to show the read-only case |
+| `api/org_properties_values.json` | synthetic, in the shape of GET orgs/<org>/properties/values: real repo names, role values from github-commands file 29 |
 | `api/monitoring_check-runs.json` | captured 2026-10-06 from GET repos/quirq-ai/monitoring/commits/main/check-runs |
 | `api/monitoring_deployments.json` | captured 2026-10-06 from GET repos/quirq-ai/monitoring/deployments |
 | `api/monitoring_deployment_statuses.json` | captured 2026-10-06 from GET repos/quirq-ai/monitoring/deployments/6895210268/statuses |
@@ -53,7 +62,7 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `api/perf_contents_xo-space.json` | synthetic listing; names are the real files of perf `perf-data` at b94c958011be3b3b1835a41debe53f5cbc5f6413 |
 | `api/gardener_contents_reverts.json` | synthetic: a ledger listing for the "started" case (the branch does not exist yet); the name follows ledger.py revert_id = <repo>-<culprit12> |
 | `raw/gardener/ledger/reverts/innernet-8f383a3d6c28.json` | synthetic: built from gardener src/qqgarden/ledger.py Entry at bf7d24d (schema qq-revert/1); no real record exists yet and the dashboard only counts records today |
-| `api/release_contents_canary_innernet_runs.json` | synthetic listing in the contents API shape: the captured run files of innernet plus the synthetic one for the request day |
+| `api/release_contents_canary_innernet_runs.json` | synthetic listing in the contents API shape: the captured run files of innernet plus the synthetic ones for the request day and three days before |
 | `api/release_contents_canary_xo-space_runs.json` | synthetic listing in the contents API shape: the captured run files of xo-space plus the synthetic one for the request day |
 | `api/gardener_contents_landed.json` | synthetic: an empty ledger landed/ listing |
 | `api/org_repos.json` | synthetic list in the orgs/<org>/repos shape; names are the real public repos from the wiki manifest generated 2026-10-06T12:18Z. `routes.json` serves it with a `date` header three hours old (its cache window is one hour), so the default story has one read past twice its window: Health shows it `stale` and nothing else changes, since the registries feed no page read or cell |

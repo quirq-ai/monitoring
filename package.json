@@ -10,7 +10,8 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
-    "live": "LIVE=1 vitest run"
+    "live": "LIVE=1 vitest run",
+    "editor": "next build && node scripts/editor.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

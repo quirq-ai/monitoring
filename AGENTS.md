@@ -20,6 +20,13 @@ before asking for review.
 1. **Read-only.** The dashboard never writes to GitHub or anywhere else: no merges, approvals,
    comments, dispatches, ref moves, issues or labels. No code path calls a GitHub endpoint with a
    method other than `GET`, and GraphQL is queries only, never mutations. A test enforces this (M1).
+   The one exception is the settings editor (`/settings`, suraj's ask of 2026-10-14), and it is
+   fenced: it writes only through the person's own `gh` login, never with `GITHUB_TOKEN` (which is
+   removed from what gh sees); only branches, contents on those branches and pull requests (never
+   `main`), plus org custom property values after a ticked confirm; only from `pnpm editor` on the
+   person's machine (`MONITORING_EDITOR=gh`, never on Vercel, only from 127.0.0.1 with the run's
+   key); and only through `ghWrite` in `lib/editor/gh.ts`, called only from `lib/editor/apply.ts`.
+   The deployed site hands over a gh script instead. `tests/read-only.test.ts` holds all of this.
 2. **Bound to the source.** Every value on screen comes from exactly one source module in
    `lib/sources/`, carries that source's URL and fetch time, and links to it. Pages never call
    `fetch` or the GitHub API directly.
@@ -111,6 +118,7 @@ app/
   health/page.tsx        Health
   repos/[repo]/page.tsx  Repo page
   api/snapshot/route.ts  GET only: the model as JSON
+  settings/page.tsx      the settings editor; settings/actions.ts its server functions
 components/
   ui/                    shadcn, unmodified where possible
   state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
@@ -119,23 +127,30 @@ components/
   api-banner.tsx         one Alert when the GitHub API as a whole is out
   markdown.tsx           react-markdown with raw HTML off, for the canary report
   source-link.tsx        "from <source>, <age> ago"
+  settings/              the editor's form: fields, review (diff, script, apply), connect card
 lib/
   sources/               one module per source
   model/                 Signals joined into the model
   github.ts              the only GitHub client
   fetch.ts               raw reads, zod helpers; the only other fetch
   signal.ts              the Signal type every source returns
+  editor/                settings editor: comment-keeping TOML and CODEOWNERS edits, the plan
+                         (a PR per repo), the gh script, gh itself (the only writer), apply
 config/
   repos.json             repos no registry names
   freshness.ts           window per writer job
   owner.ts               whose "waiting on you" it is (MONITORING_OWNER)
   demo.ts                planted records that are never counted
+  settings.ts            the files the settings editor edits, and what a merged edit does
+scripts/
+  editor.mjs             `pnpm editor`: checks gh, serves on 127.0.0.1 with a fresh key
 tests/
   live-check.ts          `pnpm live`: every source once against GitHub
   fixtures/              captured and synthetic files, with origin (README.md)
   fixtures/server.mjs    serves them like raw and the API; GET only
   sources/*.test.ts      each source, good and bad
   e2e/*.spec.ts          pages: phone, desktop, themes
+  fake-gh/gh             stands in for gh: answers from fixtures, logs writes (FAKE_GH_LOG)
 ```
 
 Keep it this small. If a feature does not fit this shape, say so in the PR and ask before adding a
@@ -520,10 +535,13 @@ pnpm live          # every source once against the real branches; paste the summ
   updates them.
 - Mark a decision you cannot make with a one-line `TODO(suraj):` in the code or the PR, and keep
   going on the safe default.
-- Other repos are read from here, never changed. If the dashboard needs data another repo does not
+- Other repos are read from here, never changed by the dashboard; the settings editor only proposes
+  changes to them, as pull requests opened by the person (rule 1). If the dashboard needs data another repo does not
   publish yet, propose it to that repo in its own PR instead of scraping around it.
 - Environment variables: `GITHUB_TOKEN` (optional, read-only), `MONITORING_ORG` (default
   `quirq-ai`), `MONITORING_OWNER` (the login "waiting on you" is about, default `sharmasuraj0123`),
-  and for tests only `MONITORING_RAW_BASE` and `MONITORING_API_BASE` (the fixture server) and
-  `PW_CHROMIUM_PATH` (Playwright's Chromium, for local runs). Document any new one here and in
+  `MONITORING_EDITOR` and `MONITORING_EDITOR_KEY` (set by `pnpm editor` only: `gh` lets the settings
+  editor write through gh, the key is the run's), and for tests only `MONITORING_RAW_BASE` and
+  `MONITORING_API_BASE` (the fixture server), `FAKE_GH_LOG` (where `tests/fake-gh/gh` logs writes)
+  and `PW_CHROMIUM_PATH` (Playwright's Chromium, for local runs). Document any new one here and in
   `.env.example` with an empty value.

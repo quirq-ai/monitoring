@@ -14,6 +14,7 @@ const pages = [
   { path: "/release", slug: "release", heading: "Release" },
   { path: "/health", slug: "health", heading: "Health" },
   { path: "/repos/xo-space", slug: "repo-xo-space", heading: "xo-space" },
+  { path: "/settings", slug: "settings", heading: "Settings" },
 ] as const;
 
 async function openThemed(page: Page, path: string, theme: "light" | "dark") {

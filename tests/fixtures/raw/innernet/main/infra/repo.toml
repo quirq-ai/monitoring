@@ -1,0 +1,33 @@
+# quirq infra (qq) manifest for innernet: pinned toolchains and typed targets, schema quirq-repo/1
+# (quirq-ai/sync). Read and edit it only through qqsync (`qqsync show`, `qqsync pin`, or the
+# qqsync.manifest library); never parse it any other way.
+#
+# Kind `node-app` (Next.js with pnpm) is defined in quirq-ai/recipes and listed in
+# quirq-ai/infra-config config/kinds.toml. innernet has no tests yet, so the kind's `test` is
+# `pnpm typecheck`.
+#
+# The node pin is the one quirq-ai/toolchains promoted (promoted.toml, node 24.21.0 revision 1,
+# built from 5739fee): `source` names the OCI image manifest and `digest` the layer in it, as
+# quirq-ai/qq's `qq sync` fetches it. The toolchain bundles pnpm 11.28.2. Only linux-x86_64 is
+# built so far. The toolchain roller (quirq-ai/rollers) moves this pin; do not edit it by hand.
+#
+# TODO(expert): deploy target. Vercel's GitHub app posts preview checks on pull requests and a
+# .vercelignore shapes `vercel deploy` uploads of the demo, but the production target is not
+# verified, so qq deploys nothing yet. The README promises the demo stores no IPs or cookies, so
+# this repo gets no telemetry.
+schema = "quirq-repo/1"
+
+[[targets]]
+name = "app"
+kind = "node-app"
+srcs = ["app/**", "components/**", "lib/**", "public/**", "scripts/**", "data/demo/**", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "tsconfig.json", "next.config.ts", "proxy.ts", "instrumentation.ts", "postcss.config.mjs", "innernet.config.json", "CONTRIBUTING.md", "DESIGN.md"]
+outs = [".next/"]
+
+[qq]
+version = "0.1.0"
+
+[toolchains.node]
+version = "24.21.0"
+
+[toolchains.node.platforms]
+linux-x86_64 = {source = "oci://ghcr.io/quirq-ai/toolchains/node@sha256:a84e067c794c73ba5ecf72064bcb6940e67f51f3fce7803edc54040e8c69a173", digest = "sha256:8c0ab89a2bc9a397f443ae9196ec95535e60e5ead1378a920cf44b2b2b392d01"}

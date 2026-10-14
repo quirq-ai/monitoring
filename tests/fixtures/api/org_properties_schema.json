@@ -1,0 +1,79 @@
+[
+  {
+    "property_name": "role",
+    "url": "https://api.github.com/orgs/quirq-ai/properties/schema/role",
+    "source_type": "organization",
+    "value_type": "single_select",
+    "required": true,
+    "default_value": "project",
+    "description": null,
+    "allowed_values": [
+      "agent",
+      "config",
+      "docs",
+      "library",
+      "project",
+      "tool"
+    ],
+    "values_editable_by": "org_and_repo_actors"
+  },
+  {
+    "property_name": "area",
+    "url": "https://api.github.com/orgs/quirq-ai/properties/schema/area",
+    "source_type": "organization",
+    "value_type": "single_select",
+    "required": false,
+    "default_value": null,
+    "description": "The repo's area (vision/org/naming.md \u00a72)",
+    "allowed_values": [
+      "infra",
+      "org",
+      "docs",
+      "research",
+      "website",
+      "marketing",
+      "product"
+    ],
+    "values_editable_by": "org_actors"
+  },
+  {
+    "property_name": "owner",
+    "url": "https://api.github.com/orgs/quirq-ai/properties/schema/owner",
+    "source_type": "organization",
+    "value_type": "string",
+    "required": false,
+    "default_value": null,
+    "description": "The human owner's GitHub login",
+    "allowed_values": null,
+    "values_editable_by": "org_and_repo_actors"
+  },
+  {
+    "property_name": "stage",
+    "url": "https://api.github.com/orgs/quirq-ai/properties/schema/stage",
+    "source_type": "organization",
+    "value_type": "single_select",
+    "required": false,
+    "default_value": null,
+    "description": null,
+    "allowed_values": [
+      "active",
+      "prototype",
+      "frozen"
+    ],
+    "values_editable_by": "org_and_repo_actors"
+  },
+  {
+    "property_name": "topics-extra",
+    "url": "https://api.github.com/orgs/quirq-ai/properties/schema/topics-extra",
+    "source_type": "organization",
+    "value_type": "multi_select",
+    "required": false,
+    "default_value": null,
+    "description": "A multi select, shown read-only",
+    "allowed_values": [
+      "a",
+      "b"
+    ],
+    "values_editable_by": "org_actors"
+  }
+]

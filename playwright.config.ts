@@ -1,5 +1,6 @@
 import { defineConfig } from "@playwright/test";
-import { origin } from "./tests/e2e/origin";
+import { resolve } from "node:path";
+import { EDITOR_KEY, editorOrigin, FAKE_GH_LOG, origin } from "./tests/e2e/origin";
 
 const chromiumPath = process.env.PW_CHROMIUM_PATH;
 const fixtures = "http://127.0.0.1:3011";
@@ -30,6 +31,23 @@ export default defineConfig({
         MONITORING_RAW_BASE: `${fixtures}/raw`,
         MONITORING_API_BASE: `${fixtures}/api`,
         GITHUB_TOKEN: "fixture-token-never-real",
+      },
+    },
+    {
+      // The settings editor as `pnpm editor` runs it, with tests/fake-gh/gh standing in for gh:
+      // it answers from the fixtures and logs every write instead of sending it.
+      command: "pnpm exec next start -p 3012 -H 127.0.0.1",
+      url: editorOrigin,
+      reuseExistingServer: false,
+      timeout: 120_000,
+      env: {
+        MONITORING_RAW_BASE: `${fixtures}/raw`,
+        MONITORING_API_BASE: `${fixtures}/api`,
+        GITHUB_TOKEN: "fixture-token-never-real",
+        MONITORING_EDITOR: "gh",
+        MONITORING_EDITOR_KEY: EDITOR_KEY,
+        FAKE_GH_LOG,
+        PATH: `${resolve("tests/fake-gh")}:${process.env.PATH ?? ""}`,
       },
     },
   ],
