@@ -1,4 +1,6 @@
 import { parseCodeowners } from "@/lib/editor/codeowners";
+import { isPinCommit } from "@/lib/editor/commit-file";
+import { GENERATED_NOTE, isGenerateInput } from "@/lib/editor/generated";
 import { scanToml } from "@/lib/editor/toml-fields";
 import type { FieldView, RuleView } from "@/lib/editor/types";
 
@@ -14,22 +16,28 @@ export function displayValue(value: unknown): string {
   return String(value);
 }
 
-export function tomlView(text: string): { ok: true; fields: FieldView[] } | { ok: false; reason: string } {
+/** `fileId` decides which values are read by qqcfg generate, and so shown read-only. */
+export function tomlView(text: string, fileId: string): { ok: true; fields: FieldView[] } | { ok: false; reason: string } {
   const scan = scanToml(text);
   if (!scan.ok) return scan;
   return {
     ok: true,
-    fields: scan.fields.map((f) => ({
+    fields: scan.fields.map((f) => {
+      const locked = isGenerateInput(fileId, f, scan.fields);
+      return {
       id: f.id,
       key: f.key,
       section: f.section,
       line: f.line,
-      kind: f.kind,
-      value: f.kind ? (f.value as FieldView["value"]) : undefined,
+      kind: locked ? undefined : f.kind,
+      value: f.kind && !locked ? (f.value as FieldView["value"]) : undefined,
+      locked: locked ? GENERATED_NOTE : undefined,
+      commitId: isPinCommit(fileId, f.key) ? (true as const) : undefined,
       display: f.id.startsWith("line:") ? String(f.value) : displayValue(f.value),
       note: f.note,
       help: f.help,
-    })),
+      };
+    }),
   };
 }
 

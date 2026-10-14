@@ -26,7 +26,7 @@ export default async function SettingsPage() {
       const at = { ...base, fetchedAt: read.fetchedAt };
       if (!read.ok) return { ...at, ok: false as const, reason: read.reason };
       if (file.format === "codeowners") return { ...at, ok: true as const, exists: read.value.exists, rules: ownersView(read.value.text) };
-      const view = file.format === "commit" ? commitView(read.value.text) : tomlView(read.value.text);
+      const view = file.format === "commit" ? commitView(read.value.text) : tomlView(read.value.text, file.id);
       if (!view.ok) return { ...at, ok: false as const, reason: `${file.path}: ${view.reason}` };
       return { ...at, ok: true as const, exists: true, fields: view.fields };
     }),

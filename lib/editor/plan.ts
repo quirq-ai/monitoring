@@ -2,10 +2,11 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SettingsFile } from "@/config/settings";
 import { applyOwnersEdits, ownersFor } from "@/lib/editor/codeowners";
-import { applyCommitEdit } from "@/lib/editor/commit-file";
+import { applyCommitEdit, checkCommit, isPinCommit } from "@/lib/editor/commit-file";
 import { lineDiff } from "@/lib/editor/diff";
 import { checkPropertyValue } from "@/lib/editor/properties";
-import { applyTomlEdits } from "@/lib/editor/toml-fields";
+import { GENERATED_NOTE, isGenerateInput } from "@/lib/editor/generated";
+import { applyTomlEdits, scanToml } from "@/lib/editor/toml-fields";
 import { displayValue } from "@/lib/editor/view";
 import type { EditRequest, PlannedFileView } from "@/lib/editor/types";
 import { ORG } from "@/lib/fetch";
@@ -60,6 +61,16 @@ export async function buildPlan(request: EditRequest): Promise<{ ok: true; plan:
     let summary: string[];
     if (file.format === "toml") {
       if (edit.owners?.length || !edit.toml?.length) return { ok: false, reason: `${file.id}: expected value edits` };
+      const scan = scanToml(text);
+      if (scan.ok) {
+        const locked = scan.fields.find((f) => isGenerateInput(file.id, f, scan.fields) && edit.toml!.some((e) => e.id === f.id));
+        if (locked) return { ok: false, reason: `${file.path} ${locked.section} ${locked.key}: ${GENERATED_NOTE}` };
+        for (const e of edit.toml) {
+          const f = scan.fields.find((x) => x.id === e.id);
+          const bad = f && isPinCommit(file.id, f.key) ? checkCommit(e.to) : undefined;
+          if (bad) return { ok: false, reason: `${file.repo} ${file.path} ${f!.section} commit: ${bad}` };
+        }
+      }
       const result = applyTomlEdits(text, edit.toml);
       if (!result.ok) return { ok: false, reason: `${file.path}: ${result.reason}` };
       after = result.text;
@@ -137,10 +148,14 @@ async function codeReviewers(repo: string, files: PlannedFile[], catalog: Settin
   return { ok: true, owners: [...new Set(files.flatMap((f) => ownersFor(read.value.text, f.file.path)))] };
 }
 
-/** One line on who approves, for the review screen and the pull request. */
+/**
+ * One line on who reviews, for the review screen and the pull request. GitHub does not enforce it
+ * here (gate's settings ask for no approvals and no code-owner review); waiting for the code owner
+ * is the project's own rule, so the line says that and no more.
+ */
 export function reviewNote(reviewers: string[]): string {
-  if (reviewers.length === 0) return "No code owner is named for these paths: the repo's own review rules decide.";
-  return `Needs approval from ${reviewers.join(", ")} (the repo's CODEOWNERS). GitHub never counts an approval from the pull request's own author, so if you are the only owner named, another owner has to approve it.`;
+  if (reviewers.length === 0) return "The repo's CODEOWNERS names no owner for these paths.";
+  return `The repo's CODEOWNERS assigns these paths to ${reviewers.join(", ")}, and the project waits for that review before merging. That is the project's rule, not a GitHub setting.`;
 }
 
 function prBody(files: PlannedFile[], reviewers: string[]): string {

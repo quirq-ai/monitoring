@@ -45,6 +45,10 @@ export type FieldView = {
   display: string;
   note?: string;
   help?: string[];
+  /** Why this value is shown read-only even though the file is edited here. */
+  locked?: string;
+  /** The value must be a 40-character commit id. */
+  commitId?: true;
 };
 
 export type RuleView = { pattern: string; owners: string[]; help?: string[]; line: number };

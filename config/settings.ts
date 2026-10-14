@@ -38,7 +38,9 @@ const GATE_EFFECT = `nothing changes on GitHub by itself; that happens when ${AP
 // None of the tools that read infra-config reads its main: each reads it at a commit pinned in its
 // own repo (gate/README.md "How it works", gate scripts/apply.sh refuses any other commit).
 const POLICY_EFFECT =
-  "nothing changes by itself. The tools in the file's [area] read_by take it up when they move their pin of infra-config past this merge: gate, gardener, release and installer pin it in pins.toml, rollers in infra-config.commit. None of them reads infra-config main.";
+  "nothing changes by itself. The tools in the file's [area] read_by take it up when they move their pin of infra-config past this merge: gate, gardener, release and installer pin it in pins.toml (under Pins here), rollers in infra-config.commit, and recipes and sync in a ref: in their own .github/workflows/presubmit.yml, which this editor cannot move. None of them reads infra-config main.";
+// kinds.toml and pipelines.toml also feed qqcfg generate (lib/editor/generated.ts).
+const GENERATE_EFFECT = `${POLICY_EFFECT} The values qqcfg generate reads are shown read-only: change those in a checkout and run python3 tools/qqcfg.py generate, which rewrites generated/ and .github/workflows/ to match.`;
 
 function infraConfig(name: string, title: string, group: SettingsGroup = "policies", effect = POLICY_EFFECT): SettingsFile {
   return { id: `infra-config/config/${name}`, group, repo: "infra-config", branch: "main", path: `config/${name}`, format: "toml", title, effect };
@@ -73,7 +75,8 @@ export const FIXED_FILES: SettingsFile[] = [
     path: "guard/terms.toml",
     format: "toml",
     title: "Agnosticism guard terms",
-    effect: "The repos that run gate's guard pin gate by commit (gardener, release and test-pipelines in pins.toml), so each uses the new terms once its gate pin moves past this merge.",
+    effect:
+      "gate's own presubmit uses the new terms at once: its required guard over gate, and a non-required sweep (settings-drift) over every core repo. The other repos run the guard from a pinned gate: gardener, release and test-pipelines in pins.toml, qq at a gate ref: in its .github/workflows/presubmit.yml; each uses the new terms once that pin moves past this merge.",
   },
   { ...pins("gate", "infra-config and sync"), effect: `gate reads infra-config and sync at these commits; the rulesets on GitHub change only when ${APPLY}.` },
   pins("gardener", "infra-config, test-pipelines and gate"),
@@ -95,9 +98,9 @@ export const FIXED_FILES: SettingsFile[] = [
   infraConfig("flakes.toml", "Flakes and quarantine"),
   infraConfig("fuzz.toml", "Fuzzing"),
   infraConfig("health.toml", "Health probes"),
-  infraConfig("kinds.toml", "Repo kinds and toolchains"),
+  infraConfig("kinds.toml", "Repo kinds and toolchains", "policies", GENERATE_EFFECT),
   infraConfig("perf.toml", "Perf"),
-  infraConfig("pipelines.toml", "Builders and pipelines"),
+  infraConfig("pipelines.toml", "Builders and pipelines", "policies", GENERATE_EFFECT),
   infraConfig("postmortem.toml", "Postmortems"),
   infraConfig("rollers.toml", "Rollers"),
   infraConfig("repos.toml", "Product repos"),

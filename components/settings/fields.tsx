@@ -8,6 +8,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { checkOwners, splitOwners } from "@/lib/editor/codeowners";
+import { checkCommit } from "@/lib/editor/commit-file";
 import { checkPropertyValue, isEditableType } from "@/lib/editor/properties";
 import { checkValue, type FieldValue } from "@/lib/editor/toml-fields";
 import type { FieldView, PropertyDefView, RuleView } from "@/lib/editor/types";
@@ -96,7 +97,9 @@ export function TomlField({
       <Row changed={false}>
         <span className="font-mono text-sm wrap-anywhere">{field.key}</span>
         <span className="font-mono text-xs wrap-anywhere text-muted-foreground">{field.display}</span>
-        {url ? (
+        {field.locked ? (
+          <span className="text-xs wrap-anywhere">{field.locked}</span>
+        ) : url ? (
           <a href={`${url}#L${field.line + 1}`} target="_blank" rel="noopener noreferrer" className="w-fit text-xs underline underline-offset-2">
             Edit this one on GitHub
           </a>
@@ -108,8 +111,9 @@ export function TomlField({
   const kind = field.kind;
   const commit = (to: unknown) => {
     const checked = checkValue(kind, to);
-    if (!checked.ok) {
-      setProblem(checked.reason);
+    const bad = !checked.ok ? checked.reason : field.commitId ? checkCommit(checked.value) : undefined;
+    if (bad || !checked.ok) {
+      setProblem(bad);
       onChange(undefined, true);
       return;
     }

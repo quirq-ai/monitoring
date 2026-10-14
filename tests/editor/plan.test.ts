@@ -81,7 +81,7 @@ describe("buildPlan", () => {
     expect(plan.prs[0].files[0].baseSha).toBe(blobSha(gateToml));
     expect(plan.prs[1].title).toBe("Settings: [policy] daily_cap: 10 → 5");
     expect(plan.prs[0].body).toContain("that happens when an org admin runs gate's settings apply");
-    expect(plan.prs[0].body).toContain("Needs approval from @sharmasuraj0123");
+    expect(plan.prs[0].body).toContain("assigns these paths to @sharmasuraj0123");
     expect(plan.prs[1].reviewers).toEqual(["@sharmasuraj0123"]);
     expect(plan.properties).toEqual([
       { repo: "monitoring", name: "stage", from: null, to: "active", endpoint: "repo" },
@@ -101,6 +101,17 @@ describe("buildPlan", () => {
     expect(await r({ properties: [{ repo: "gate", name: "topics-extra", from: null, to: "a" }] })).toMatchObject({ ok: false });
     expect(await r({ properties: [{ repo: "nope", name: "role", from: null, to: "tool" }] })).toMatchObject({ ok: false });
     expect(await r({})).toMatchObject({ ok: false, reason: "nothing to change" });
+    // A value qqcfg generate reads would leave generated/ and the workflows stale.
+    expect(await r({ files: [{ id: "infra-config/config/kinds.toml", toml: [{ id: "toolchain[1].pin", from: "24", to: "22" }] }] })).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/qqcfg\.py generate/),
+    });
+    const gardenerPin = "bf3ad29834d85489c49aa6d41ec3c7e59474b746";
+    expect(await r({ files: [{ id: "gardener/pins.toml", toml: [{ id: "infra-config.commit", from: gardenerPin, to: "main" }] }] })).toMatchObject({
+      ok: false,
+      reason: expect.stringMatching(/40 lowercase hex/),
+    });
+    expect(await r({ files: [{ id: "gardener/pins.toml", toml: [{ id: "infra-config.commit", from: gardenerPin, to: "a".repeat(40) }] }] })).toMatchObject({ ok: true });
   });
 });
 

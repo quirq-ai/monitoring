@@ -89,8 +89,10 @@ script checks the live file before it writes), makes the change line by line (co
 are, and the edited file must parse to the old one with only your values changed), and shows each
 pull request as a diff. One pull request per repo, on a new `settings-editor/<repo>-<time>` branch,
 never a push to `main`, so that repo's checks, CODEOWNERS, approvals and merge queue decide whether
-it lands. The review names the code owners who must approve; GitHub never counts the author's own
-approval, so a change to a path you alone own needs another owner. Merging is not taking effect:
+it lands. The review names the code owners CODEOWNERS assigns the paths to; the project waits for
+their review before merging (its own rule: gate's settings do not make GitHub require it). Values
+that `qqcfg generate` reads (toolchain pins, kind commands, generated builders) are read-only here,
+since changing them means regenerating `generated/` and workflows in a checkout. Merging is not taking effect:
 the tools read infra-config at a commit they pin, so a policy change reaches each of them when its
 pin moves, and a gate settings change reaches GitHub only when an org admin runs gate's settings
 apply. Each card and pull request says which. Org custom properties have no file: they change on GitHub at once, so the review asks you to

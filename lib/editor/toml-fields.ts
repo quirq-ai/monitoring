@@ -162,6 +162,19 @@ export function scanToml(text: string): TomlScan {
     return out;
   };
 
+  const commentsAbove = (n: number): string[] => {
+    const help: string[] = [];
+    for (let k = n - 1; k >= 0 && help.length < HELP_LINES; k--) {
+      const c = /^\s*#\s?(.*)$/.exec(lines[k]);
+      if (!c) break;
+      help.unshift(c[1]);
+    }
+    return help;
+  };
+  // Comments right above a table header (installer's pins say why two tables move together) go
+  // with the table's first value, where the form shows them.
+  let headerHelp: string[] = [];
+
   for (let n = 0; n < lines.length; n++) {
     const line = lines[n];
     if (skipUntil) {
@@ -184,12 +197,14 @@ export function scanToml(text: string): TomlScan {
       for (const k of [...latest.keys()]) if (k.startsWith(`${names.join(".")}.`)) latest.delete(k);
       table = [...parent, names.at(-1)!, index];
       section = `[[${aot[1]}]]`;
+      headerHelp = commentsAbove(n);
       continue;
     }
     const tbl = TABLE.exec(line);
     if (tbl) {
       table = resolve(tbl[1].split("."), false);
       section = `[${tbl[1]}]`;
+      headerHelp = commentsAbove(n);
       continue;
     }
     const kv = KEY.exec(line);
@@ -206,12 +221,8 @@ export function scanToml(text: string): TomlScan {
     const value = getAt(parsed, path);
     const token = readToken(rhs, indent.length + key.length + eq.length);
     if (!token) skipFrom(rhs);
-    const help: string[] = [];
-    for (let k = n - 1; k >= 0 && help.length < HELP_LINES; k--) {
-      const c = /^\s*#\s?(.*)$/.exec(lines[k]);
-      if (!c) break;
-      help.unshift(c[1]);
-    }
+    const help = [...headerHelp, ...commentsAbove(n)];
+    headerHelp = [];
     const note = token ? /^\s*#\s?(.*)$/.exec(token.rest)?.[1] : undefined;
     fields.push({
       id: pathId(path),
