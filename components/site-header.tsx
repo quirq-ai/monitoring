@@ -1,12 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SettingsLink } from "@/components/settings-link";
 import { SiteNav } from "@/components/site-nav";
 
 /**
- * Sticky header: the wordmark and the theme toggle at the edges, the page tabs centered between
- * them (a three-column grid, so the tabs sit in the middle of the header whatever the edges
- * measure). On a phone the tabs are their own centered row under the wordmark.
+ * Sticky header: the wordmark and the settings and theme buttons at the edges, the page tabs
+ * centered between them (a three-column grid, so the tabs sit in the middle of the header whatever
+ * the edges measure). On a phone the tabs are their own centered row under the wordmark.
  */
 export function SiteHeader() {
   return (
@@ -21,12 +22,14 @@ export function SiteHeader() {
             /
           </span>
           <span className="text-sm font-medium text-muted-foreground">Monitoring</span>
-          <div className="ml-auto md:hidden">
+          <div className="ml-auto flex md:hidden">
+            <SettingsLink />
             <ThemeToggle />
           </div>
         </div>
         <SiteNav />
-        <div className="hidden justify-self-end md:block">
+        <div className="hidden justify-self-end md:flex">
+          <SettingsLink />
           <ThemeToggle />
         </div>
       </div>

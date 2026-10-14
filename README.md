@@ -4,9 +4,11 @@ The quirq-ai monitoring dashboard: one page that says **what changed across the 
 everything is in**, on a phone or a desktop. suraj's Vercel project serves it at
 [monitoring.quirq.dev](https://monitoring.quirq.dev/).
 
-It is read-only. It reads the state the other repos already publish, shows it with the word
+The dashboard is read-only. It reads the state the other repos already publish, shows it with the word
 (`green`, `red`, `held`, `pending`, `unknown`, `stale`) before the color, and links every value to
-the file or GitHub page it came from. It never merges, approves, comments or moves a ref.
+the file or GitHub page it came from. It never merges, approves, comments or moves a ref. The one
+part that changes anything is the **Settings** editor below, and it does so only with your own `gh`
+login, only as pull requests (and, after a confirm step, org properties).
 
 <img src="docs/today-phone.png" width="300" alt="Today on a phone, showing fixture data: the three counts, then what needs a look, then what changed as one row per repo with a dot per change">
 
@@ -25,6 +27,7 @@ CI run.
 | **Release** (`/release`) | Per product: lkgr and each channel, the last 14 canary days as a strip, the hold if one is on, and the latest canary report. |
 | **Health** (`/health`) | Whether each of the 9 scheduled writers ran on time, the scorecard, the gardener ledger, and every source this render read with its state. |
 | **Repo** (`/repos/<name>`) | One repo's Board row (CI, last merge; for a product also tree, lkgr, canary and deploy), its open PRs, the checks on its head, and for a product its tree builders, its canary strip and its perf metrics. |
+| **Settings** (`/settings`, the gear in the header) | Edit what the infra is set up with: the gates (gate `settings/github.toml`, infra-config `gate.toml`, gate `guard/terms.toml`), the pins (`pins.toml` in gate, gardener, release, installer and test-pipelines, rollers `infra-config.commit`), the policies (every infra-config `config/*.toml`), the owners (org roles, repo owners and rotations in `org.toml`, each repo's `.github/CODEOWNERS`) and the org's custom properties per repo. On/off values are switches. Each product's `infra/repo.toml` is only linked, since its header says to read and edit it only through qqsync. Left out on purpose: toolchains `promoted.toml` ("written by `qqtc promote` … do not edit by hand") and `toolchains.toml` (qqtc's own registry and backend). See [The settings editor](#the-settings-editor). |
 | **Snapshot** (`/api/snapshot`) | The same state as JSON (`qq-monitoring-snapshot/1`), for agents. `?since=7d` widens the window. |
 
 Every tile shows the state first, then the detail, then where it came from and how old the data
@@ -76,6 +79,40 @@ pnpm live                     # every source once against the real branches, one
 `pnpm test` and `pnpm e2e` never touch the network: they read captured and synthetic files through
 a small fixture server (`tests/fixtures/`), so a Playwright run at 390 and 1280 px, light and dark,
 is the same every time. The screenshots land in `test-results/screenshots/`, and CI uploads them.
+
+## The settings editor
+
+`/settings` lists every value in those files with the comment written next to it, grouped by
+section (`[[repo]] xo-space`, `[policy]`), with a search box. Change what you want, then **Review**:
+the editor reads every file again (on the deployed site that read may be up to a minute old; the
+script checks the live file before it writes), makes the change line by line (comments and layout stay as they
+are, and the edited file must parse to the old one with only your values changed), and shows each
+pull request as a diff. One pull request per repo, on a new `settings-editor/<repo>-<time>` branch,
+never a push to `main`, so that repo's checks, CODEOWNERS, approvals and merge queue decide whether
+it lands. The review names the code owners CODEOWNERS assigns the paths to; the project waits for
+their review before merging (its own rule: gate's settings do not make GitHub require it). Values
+that `qqcfg generate` reads (toolchain pins, kind commands, generated builders) are read-only here,
+since changing them means regenerating `generated/` and workflows in a checkout. Merging is not taking effect:
+the tools read infra-config at a commit they pin, so a policy change reaches each of them when its
+pin moves, and a gate settings change reaches GitHub only when an org admin runs gate's settings
+apply. Each card and pull request says which. Org custom properties have no file: they change on GitHub at once, so the review asks you to
+tick a box first.
+
+Every change is made with **your own GitHub login through [gh](https://cli.github.com)**. Nothing
+signs in to this site and no token is kept. Two ways:
+
+- **On the deployed site**, the review gives you a script, `settings-change.sh`. Run it with
+  `bash settings-change.sh`: it uses only gh (macOS bash 3.2 is fine), ignores any token in the
+  environment, checks that each file it edits is still the version on `main` the page read, and
+  each property still its old value (and stops, writing nothing, if not), shows what it will do and waits for you to type `yes`.
+- **On your machine**, `pnpm editor` in a checkout of this repo builds the site and serves it at
+  `127.0.0.1:3020`. It checks gh is signed in (and runs `gh auth login` for you if not), then
+  prints a link to `/settings`. From that page, **Open pull requests** does the same steps through
+  your gh directly. The link carries a key for that run in its `#fragment`; writes are refused
+  without it, and from any address but 127.0.0.1. `pnpm editor --port N` picks another port.
+
+Signing in with GitHub on the deployed site itself would need a GitHub OAuth App, which only the
+org owner can register; it is not set up.
 
 ## Where the data comes from
 
@@ -137,8 +174,12 @@ breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same
 
 - Search, history charts, gate drift, push alerts, PostHog signals, a GitHub App in place of the
   token (v1, not started).
-- Anything that writes: filing alert issues, approving, landing or releasing a hold from the
-  dashboard (v2, waits for its own decision).
+- Anything else that writes: filing alert issues, approving, landing or releasing a hold from the
+  dashboard (v2, waits for its own decision). The settings editor only opens pull requests and
+  sets org properties, as you.
+- Sign-in with GitHub on the deployed site (needs an OAuth App), a fork when you cannot push a
+  branch to the repo, editing multi-line values and inline tables (shown with a link to the line on
+  GitHub), and multi-select properties.
 - The dev and stable channels show "nothing promoted yet" until release promotes to them.
 - A secondary rate limit (a 403 GitHub sometimes marks with a `retry-after` header) is shown with
   GitHub's own words but not backed off from, and the API card does not turn amber when only some
@@ -147,7 +188,8 @@ breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same
 ## How it is built
 
 Next.js 16 (App Router, server components), TypeScript strict, Tailwind 4 and shadcn/ui (Card,
-Alert, Table, Collapsible, Skeleton, Button), zod for every file read, react-markdown for the
+Alert, Table, Collapsible, Skeleton, Button; for the settings editor also Input, Textarea,
+Switch, Checkbox, Label and Native Select), zod for every file read, react-markdown for the
 report, Vitest and Playwright. The look is the Vercel one suraj asked for on 2026-10-07: the
 quirq wordmark from innernet, a near-monochrome palette (white and black surfaces, neutral text,
 color only for the six states), Geist Sans for text and Geist Mono for ids. Phone

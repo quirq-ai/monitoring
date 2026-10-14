@@ -14,6 +14,7 @@ const pages = [
   { path: "/release", slug: "release", heading: "Release" },
   { path: "/health", slug: "health", heading: "Health" },
   { path: "/repos/xo-space", slug: "repo-xo-space", heading: "xo-space" },
+  { path: "/settings", slug: "settings", heading: "Settings" },
 ] as const;
 
 async function openThemed(page: Page, path: string, theme: "light" | "dark") {
@@ -114,13 +115,19 @@ test.describe("content from the fixtures", () => {
           scrolls: el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth,
           offCenter: Math.abs((left + right) / 2 - (header.left + header.right) / 2),
           shortest: Math.min(...tabs.map((t) => t.height)),
+          rows: new Set(tabs.map((t) => Math.round(t.top))).size,
         };
       });
       expect(box.overflow, `${vp.name}: the tab row is not a scroll container`).toBe("visible/visible");
       expect(box.scrolls, `${vp.name}: nothing to scroll`).toBe(false);
       expect(box.offCenter, `${vp.name}: tabs centered in the header`).toBeLessThanOrEqual(1);
       expect(box.shortest, `${vp.name}: every tab is a 44 px target`).toBeGreaterThanOrEqual(44);
+      expect(box.rows, `${vp.name}: the tabs fit one row`).toBe(1);
     }
+    await page.setViewportSize({ width: 360, height: 780 });
+    await page.goto("/settings");
+    expect(await page.locator("header").evaluate((h) => h.getBoundingClientRect().height)).toBeLessThanOrEqual(101);
+    await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
   });
 
   test("links that leave the dashboard open in a new tab; page links stay in this one", async ({ page }) => {

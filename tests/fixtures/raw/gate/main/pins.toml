@@ -1,0 +1,10 @@
+# Other qq repos this one reads, by pinned commit (never copied). Policy comes from infra-config;
+# manifests are read only through sync. TODO(expert): let rollers move these pins.
+
+[infra-config]
+source = "https://github.com/quirq-ai/infra-config"
+commit = "b344eaf848b43f6096b0247c9b21ca6ed10b08a8"   # #35 names qq (depot renamed 2026-10-09); brings in #33, #34
+
+[sync]
+source = "https://github.com/quirq-ai/sync"
+commit = "a1cc782991a5cb7b8e3f506e269883be31a9ae6e"   # V0-SYN-01..04 + real toolchain digests (#6)

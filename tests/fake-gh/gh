@@ -1,0 +1,111 @@
+#!/usr/bin/env node
+// A stand-in for the GitHub CLI for the settings editor's tests. It never touches the network:
+// GETs are answered from tests/fixtures (files from raw/, properties from api/), and every write
+// is appended to FAKE_GH_LOG as one JSON line ({ method, path, body }) and answered the way
+// GitHub does, so a test can show exactly what the editor, or the script it prints, would have
+// sent. It takes the editor's form (`--input -` with a JSON body) and the script's (`-f k=v`
+// fields, `--jq` with the few filters the script uses).
+import { appendFileSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), "..", "fixtures");
+const args = process.argv.slice(2);
+const login = process.env.FAKE_GH_LOGIN ?? "sam-example";
+
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+// As real gh does for an HTTP error: GitHub's JSON answer on stdout (even with --jq), the error on
+// stderr, exit status 1.
+function notFound() {
+  process.stdout.write(JSON.stringify({ message: "Not Found", documentation_url: "https://docs.github.com/rest", status: "404" }));
+  fail("gh: Not Found (HTTP 404)");
+}
+let out = (value) => {
+  process.stdout.write(value === undefined ? "" : JSON.stringify(value));
+  process.exit(0);
+};
+
+if (args[0] !== "api") fail(`fake gh: unexpected call: ${args.join(" ")}`);
+if (process.env.FAKE_GH_SIGNED_OUT) fail("gh: To get started with GitHub CLI, please run:  gh auth login");
+
+let method = "GET";
+let path;
+let jq;
+let input = false;
+const fields = {};
+for (let i = 1; i < args.length; i++) {
+  const a = args[i];
+  if (a === "--hostname") {
+    if (args[++i] !== "github.com") fail("fake gh: only github.com");
+  } else if (a === "--method" || a === "-X") method = args[++i];
+  else if (a === "--jq") jq = args[++i];
+  else if (a === "--input") input = args[++i] === "-";
+  else if (a === "-f") {
+    const [k, ...v] = args[++i].split("=");
+    fields[k] = v.join("=");
+  } else if (path === undefined) path = a;
+  else fail(`fake gh: unexpected argument ${a}`);
+}
+
+// The filters the script uses: a dotted path, or the property lookup.
+function filter(value) {
+  if (!jq) return JSON.stringify(value);
+  const prop = /select\(\.property_name == "([^"]+)"\)/.exec(jq);
+  if (prop) {
+    const v = value.find((p) => p.property_name === prop[1])?.value;
+    return v === undefined || v === null ? "" : String(v);
+  }
+  let at = value;
+  for (const k of jq.split(".").filter(Boolean)) at = at?.[k];
+  return typeof at === "string" ? at : JSON.stringify(at);
+}
+out = (value) => {
+  process.stdout.write(value === undefined ? "" : `${filter(value)}${jq ? "\n" : ""}`);
+  process.exit(0);
+};
+
+if (path === "user") out({ login });
+
+const blobSha = (text) => {
+  const bytes = Buffer.from(text, "utf8");
+  return createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
+};
+const values = () => JSON.parse(readFileSync(join(fixtures, "api", "org_properties_values.json"), "utf8"));
+
+if (method === "GET") {
+  let m = /^repos\/quirq-ai\/([^/]+)\/contents\/(.+)\?ref=main$/.exec(path);
+  if (m) {
+    let text;
+    try {
+      text = readFileSync(join(fixtures, "raw", m[1], "main", m[2]), "utf8");
+    } catch {
+      notFound();
+    }
+    if (process.env.FAKE_GH_MOVED === m[2]) text += "\n# moved on main\n";
+    out({ sha: blobSha(text), content: Buffer.from(text).toString("base64"), encoding: "base64" });
+  }
+  m = /^repos\/quirq-ai\/([^/]+)\/git\/ref\/heads\/main$/.exec(path);
+  if (m) out({ ref: "refs/heads/main", object: { sha: "1".repeat(40) } });
+  if (path === "orgs/quirq-ai/properties/schema") out(JSON.parse(readFileSync(join(fixtures, "api", "org_properties_schema.json"), "utf8")));
+  if (path === "orgs/quirq-ai/properties/values?per_page=100") out(values());
+  m = /^repos\/quirq-ai\/([^/]+)\/properties\/values$/.exec(path);
+  if (m) {
+    const repo = values().find((r) => r.repository_name === m[1]);
+    if (!repo) notFound();
+    out(repo.properties);
+  }
+  notFound();
+}
+
+const body = input ? JSON.parse(readFileSync(0, "utf8")) : fields;
+if (process.env.FAKE_GH_LOG) appendFileSync(process.env.FAKE_GH_LOG, `${JSON.stringify({ method, path, body })}\n`);
+let m = /^repos\/quirq-ai\/([^/]+)\/pulls$/.exec(path);
+if (method === "POST" && m) out({ number: 101, html_url: `https://github.com/quirq-ai/${m[1]}/pull/101` });
+if (method === "POST" && /\/git\/refs$/.test(path)) out({ ref: body.ref, object: { sha: body.sha } });
+if (method === "PUT" && /\/contents\//.test(path)) out({ content: { path }, commit: { sha: "2".repeat(40) } });
+if (method === "PATCH" && /properties\/values$/.test(path)) out(undefined);
+notFound();

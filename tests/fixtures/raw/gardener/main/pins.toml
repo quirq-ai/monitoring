@@ -1,0 +1,14 @@
+# Other qq repos this one reads, by pinned commit (never copied). Policy comes from infra-config.
+# TODO(expert): let rollers move these pins.
+
+[infra-config]
+source = "https://github.com/quirq-ai/infra-config"
+commit = "bf3ad29834d85489c49aa6d41ec3c7e59474b746"   # main after #11: backfill dispatch (#10), auto_land_repos (#11)
+
+[test-pipelines]
+source = "https://github.com/quirq-ai/test-pipelines"
+commit = "28f49a0a5bbe620c3419d7b859ae896e6ded4fa9"   # v0 pin (#28): audit fixes; raw JUnit kept out of the store (#21)
+
+[gate]
+source = "https://github.com/quirq-ai/gate"
+commit = "e718c70e1af337cd67d7e73d06f5d7e471bf7929"   # main after #16; its agnosticism guard (V0-GAT-02) runs in presubmit

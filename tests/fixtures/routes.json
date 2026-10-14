@@ -1,5 +1,13 @@
 [
   {
+    "path": "/orgs/quirq-ai/properties/schema",
+    "file": "api/org_properties_schema.json"
+  },
+  {
+    "path": "/orgs/quirq-ai/properties/values",
+    "file": "api/org_properties_values.json"
+  },
+  {
     "path": "/search/issues",
     "query": {
       "q": "org:quirq-ai is:pr is:open"
