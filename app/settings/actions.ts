@@ -24,7 +24,7 @@ export async function reviewEdits(input: unknown): Promise<PlanView> {
   return {
     ok: true,
     digest: plan.digest,
-    prs: plan.prs.map((pr, i) => ({ repo: pr.repo, title: pr.title, files: files[i], reviewNote: reviewNote(pr.reviewers) })),
+    prs: plan.prs.map((pr, i) => ({ repo: pr.repo, title: pr.title, files: files[i], reviewNote: reviewNote(pr.reviewers, pr.enforced) })),
     properties: plan.properties.map((p) => ({ repo: p.repo, name: p.name, from: p.from, to: p.to, needsOrgOwner: p.endpoint === "org" })),
     script: renderScript(plan),
   };

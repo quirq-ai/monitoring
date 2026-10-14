@@ -83,11 +83,26 @@ describe("buildPlan", () => {
     expect(plan.prs[0].body).toContain("that happens when an org admin runs gate's settings apply");
     expect(plan.prs[0].body).toContain("assigns these paths to @sharmasuraj0123");
     expect(plan.prs[1].reviewers).toEqual(["@sharmasuraj0123"]);
+    // gate's settings ask GitHub for code-owner review on neither repo, so it is the project's rule.
+    expect(plan.prs.map((p) => p.enforced)).toEqual([false, false]);
+    expect(plan.prs[0].body).toContain("That is the project's rule, not a GitHub setting.");
     expect(plan.properties).toEqual([
       { repo: "monitoring", name: "stage", from: null, to: "active", endpoint: "repo" },
       { repo: "innernet", name: "area", from: "product", to: "infra", endpoint: "org" },
     ]);
     expect(plan.digest).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("says GitHub requires the code owner's review where gate's settings ask for it", async () => {
+    await withFixtures();
+    const built = await buildPlan({
+      files: [{ id: "toolchains/.github/CODEOWNERS", owners: [{ op: "set", pattern: "/tools/", from: ["@sharmasuraj0123"], to: ["@sharmasuraj0123", "@sam-example"] }] }],
+      properties: [],
+    });
+    if (!built.ok) throw new Error(built.reason);
+    expect(built.plan.prs[0].enforced).toBe(true);
+    expect(built.plan.prs[0].body).toContain("gate's settings also have GitHub require that review for this repo");
+    expect(built.plan.prs[0].body).not.toContain("not a GitHub setting");
   });
 
   it("refuses ids it does not know, read-only manifests, stale values and bad property values", async () => {

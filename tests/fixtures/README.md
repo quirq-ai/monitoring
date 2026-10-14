@@ -51,6 +51,7 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `raw/test-pipelines/main/pins.toml` | captured from test-pipelines `main` at 0ad06a230fabf7c2d85ee4bdb5e03e0f9c828a6e |
 | `raw/rollers/main/infra-config.commit` | captured from rollers `main` at 631361042aa69bf1b337aaf7ca8448dbf7c30b2e |
 | `raw/qq/main/.github/CODEOWNERS` | captured from qq `main` at b205b0ecb5b528db5e582b7371ca39dba53f638a |
+| `raw/toolchains/main/.github/CODEOWNERS` | captured from toolchains `main` at f45c239330bf918bb5590fa11dd6b3400a8caf85 (the one repo gate sets `code_owner_review` for) |
 | `api/org_properties_schema.json` | synthetic, in the shape of GET orgs/<org>/properties/schema: `role` as the live definition (single select, required, default project, editable by repo actors; github-commands file 29), `area`, `owner` and `stage` as vision/org/naming.md §4 plans them, and a multi select to show the read-only case |
 | `api/org_properties_values.json` | synthetic, in the shape of GET orgs/<org>/properties/values: real repo names, role values from github-commands file 29 |
 | `api/monitoring_check-runs.json` | captured 2026-10-06 from GET repos/quirq-ai/monitoring/commits/main/check-runs |

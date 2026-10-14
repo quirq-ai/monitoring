@@ -90,9 +90,11 @@ are, and the edited file must parse to the old one with only your values changed
 pull request as a diff. One pull request per repo, on a new `settings-editor/<repo>-<time>` branch,
 never a push to `main`, so that repo's checks, CODEOWNERS, approvals and merge queue decide whether
 it lands. The review names the code owners CODEOWNERS assigns the paths to; the project waits for
-their review before merging (its own rule: gate's settings do not make GitHub require it). Values
-that `qqcfg generate` reads (toolchain pins, kind commands, generated builders) are read-only here,
-since changing them means regenerating `generated/` and workflows in a checkout. Merging is not taking effect:
+their review before merging (its own rule, except where gate's settings set `code_owner_review`,
+today toolchains, and GitHub requires it once applied). Values that `qqcfg generate` reads
+(toolchain pins, kind commands, generated builders, pool runners) and the kind, pool and repo
+names they refer to are read-only here, since changing them means regenerating `generated/` and
+workflows in a checkout (and `qqcfg deliver` for product repos). Merging is not taking effect:
 the tools read infra-config at a commit they pin, so a policy change reaches each of them when its
 pin moves, and a gate settings change reaches GitHub only when an org admin runs gate's settings
 apply. Each card and pull request says which. Org custom properties have no file: they change on GitHub at once, so the review asks you to

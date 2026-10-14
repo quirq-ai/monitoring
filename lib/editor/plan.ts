@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { parse } from "smol-toml";
 import type { SettingsFile } from "@/config/settings";
 import { applyOwnersEdits, ownersFor } from "@/lib/editor/codeowners";
 import { applyCommitEdit, checkCommit, isPinCommit } from "@/lib/editor/commit-file";
@@ -26,8 +27,12 @@ export type PlannedFile = {
   summary: string[];
 };
 
-/** `reviewers`: who the repo's CODEOWNERS on main asks to review these paths (empty: nobody named). */
-export type PlannedPr = { repo: string; title: string; body: string; files: PlannedFile[]; reviewers: string[] };
+/**
+ * `reviewers`: who the repo's CODEOWNERS on main asks to review these paths (empty: nobody named).
+ * `enforced`: whether gate's settings ask GitHub to require code-owner review for the repo
+ * (undefined when gate's settings could not be read).
+ */
+export type PlannedPr = { repo: string; title: string; body: string; files: PlannedFile[]; reviewers: string[]; enforced?: boolean };
 
 export type PlannedProperty = {
   repo: string;
@@ -122,7 +127,8 @@ export async function buildPlan(request: EditRequest): Promise<{ ok: true; plan:
     const files = planned.filter((p) => p.file.repo === repo);
     const reviewers = await codeReviewers(repo, files, catalog.files);
     if (!reviewers.ok) return reviewers;
-    prs.push({ repo, title: prTitle(files), body: prBody(files, reviewers.owners), files, reviewers: reviewers.owners });
+    const enforced = await codeOwnerReview(repo, catalog.files);
+    prs.push({ repo, title: prTitle(files), body: prBody(files, reviewers.owners, enforced), files, reviewers: reviewers.owners, enforced });
   }
   const digest = createHash("sha256")
     .update(JSON.stringify({ files: planned.map((p) => [p.file.id, p.baseSha, p.after]), properties }))
@@ -148,18 +154,37 @@ async function codeReviewers(repo: string, files: PlannedFile[], catalog: Settin
   return { ok: true, owners: [...new Set(files.flatMap((f) => ownersFor(read.value.text, f.file.path)))] };
 }
 
-/**
- * One line on who reviews, for the review screen and the pull request. GitHub does not enforce it
- * here (gate's settings ask for no approvals and no code-owner review); waiting for the code owner
- * is the project's own rule, so the line says that and no more.
- */
-export function reviewNote(reviewers: string[]): string {
-  if (reviewers.length === 0) return "The repo's CODEOWNERS names no owner for these paths.";
-  return `The repo's CODEOWNERS assigns these paths to ${reviewers.join(", ")}, and the project waits for that review before merging. That is the project's rule, not a GitHub setting.`;
+/** Whether gate settings/github.toml sets `code_owner_review = true` for the repo. */
+async function codeOwnerReview(repo: string, catalog: SettingsFile[]): Promise<boolean | undefined> {
+  const gate = catalog.find((f) => f.id === "gate/settings/github.toml");
+  if (!gate) return undefined;
+  const read = await readSettingsFile(gate);
+  if (!read.ok) return undefined;
+  try {
+    const repos = (parse(read.value.text) as { repo?: { name?: unknown; code_owner_review?: unknown }[] }).repo;
+    if (!Array.isArray(repos)) return undefined;
+    return repos.some((r) => r.name === repo && r.code_owner_review === true);
+  } catch {
+    return undefined;
+  }
 }
 
-function prBody(files: PlannedFile[], reviewers: string[]): string {
-  const parts = [`Opened with the monitoring settings editor (${EDITOR_URL}).`, "", reviewNote(reviewers), ""];
+/**
+ * One line on who reviews, for the review screen and the pull request. gate's settings ask GitHub
+ * for no approvals, and for code-owner review only on the repos that set code_owner_review (once
+ * an admin has run gate's settings apply); elsewhere waiting for the code owner is the project's
+ * own rule, and the line says which.
+ */
+export function reviewNote(reviewers: string[], enforced?: boolean): string {
+  if (reviewers.length === 0) return "The repo's CODEOWNERS names no owner for these paths.";
+  const who = `The repo's CODEOWNERS assigns these paths to ${reviewers.join(", ")}, and the project waits for that review before merging.`;
+  if (enforced === true) return `${who} gate's settings also have GitHub require that review for this repo, once gate's settings apply has run.`;
+  if (enforced === false) return `${who} That is the project's rule, not a GitHub setting.`;
+  return `${who} gate's settings could not be read to say whether GitHub also requires it.`;
+}
+
+function prBody(files: PlannedFile[], reviewers: string[], enforced?: boolean): string {
+  const parts = [`Opened with the monitoring settings editor (${EDITOR_URL}).`, "", reviewNote(reviewers, enforced), ""];
   for (const f of files) {
     parts.push(`**${f.file.path}**${f.baseSha ? "" : " (new file)"}`, "", ...f.summary.map((s) => `- ${s}`), "", `After merge: ${f.file.effect}`, "");
   }
