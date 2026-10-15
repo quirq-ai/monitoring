@@ -80,10 +80,11 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByRole("link", { name: "depot", exact: true })).toHaveCount(0);
     await quiet.click();
     await expect(page.getByRole("link", { name: "depot", exact: true })).toHaveAttribute("href", "/repos/depot");
-    await innernet.click();
-    await expect(page.locator("main ol li").first()).toContainText("tree open");
+    // The dots wrap inside the closed row: neither the row nor the page scrolls sideways.
     const fit = await innernet.evaluate((el) => ({ own: el.scrollWidth - el.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
     expect(fit).toEqual({ own: 0, page: 0 });
+    await innernet.click();
+    await expect(page.locator("main ol li").first()).toContainText("tree open");
   });
 
   test("Calendar opens an earlier day, keeps the grouping, and ignores a day it does not show", async ({ page }) => {
