@@ -8,6 +8,7 @@ import type { Signal } from "@/lib/signal";
 import { readLedger, type LedgerSummary } from "@/lib/sources/ledger";
 import { readRevertPolicy, type RevertPolicy } from "@/lib/sources/revert-policy";
 import { HISTORY_COMMITS, readTreeHistory, type TreeChange } from "@/lib/sources/tree-history";
+import { readTreeGroups, type TreeGroup } from "@/lib/sources/tree-groups";
 import { readTreeIndex, readTreeStatus, type TreeStatus } from "@/lib/sources/tree-status";
 import type { WorkflowRun } from "@/lib/sources/writer-runs";
 import { readWriterRuns } from "@/lib/sources/writer-runs";
@@ -37,6 +38,19 @@ export type RedRange = {
   backfill: boolean;
   /** The first red run is being re-run now. */
   rerunning: boolean;
+  /** Why it broke, from the gardener's groups file: build, test or infra as a fact, else unknown. */
+  failure: Cell;
+  /** "<builder>: <step>", as the gardener names them; text only, at most MAX_STEPS. */
+  steps: string[];
+};
+
+/** A range lists at most this many failed steps; the rest are counted in the failure text. */
+const MAX_STEPS = 10;
+const KIND_TEXT: Record<"infra" | "build" | "test", string> = {
+  // The gardener's own reading (src/qqgarden/groups.py classify).
+  infra: "infra: a fetch or a step outside build and test failed, so the commit's code is not blamed",
+  build: "build: a build step failed, so the tests after it did not run",
+  test: "test: a test step failed",
 };
 
 /** One coverage entry: the gardener writes each as "<sha> <builder>" (postsubmit.py). */
@@ -90,18 +104,19 @@ export async function buildGardener(options: { now?: Date } = {}): Promise<Garde
     return signal;
   };
 
-  const [index, runs, history, ledger, policy] = await Promise.all([
+  const [index, runs, history, ledger, policy, groups] = await Promise.all([
     readTreeIndex().then(track),
     readWriterRuns(GARDENER_WRITER).then(track),
     readTreeHistory().then(track),
     readLedger().then(track),
     readRevertPolicy().then(track),
+    readTreeGroups().then(track),
   ]);
   const statuses = index.ok ? await Promise.all(index.value.map((name) => readTreeStatus(name).then(track))) : [];
 
   const writer = judgeWriter(GARDENER_WRITER, runs, now);
   const repos: GardenerView["repos"] = index.ok
-    ? { ok: true, url: index.sourceUrl, list: index.value.map((name, i) => repoTree(name, statuses[i], writer, now)) }
+    ? { ok: true, url: index.sourceUrl, list: index.value.map((name, i) => repoTree(name, statuses[i], groups, writer, now)) }
     : { ok: false, reason: index.reason, url: index.sourceUrl };
 
   return {
@@ -118,7 +133,7 @@ export async function buildGardener(options: { now?: Date } = {}): Promise<Garde
   };
 }
 
-function repoTree(name: string, signal: Signal<TreeStatus>, writer: WriterHealth, now: Date): RepoTree {
+function repoTree(name: string, signal: Signal<TreeStatus>, groups: Signal<TreeGroup[]>, writer: WriterHealth, now: Date): RepoTree {
   const statusUrl = signal.sourceUrl;
   const gate = (cell: Cell) => gateByAge(gateByWriter(cell, writer), sourceStatus(signal), now);
   if (!signal.ok) {
@@ -148,6 +163,7 @@ function repoTree(name: string, signal: Signal<TreeStatus>, writer: WriterHealth
       runUrl: githubUrl(r.url) ?? statusUrl,
       backfill: r.first_bad_backfill === true,
       rerunning: r.first_bad_running === true,
+      ...failureOf(name, r, groups),
     };
   });
   return {
@@ -160,6 +176,27 @@ function repoTree(name: string, signal: Signal<TreeStatus>, writer: WriterHealth
     coverage: s.coverage ? coverage(s.coverage, statusUrl, signal.source, gate) : undefined,
     red,
   };
+}
+
+/**
+ * The groups file's entry for one red range: the same repo, last green and first red, with this
+ * range's builder and first red run among its own. The file is written after the status files and
+ * can be a run behind, so no match (or no file) is unknown, never a guess.
+ */
+export function failureOf(repo: string, r: TreeStatus["red"][number], groups: Signal<TreeGroup[]>): { failure: Cell; steps: string[] } {
+  const url = groups.sourceUrl;
+  const source = groups.source;
+  if (!groups.ok) return { failure: { state: "unknown", text: groups.reason, url, source }, steps: [] };
+  const entry = groups.value.find(
+    (g) => g.repo === repo && g.last_good === (r.last_good ?? "") && g.first_bad === (r.first_bad ?? "") && g.builders.includes(r.builder ?? "") && g.runs.includes(r.url ?? ""),
+  );
+  if (!entry) return { failure: { state: "unknown", text: "the groups file has no entry for this range yet; it is written after the status, so it can be a run behind", url, source }, steps: [] };
+  const steps = entry.failed_steps.map((step) => (step.length > 200 ? `${step.slice(0, 199)}…` : step));
+  const more = steps.length > MAX_STEPS ? `; ${steps.length - MAX_STEPS} more failed steps not shown` : "";
+  if (entry.kind === "unknown") {
+    return { failure: { state: "unknown", text: `the gardener could not tell the type: no completed attempt of the first red run shows a failed step${more}`, url, source }, steps: steps.slice(0, MAX_STEPS) };
+  }
+  return { failure: { state: "none", text: `${KIND_TEXT[entry.kind]}${more}`, url, source }, steps: steps.slice(0, MAX_STEPS) };
 }
 
 function coverage(c: NonNullable<TreeStatus["coverage"]>, url: string, source: string, gate: (cell: Cell) => Cell): Coverage {

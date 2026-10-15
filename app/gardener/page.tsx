@@ -126,7 +126,19 @@ export default async function GardenerPage() {
                       {range.backfill ? <span className="text-muted-foreground">first red came from a backfill, so it goes to bisection</span> : null}
                       {range.rerunning ? <span className="text-muted-foreground">its re-run is in progress</span> : null}
                     </span>
-                    <span className="text-muted-foreground">Failure type and failed steps: not published yet.</span>
+                    <CellView title="failure type" cell={range.failure} now={now} />
+                    {range.steps.length ? (
+                      <span className="flex flex-col gap-1">
+                        <span className="text-muted-foreground">failed steps</span>
+                        <ul className="flex flex-col gap-1">
+                          {range.steps.map((step, i) => (
+                            <li key={`${i}-${step}`} className="font-mono text-xs wrap-anywhere">
+                              {step}
+                            </li>
+                          ))}
+                        </ul>
+                      </span>
+                    ) : null}
                   </Card>
                 ))}
               </>

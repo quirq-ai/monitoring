@@ -98,6 +98,8 @@ describe("gardener page model", () => {
         runUrl: "https://github.com/quirq-ai/innernet/actions/runs/7",
         backfill: true,
         rerunning: false,
+        failure: expect.objectContaining({ state: "unknown", text: expect.stringContaining("no entry for this range yet") }),
+        steps: [],
       },
     ]);
     expect(JSON.stringify(view)).not.toContain("a commit title");
@@ -138,6 +140,50 @@ describe("gardener page model", () => {
     // The raw files still show.
     expect(noToken.repos.ok && noToken.repos.list.length).toBe(2);
     expect(noToken.policy.ok).toBe(true);
+  });
+});
+
+describe("failure type", () => {
+  const RUN = "https://github.com/quirq-ai/innernet/actions/runs/7";
+  const group = (over: object = {}) => ({ repo: "innernet", last_good: A, first_bad: C, builders: ["innernet-postsubmit"], runs: [RUN], kind: "build", failed_steps: ["innernet-postsubmit: build (node)"], ...over });
+  const read = async (groups: object[] | null, schema = "qq-gardener-groups/1") => {
+    const routes = [{ raw: "gardener/tree-status/status/innernet.json", body: closed }];
+    if (groups) routes.push({ raw: "gardener/tree-status/groups/groups.json", body: JSON.stringify({ schema, groups }) });
+    else routes.push({ raw: "gardener/tree-status/groups/groups.json", body: "404: Not Found", status: 404 } as never);
+    await withFixtures(routes);
+    const view = await buildGardener();
+    return view.repos.ok ? view.repos.list.find((r) => r.name === "innernet")?.red[0] : undefined;
+  };
+
+  it("shows a build break's type and failed steps as a fact", async () => {
+    const r = await read([group()]);
+    expect(r?.failure).toMatchObject({ state: "none", text: expect.stringMatching(/^build: /) });
+    expect(r?.steps).toEqual(["innernet-postsubmit: build (node)"]);
+  });
+
+  it("shows an infra failure, and an unknown type as unknown", async () => {
+    expect((await read([group({ kind: "infra", failed_steps: ["innernet-postsubmit: fetch"] })]))?.failure.text).toMatch(/^infra: /);
+    const unknown = await read([group({ kind: "unknown", failed_steps: [] })]);
+    expect(unknown?.failure).toMatchObject({ state: "unknown", text: expect.stringContaining("could not tell the type") });
+  });
+
+  it("is unknown when the groups file is a run behind, missing or of another schema", async () => {
+    // a stale file: the same range, but an older first red run; then another range entirely
+    for (const stale of [group({ runs: [RUN.replace("/7", "/6")] }), group({ last_good: B }), group({ builders: ["lint-postsubmit"] }), group({ repo: "xo-space" })]) {
+      const r = await read([stale]);
+      expect(r?.failure.state, JSON.stringify(stale)).toBe("unknown");
+      expect(r?.steps).toEqual([]);
+    }
+    expect((await read(null))?.failure).toMatchObject({ state: "unknown", text: "tree-status: groups/groups.json is not published yet" });
+    expect((await read([group()], "qq-gardener-groups/2"))?.failure.state).toBe("unknown");
+  });
+
+  it("lists at most ten steps, cut to 200 characters, and counts the rest", async () => {
+    const steps = Array.from({ length: 12 }, (_, i) => `innernet-postsubmit: test (${"x".repeat(i === 0 ? 300 : 3)}${i})`);
+    const r = await read([group({ kind: "test", failed_steps: steps })]);
+    expect(r?.steps).toHaveLength(10);
+    expect(r?.steps[0]).toHaveLength(200);
+    expect(r?.failure.text).toContain("2 more failed steps not shown");
   });
 });
 
