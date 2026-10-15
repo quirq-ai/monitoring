@@ -10,7 +10,7 @@ the file or GitHub page it came from. It never merges, approves, comments or mov
 part that changes anything is the **Settings** editor below, and it does so only with your own `gh`
 login, only as pull requests (and, after a confirm step, org properties).
 
-<img src="docs/today-phone.png" width="300" alt="Today on a phone, showing fixture data: the three counts, then what needs a look, then what changed as one row per repo with a dot per change">
+<img src="docs/calendar-phone.png" width="300" alt="Calendar on a phone, showing fixture data: the Blockers counts in one line, the last seven days with today first, then today's changes by time">
 
 (Fixture data from the test server, not the live org.)
 
@@ -21,8 +21,8 @@ CI run.
 
 | Page | The question it answers |
 |---|---|
-| **Today** (`/`) | Three counts on top (waiting on you; red or held; unknown, stale or failing), then what needs a look (a closed tree, a held or failed canary, a failed deploy, a new failure, a writer whose last run failed), then what changed in the last 24 hours (or 7 days) as one row per tracked repo: the repo, how many changes it had, and one dot per change in its state color, oldest left (merged PRs, lkgr and channel moves, canary results, tree opened or closed, deploys, new failures); a row opens into its entries, and the repos with no change fold into one line. An alarm a newer event has cleared stays in its row, marked "since cleared". |
-| **Waiting on you** (`/waiting`) | PRs where you are a requested reviewer or assignee, PRs you approved on an older head, held canaries, open `qq-failure` issues. |
+| **Calendar** (`/`) | What changed, one day at a time. The last 7 days as a strip, today first, each with its count and a bar split by state; a day opens below (`?day=YYYY-MM-DD`), its changes by time, newest first (merged PRs, lkgr and channel moves, canary results, tree opened or closed, deploys, new failures, a writer whose last run failed), or by repo (`?view=repo`): one row per tracked repo with one dot per change, oldest left, opening into its entries. The repos with no change fold into one line. An alarm a newer event has cleared is marked "since cleared". One line on top carries the Blockers counts. Deploys and channel moves keep only their newest event, so an earlier day can show fewer of them than happened. |
+| **Blockers** (`/blockers`, was `/waiting`) | Three counts on top (waiting on you; red or held; unknown, stale or failing), then what waits on you (PRs where you are a requested reviewer or assignee, PRs you approved on an older head, held canaries, open `qq-failure` issues), then what else is broken right now: red or held in the last 24 hours and not cleared since (a closed tree, a failed canary or deploy, a new failure, a writer whose last run failed), without repeating what waits on you. |
 | **Board** (`/board`) | Every repo as a post-it note, one board per group, the notes that need a look first. On top, an overview indexes every repo by state; a tap jumps to its note. A note is tinted by its worst state (unknown is plain paper with a dashed edge); products and repos that need a look show CI on main, open PRs, last merge and for products also tree, lkgr, canary and deploy, the problems first. A green repo is a small note with its name. "needs a look" (`?show=look`) hides the rest. |
 | **Release** (`/release`) | Per product: lkgr and each channel, the last 14 canary days as a strip, the hold if one is on, and the latest canary report. |
 | **Health** (`/health`) | Whether each of the 9 scheduled writers ran on time, the scorecard, the gardener ledger, and every source this render read with its state. |
@@ -40,12 +40,12 @@ as a whole is out (no token, rate limit, rejected token), one banner says so and
 read `unknown`. A count whose sources were not all read is a floor ("3+") or "?", never a green
 zero. Nothing missing is ever shown as green.
 
-**How old is what you see?** Today says "data as of" the oldest read behind that page's own
+**How old is what you see?** Calendar and Blockers say "data as of" the oldest read behind that page's own
 sources (the hourly org repo list does not count), or "No data could be read" when none answered.
 Each source is cached for 2 to 60 minutes (the windows are in [AGENTS.md](AGENTS.md)); after a
 quiet night the first view is served from that cache while it refreshes, so a Board or Release
 tile read more than twice its window ago is marked `stale` rather than shown as current, and the
-counts and the Today and Waiting lists say "stale: read 50 min ago" when a read behind them is
+counts and the Calendar and Blockers lists say "stale: read 50 min ago" when a read behind them is
 that old. Raw files add up to 5 minutes on top of that, and the PR search index a minute or two.
 
 ## Run it

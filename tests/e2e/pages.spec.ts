@@ -8,8 +8,8 @@ const viewports = [
 ] as const;
 
 const pages = [
-  { path: "/", slug: "today", heading: "Today" },
-  { path: "/waiting", slug: "waiting", heading: "Waiting on you" },
+  { path: "/", slug: "calendar", heading: "Calendar" },
+  { path: "/blockers", slug: "blockers", heading: "Blockers" },
   { path: "/board", slug: "board", heading: "Board" },
   { path: "/release", slug: "release", heading: "Release" },
   { path: "/health", slug: "health", heading: "Health" },
@@ -42,63 +42,74 @@ test.describe("pages", () => {
 });
 
 test.describe("content from the fixtures", () => {
-  test("Today shows the merged PR, the held canary, the tree close and the counts", async ({ page }) => {
+  test("Calendar lists today's changes by time, the tree close marked cleared, with the Blockers counts", async ({ page }) => {
     await page.goto("/");
-    // The merged PR and the tree close live in innernet's matrix row, which opens into its entries.
-    await page.getByRole("button", { name: /^5 changes for innernet/ }).click();
-    await expect(page.getByText("merged #117 Fix: sources page scroll on phones")).toHaveCount(1);
-    await expect(page.getByText(/canary held: held at verify/)).toHaveCount(1);
-    await expect(page.getByText("tree closed")).toHaveCount(1);
-    await expect(page.getByRole("link", { name: /waiting on you/ })).toContainText("4");
-    await expect(page.getByRole("link", { name: /red or held/ })).toContainText("3");
-    await expect(page.getByRole("link", { name: /unknown, stale or failing/ })).toBeVisible();
-    await expect(page.getByText("some sources unread")).toHaveCount(0);
-    await expect(page.getByText(/^stale: read/)).toHaveCount(0);
-    await expect(page.getByRole("heading", { name: "Needs a look" })).toBeVisible();
-    // The failed scorecard writer needs a look and opens Health; the tree close is history now.
-    const alarms = page.locator("section").filter({ has: page.getByRole("heading", { name: "Needs a look" }) });
-    await expect(alarms.getByRole("link", { name: /scorecard writer failure/ })).toHaveAttribute("href", "/health");
-    await expect(alarms.getByText("tree closed")).toHaveCount(0);
+    // Seven days, today first and chosen; each day's link says its count in words.
+    const days = page.getByRole("navigation", { name: "Days" }).getByRole("link");
+    await expect(days).toHaveCount(7);
+    await expect(days.first()).toHaveAttribute("aria-current", "date");
+    await expect(days.first()).toHaveAttribute("aria-label", /^Today \d{1,2} \w+: \d+ changes?: /);
+    await expect(page.getByRole("heading", { level: 2, name: /^Today · / })).toBeVisible();
+    // The day's changes, newest first, each once with its time, state and link.
+    const agenda = page.locator("main ol").first();
+    await expect(agenda.getByText("merged #117 Fix: sources page scroll on phones")).toHaveCount(1);
+    await expect(agenda.getByText(/canary held: held at verify/)).toHaveCount(1);
+    await expect(agenda.getByText("tree closed")).toHaveCount(1);
     await expect(page.getByText("since cleared")).toHaveCount(1);
+    await expect(agenda.getByRole("link", { name: /merged #117/ })).toHaveAttribute("href", "https://github.com/quirq-ai/innernet/pull/117");
+    const times = await agenda.locator("time").evaluateAll((els) => els.map((el) => el.getAttribute("datetime") ?? ""));
+    expect(times, "newest first").toEqual([...times].sort().reverse());
+    await expect(page.getByRole("button", { name: /^\d+ tracked repos with no change$/ })).toBeVisible();
+    // The counts moved to Blockers; one line here still says them and opens it.
+    const blockers = page.getByRole("link", { name: /waiting .* red or held .* unknown/ });
+    await expect(blockers).toContainText("4 waiting");
+    await expect(blockers).toContainText("3 red or held");
+    await expect(blockers).toHaveAttribute("href", "/blockers");
     await expect(page.locator("[data-slot=alert]"), "no API banner with a token and the API answering").toHaveCount(0);
-    await expect(page.getByText(/^Data as of/)).toBeVisible();
+    await expect(page.getByText(/Data as of/)).toBeVisible();
   });
 
-  test("Today folds what changed into one row per tracked repo, with a dot per change", async ({ page }) => {
+  test("Calendar groups a day by repo, a row per tracked repo with a dot per change", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto("/");
-    const matrix = page.locator("section").filter({ has: page.getByRole("heading", { name: "What changed" }) });
-    // The row says its counts; the dots are decoration for the eye, one per change, oldest left.
-    const innernet = matrix.getByRole("button", { name: "5 changes for innernet: 4 green, 1 red" });
+    await page.goto("/?view=repo");
+    await expect(page.getByRole("link", { name: "by repo" })).toHaveAttribute("aria-current", "page");
+    const innernet = page.getByRole("button", { name: "5 changes for innernet: 4 green, 1 red" });
     await expect(innernet).toBeVisible();
     expect(await innernet.locator("span > span").count(), "one dot per change").toBe(5);
-    await expect(matrix.getByRole("link", { name: "innernet", exact: true })).toHaveAttribute("href", "/repos/innernet");
-    // Busiest row first; every other repo with a change has its own row; the rest fold into one line.
-    const rows = matrix.getByRole("button", { name: /changes? for / });
-    expect(await rows.evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")?.split(" ")[0]))).toEqual(["5", "2", "1", "1", "1"]);
-    const quiet = matrix.getByRole("button", { name: /^\d+ tracked repos with no change$/ });
-    await expect(quiet).toBeVisible();
-    await expect(matrix.getByRole("link", { name: "depot", exact: true })).toHaveCount(0);
+    const quiet = page.getByRole("button", { name: /^\d+ tracked repos with no change$/ });
+    await expect(page.getByRole("link", { name: "depot", exact: true })).toHaveCount(0);
     await quiet.click();
-    await expect(matrix.getByRole("link", { name: "depot", exact: true })).toHaveAttribute("href", "/repos/depot");
-    const named = await quiet.evaluate((el) => Number(el.textContent?.trim().split(" ")[0]));
-    expect(await matrix.locator("li li a").count(), "the folded line names every quiet repo").toBe(named);
-    // Opening a row lists its entries, newest first, with their links; closed rows show nothing.
-    await expect(matrix.getByText("tree closed")).toHaveCount(0);
-    await innernet.click();
-    const entries = matrix.locator("ol li");
-    await expect(entries).toHaveCount(5);
-    await expect(entries.first()).toContainText("tree open");
-    await expect(entries.nth(1)).toContainText("since cleared");
-    await expect(matrix.getByRole("link", { name: /merged #117/ })).toHaveAttribute("href", "https://github.com/quirq-ai/innernet/pull/117");
-    // Seven days of changes still fit a phone: the dots wrap, the page never scrolls sideways.
-    await page.goto("/?since=7d");
-    const busiest = matrix.getByRole("button", { name: /changes for innernet/ });
-    expect(await busiest.locator("span > span").count()).toBeGreaterThan(5);
-    const fit = await busiest.evaluate((el) => ({ own: el.scrollWidth - el.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+    await expect(page.getByRole("link", { name: "depot", exact: true })).toHaveAttribute("href", "/repos/depot");
+    // The dots wrap inside the closed row: neither the row nor the page scrolls sideways.
+    const fit = await innernet.evaluate((el) => ({ own: el.scrollWidth - el.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
     expect(fit).toEqual({ own: 0, page: 0 });
+    await innernet.click();
+    await expect(page.locator("main ol li").first()).toContainText("tree open");
   });
 
+  test("Calendar opens an earlier day, keeps the grouping, and ignores a day it does not show", async ({ page }) => {
+    await page.goto("/?view=repo");
+    const days = page.getByRole("navigation", { name: "Days" }).getByRole("link");
+    const second = days.nth(1);
+    const date = (await second.getAttribute("href"))!.match(/day=(\d{4}-\d{2}-\d{2})/)![1];
+    expect(await second.getAttribute("href")).toBe(`/?day=${date}&view=repo`);
+    await second.click();
+    await expect(second).toHaveAttribute("aria-current", "date");
+    await expect(days.first()).not.toHaveAttribute("aria-current", "date");
+    await expect(page.getByText(/Deploys and channel moves keep only their newest event/)).toBeVisible();
+    await expect(page.getByRole("link", { name: "by repo" })).toHaveAttribute("aria-current", "page");
+    // A date the calendar does not show, or anything else, is today.
+    for (const bad of ["1999-01-01", "../etc", ""]) {
+      await page.goto(`/?day=${bad}`);
+      await expect(days.first(), bad).toHaveAttribute("aria-current", "date");
+    }
+  });
+
+  test("/waiting moved to /blockers", async ({ page }) => {
+    const response = await page.goto("/waiting");
+    expect(response?.url()).toMatch(/\/blockers$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Blockers");
+  });
   test("the page tabs are centered in the header and never a scroll container", async ({ page }) => {
     for (const vp of viewports) {
       await page.setViewportSize({ width: vp.width, height: vp.height });
@@ -147,15 +158,32 @@ test.describe("content from the fixtures", () => {
     }
   });
 
-  test("Waiting lists the review, the stale approval, the held canary and the failure once each", async ({ page }) => {
-    await page.goto("/waiting");
-    const items = page.locator("ol").getByRole("listitem");
-    await expect(items).toHaveCount(4);
-    await expect(page.getByText("review requested", { exact: true })).toHaveCount(1);
-    await expect(page.getByText("approval on an older head", { exact: true })).toHaveCount(1);
-    await expect(page.getByText("canary held", { exact: true })).toHaveCount(1);
-    await expect(page.getByText("open failure", { exact: true })).toHaveCount(1);
+  test("Blockers shows the counts, what waits on you once each, and what else is broken", async ({ page }) => {
+    await page.goto("/blockers");
+    // The three counts moved here from Today; the first opens the list below.
+    const waitingTile = page.getByRole("link", { name: /waiting on you/ });
+    await expect(waitingTile).toContainText("4");
+    await expect(waitingTile).toHaveAttribute("href", "#waiting");
+    await expect(page.getByRole("link", { name: /red or held/ })).toContainText("3");
+    await expect(page.getByRole("link", { name: /unknown, stale or failing/ })).toBeVisible();
+    await expect(page.getByText("some sources unread")).toHaveCount(0);
+    await expect(page.getByText(/^stale: read/)).toHaveCount(0);
+    const waiting = page.locator("#waiting");
+    await expect(waiting.getByRole("listitem")).toHaveCount(4);
+    await expect(waiting.getByText("review requested", { exact: true })).toHaveCount(1);
+    await expect(waiting.getByText("approval on an older head", { exact: true })).toHaveCount(1);
+    await expect(waiting.getByText("canary held", { exact: true })).toHaveCount(1);
+    await expect(waiting.getByText("open failure", { exact: true })).toHaveCount(1);
     await expect(page.getByText(/Planted/)).toHaveCount(0);
+    // Broken right now: the failed deploy and the failed writer (which opens Health). The held
+    // canary and its issue are already waiting on you, and the cleared tree close is history.
+    const broken = page.locator("#broken");
+    await expect(broken.getByRole("listitem")).toHaveCount(2);
+    await expect(broken.getByRole("link", { name: /deploy failure 7f3b1a2/ })).toBeVisible();
+    await expect(broken.getByRole("link", { name: /scorecard writer failure/ })).toHaveAttribute("href", "/health");
+    await expect(broken.getByText(/canary held|qq-failure|tree closed/)).toHaveCount(0);
+    await waitingTile.click();
+    await expect(page).toHaveURL(/#waiting$/);
   });
 
   test("Board pins every registry repo once as a note, with the planted red CI and failed deploy", async ({ page }) => {
@@ -333,9 +361,9 @@ test.describe("content from the fixtures", () => {
     // must then wrap: no sideways page scroll, nothing drawn past the viewport, no overflow of its
     // own box. The Board's "Not in any registry" note is not rendered by the default fixtures.
     const spots: { path: string; what: string; find: (p: Page) => Locator; append?: boolean }[] = [
-      { path: "/", what: "Today repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
-      { path: "/", what: "Today matrix repo", find: (p) => p.locator('main a[href="/repos/innernet"]:visible').last() },
-      { path: "/waiting", what: "Waiting repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
+      { path: "/", what: "Calendar repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
+      { path: "/?view=repo", what: "Calendar matrix repo", find: (p) => p.locator('main a[href="/repos/innernet"]:visible').last() },
+      { path: "/blockers", what: "Blockers repo link", find: (p) => p.locator('main a[href^="/repos/"]:visible').first() },
       { path: "/board", what: "Board product name", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first() },
       { path: "/board", what: "Board product description", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first().locator("xpath=following-sibling::span[1]") },
       { path: "/release", what: "Release heading", find: (p) => p.locator("main h2 a").first() },

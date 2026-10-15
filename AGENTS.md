@@ -114,8 +114,8 @@ use it. In cloud sessions the shadcn registry (`ui.shadcn.com`) is blocked, so `
 ```
 app/
   layout.tsx             fonts, theme, header with wordmark
-  (today)/page.tsx       Today (a route group, so it has its own loading.tsx)
-  waiting/page.tsx       Waiting on you
+  (calendar)/page.tsx    Calendar (a route group, so it has its own loading.tsx)
+  blockers/page.tsx      Blockers (`/waiting` redirects here, next.config.ts)
   board/page.tsx         Board
   release/page.tsx       Release
   health/page.tsx        Health
@@ -126,7 +126,8 @@ proxy.ts                 only in the local editor's gh mode: 403 to a Host that 
 components/
   ui/                    shadcn, unmodified where possible
   state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
-  change-matrix.tsx      Today's "what changed": one row per tracked repo, a dot per change
+  change-matrix.tsx      a Calendar day by repo: one row per tracked repo, a dot per change
+  day-strip.tsx          the Calendar's seven days, today first
   board-notes.tsx        the Board's overview index, boards and post-it notes
   new-tab.tsx            the two attributes every link that leaves the dashboard carries
   api-banner.tsx         one Alert when the GitHub API as a whole is out
@@ -199,8 +200,8 @@ ago", and it reads a time or window it cannot judge as stale.
   the render time: Next serves an expired entry once while it refreshes in the background, so after
   a quiet night the first render carries last night's data. Every signal also carries `maxAge` (its
   cache window); the model marks a green or pending cell `stale` when its source was read more than
-  twice its window ago. `reads` says per page (Today, Waiting, Board) when its own sources were
-  last read (`asOf`, absent when none answered, so the page says "No data could be read" rather
+  twice its window ago. `reads` says per page (`today` for the Calendar and Blockers' broken
+  list, `waiting` for Blockers' own list, `board`) when its own sources were last read (`asOf`, absent when none answered, so the page says "No data could be read" rather
   than "just now") and whether any read is past twice its window (`stale`, shown on the count tiles
   and over the lists). The registries are left out: the hourly org list says nothing about how
   fresh the PRs or the files are.
@@ -208,12 +209,12 @@ ago", and it reads a time or window it cannot judge as stale.
   in 7 days", "no deployments", "nothing promoted yet", "not in the canary yet") has state `none`:
   plain text, no badge, never counted. `green` means healthy, not "a thing exists". A product with
   no channels in infra-config is outside the canary, so no lkgr pointer is read for it.
-- **The newest event per subject is the current one.** Today marks an older tree, canary or deploy
+- **The newest event per subject is the current one.** The model marks an older tree, canary or deploy
   event `superseded` when a newer one exists for the same repo (`markSuperseded`), so "tree
-  closed" at 09:00 leaves "Needs a look" once "tree open" lands at 10:00; it stays in the
-  timeline marked "since cleared" when the newer event is green (`cleared`), and unmarked when
-  the newer event is another alarm. A writer whose last run failed is a "Needs a look" item that
-  opens Health, and counts in the third tile ("unknown, stale or failing") with the unreadable
+  closed" at 09:00 leaves Blockers' "Broken right now" once "tree open" lands at 10:00; it stays
+  in the Calendar marked "since cleared" when the newer event is green (`cleared`), and unmarked
+  when the newer event is another alarm. A writer whose last run failed is a "Broken right now"
+  item that opens Health, and counts in the third tile ("unknown, stale or failing") with the unreadable
   sources and the stale writers; "red or held" counts Board cells only, since it opens the Board.
 - **Writers gate their files.** A tree, lkgr or canary cell is only as current as the job that
   writes the file (`gateByWriter` in `lib/model/build.ts`): when gardener `tree-status`, release
@@ -401,17 +402,28 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   `rel="noopener noreferrer"` (`newTab` in `components/new-tab.tsx` for an href decided at render
   time); page links never do, so the back button keeps working. An e2e test checks every link on
   every page.
-- Today's "What changed" is a matrix, not a list (`components/change-matrix.tsx`, rows from
+- The Calendar (`app/(calendar)/page.tsx`, suraj's design of 2026-10-15) shows one day at a time.
+  On top, one line carries the Blockers counts and opens Blockers. Then the last seven UTC days as
+  a strip (`components/day-strip.tsx`), today first: each day's date, its count and a thin bar
+  split by state (decoration; the link's name says the counts in words). `?day=` picks a day and
+  `?view=repo` the grouping; both are checked against fixed choices (`pickDay` in
+  `lib/model/calendar.ts`) and never reach a fetch. Seven days because the merged-PR search looks
+  back seven; deploys and channel moves keep only their newest event, so an earlier day says it
+  can show fewer of them. A day by time lists its changes newest first: the UTC time, the state
+  word, the repo, the change. A day by repo is a matrix (`components/change-matrix.tsx`, rows from
   `matrixRows` in `lib/model/matrix.ts`): one row per tracked repo with a change, busiest first,
   the repo linked, then one `StateDot` per change in its state color, oldest left and newest
   right, then the count. The idea is ElevenLabs UI's Matrix (a grid of round cells); the cells
   are the dashboard's own state markers, so `unknown` stays an outlined dot. The dots are
   decoration (`aria-hidden`, a hover title each); the row's trigger says the counts in words
-  ("5 changes for innernet: 4 green, 1 red") and opens that repo's entries, newest first, as the
-  old list showed them. The dots wrap inside the row, so a busy week never scrolls sideways. The
-  tracked repos with no change fold into one line that opens into their names, so "nothing
-  changed" is said rather than hidden; the alarms in "Needs a look" also count in their rows, so a
-  row's count is whole.
+  ("5 changes for innernet: 4 green, 1 red") and opens that repo's entries, newest first. The
+  dots wrap inside the row, so a busy day never scrolls sideways. Either way the tracked repos
+  with no change fold into one line that opens into their names (`QuietRepos`), so "nothing
+  changed" is said rather than hidden.
+- Blockers (`app/blockers/page.tsx`, was Waiting on you) has the three count tiles, then the
+  waiting list (`#waiting`, where the first tile points), then "Broken right now": the red or
+  held changes of the last 24 hours not superseded since, leaving out what the waiting list
+  already holds (`brokenNow`: the same link, or a held canary already listed for that repo).
 - The Board is post-it notes (`components/board-notes.tsx`, suraj's design of 2026-10-15): an
   overview that indexes every repo as a small chip tinted by its state, each a `#repo-<name>` link
   to its note, then one dotted board per registry group (products and any group of more than seven
@@ -425,7 +437,7 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   keeps only the notes that need a look; a board left empty says so. In dark the notes sit flat
   with a hairline edge and show their state as a thin top strip and a glow round the pin
   (`--note-edge`, `--pin-glow`), so the tints stay near black.
-- Phone first: what needs a look comes first (Today's "Needs a look", the Board's notes ordered by
+- Phone first: what needs a look comes first (Blockers' lists, the Board's notes ordered by
   worst state). Every page segment has a `loading.tsx`
   (Skeleton) except the repo page, where a Suspense boundary would stream a 200 before
   `notFound()` can answer 404; `app/error.tsx` shows
