@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { buildGardener, cadenceCell } from "@/lib/model/gardener";
+import { HISTORY_COMMITS } from "@/lib/sources/tree-history";
 import type { WorkflowRun } from "@/lib/sources/writer-runs";
 import { FIXTURE_TOKEN, withFixtures } from "../helpers/fixtures";
 
@@ -32,7 +34,8 @@ const closed = JSON.stringify({
       title: "a commit title that must never be shown",
     },
   ],
-  coverage: { commits: 12, since: A, missing: [B], cancelled: [], pending: [], backfilling: [C], retried: [] },
+  // Coverage entries are "<sha> <builder>", as gardener postsubmit.py writes them.
+  coverage: { commits: 12, since: A, missing: [`${B} innernet-postsubmit`], cancelled: [], pending: [], backfilling: [`${C} innernet-postsubmit`], retried: [] },
   notes: [],
 });
 
@@ -83,7 +86,8 @@ describe("gardener page model", () => {
     const inn = view.repos.ok ? view.repos.list.find((r) => r.name === "innernet") : undefined;
     expect(inn?.tree.state).toBe("red");
     expect(inn?.coverage?.cell.state).toBe("red");
-    expect(inn?.coverage?.missing).toEqual([B]);
+    expect(inn?.coverage?.missing).toEqual([{ sha: B, builder: "innernet-postsubmit" }]);
+    expect(inn?.coverage?.backfilling).toEqual([{ sha: C, builder: "innernet-postsubmit" }]);
     expect(inn?.red).toEqual([
       {
         builder: "innernet-postsubmit",
@@ -137,10 +141,74 @@ describe("gardener page model", () => {
   });
 });
 
+describe("coverage", () => {
+  const status = (coverage: object) => JSON.stringify({ ...JSON.parse(closed), state: "open", red: [], builders: { "innernet-postsubmit": { commit: C, state: "green", url: "https://github.com/quirq-ai/innernet/actions/runs/8" } }, coverage });
+  const read = async (coverage: object) => {
+    await withFixtures([{ raw: "gardener/tree-status/status/innernet.json", body: status(coverage) }]);
+    const view = await buildGardener();
+    return view.repos.ok ? view.repos.list.find((r) => r.name === "innernet")?.coverage : undefined;
+  };
+  const empty = { commits: 6, since: A, missing: [], cancelled: [], pending: [], backfilling: [], retried: [] };
+
+  it("is pending, with the commit and its builder, in the gardener's real file", async () => {
+    // Captured from gardener tree-status at d78ccf3: one running commit.
+    const real = readFileSync(new URL("../fixtures/captured/gardener-tree-status-d78ccf3-xo-space.json", import.meta.url), "utf8");
+    await withFixtures([{ raw: "gardener/tree-status/status/xo-space.json", body: real }]);
+    const view = await buildGardener();
+    const xo = view.repos.ok ? view.repos.list.find((r) => r.name === "xo-space")?.coverage : undefined;
+    expect(xo?.cell).toMatchObject({ state: "pending", text: "0 backfilling, 1 running; 25 commits checked" });
+    expect(xo?.pending).toEqual([{ sha: "3bb8687307144ab604723e7c13f49753b22dc0e0", builder: "xo-space-postsubmit" }]);
+  });
+
+  it("is red for a missing or cancelled commit, and counts an entry it cannot read", async () => {
+    const c = await read({ ...empty, missing: [`${A} innernet-postsubmit`], cancelled: [`${C} innernet-postsubmit`], pending: [`${B} innernet-postsubmit`] });
+    expect(c?.cell).toMatchObject({ state: "red", text: expect.stringMatching(/^2 commits have no post-submit result/) });
+    expect(c?.cancelled).toEqual([{ sha: C, builder: "innernet-postsubmit" }]);
+    const odd = await read({ ...empty, missing: ["not a commit <b>"] });
+    expect(odd?.cell).toMatchObject({ state: "red", text: expect.stringContaining("1 entry could not be read") });
+    expect(odd?.missing).toEqual([]);
+    expect(JSON.stringify(odd)).not.toContain("<b>");
+  });
+
+  it("is unknown, not green, when no commit was checked yet", async () => {
+    expect((await read({ ...empty, commits: 0, since: "" }))?.cell.state).toBe("unknown");
+    expect((await read(empty))?.cell).toMatchObject({ state: "green", text: "every commit has a result; 6 commits checked" });
+  });
+
+  it("is stale, not green, when the status file was read too long ago", async () => {
+    await withFixtures([{ raw: "gardener/tree-status/status/innernet.json", body: status(empty), headers: { date: "{{now-2h}}" } }]);
+    const view = await buildGardener();
+    const inn = view.repos.ok ? view.repos.list.find((r) => r.name === "innernet") : undefined;
+    expect(inn?.tree.state).toBe("stale");
+    expect(inn?.builders[0].cell.state).toBe("stale");
+    expect(inn?.coverage?.cell.state).toBe("stale");
+  });
+});
+
+describe("history", () => {
+  it("says older changes are not read when a full page came back", async () => {
+    const commits = Array.from({ length: HISTORY_COMMITS }, (_, i) => ({
+      sha: i.toString(16).padStart(40, "0"),
+      html_url: `https://github.com/quirq-ai/gardener/commit/${i.toString(16).padStart(40, "0")}`,
+      commit: { message: "tree-status: innernet open", author: { name: "quirq-gardener", date: "{{now-1h}}" }, committer: { name: "GitHub", date: "{{now-1h}}" } },
+    }));
+    await withFixtures([{ path: "/repos/quirq-ai/gardener/commits", body: JSON.stringify(commits) }]);
+    const view = await buildGardener();
+    expect(view.history).toMatchObject({ ok: true, commits: HISTORY_COMMITS, full: true });
+    await withFixtures();
+    const short = await buildGardener();
+    expect(short.history.ok && short.history.full).toBe(false);
+  });
+});
+
 describe("chain pace", () => {
   it("is green at about five minutes and stale when only the cron is left", () => {
     expect(cadenceCell(runs([1, 6, 11, 16, 21]))).toMatchObject({ state: "green", text: "about every 5 min over the last 5 runs" });
     expect(cadenceCell(runs([1, 31, 61, 91]))).toMatchObject({ state: "stale" });
+  });
+
+  it("is stale once no run has finished for longer than the writer's window", () => {
+    expect(cadenceCell(runs([180, 185, 190, 195, 200]))).toMatchObject({ state: "stale", text: expect.stringContaining("the chain has stopped") });
   });
 
   it("cannot tell from fewer than three runs", () => {

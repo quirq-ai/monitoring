@@ -142,6 +142,24 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
   });
 
+  test("the tabs keep one row at every phone width from 334 px up", async ({ page }) => {
+    // 412 (common Android) and 414 to 430 (larger iPhones) used to wrap; 320 wraps, as it always has.
+    await page.setViewportSize({ width: 334, height: 800 });
+    await page.goto("/board");
+    const wrapped: number[] = [];
+    for (let width = 334; width <= 900; width++) {
+      await page.setViewportSize({ width, height: 800 });
+      const rows = await page.getByRole("navigation", { name: "Pages" }).evaluate((el) => {
+        const tops = [...el.querySelectorAll("a")].map((a) => Math.round(a.getBoundingClientRect().top));
+        return new Set(tops).size;
+      });
+      const header = await page.locator("header").evaluate((h) => h.getBoundingClientRect().height);
+      const scrolls = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+      if (rows !== 1 || header > 101 || scrolls) wrapped.push(width);
+    }
+    expect(wrapped, "widths where the tabs wrap, the header grows or the page scrolls sideways").toEqual([]);
+  });
+
   test("links that leave the dashboard open in a new tab; page links stay in this one", async ({ page }) => {
     for (const p of pages) {
       await page.goto(p.path);

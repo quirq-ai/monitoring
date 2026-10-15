@@ -8,7 +8,7 @@ import { StateBadge } from "@/components/state-badge";
 import { TimeAgo } from "@/components/time-ago";
 import { Card } from "@/components/ui/card";
 import { web } from "@/lib/github";
-import { buildGardener, type RepoTree } from "@/lib/model/gardener";
+import { buildGardener, githubUrl, type CoverageEntry, type RepoTree } from "@/lib/model/gardener";
 import { exactUtc } from "@/lib/model/time";
 
 // One question: is main green in the repos the gardener watches, and is the gardener working?
@@ -52,7 +52,7 @@ export default async function GardenerPage() {
         <Card className="grid gap-4 rounded-xl px-4 py-4 shadow-none sm:grid-cols-2">
           <CellView
             title="tree-status workflow"
-            cell={{ state: view.writer.state, text: view.writer.reason, url: view.writer.lastRun?.url ?? view.writer.url, source: view.writer.id }}
+            cell={{ state: view.writer.state, text: view.writer.reason, url: githubUrl(view.writer.lastRun?.url) ?? view.writer.url, source: view.writer.id }}
             now={now}
           />
           <CellView title="pace (a run about every 5 min)" cell={view.cadence} now={now} />
@@ -72,10 +72,10 @@ export default async function GardenerPage() {
                 {r.coverage ? (
                   <>
                     <CellView cell={r.coverage.cell} now={now} />
-                    <ShaList label="missing" repo={r.name} shas={r.coverage.missing} />
-                    <ShaList label="cancelled" repo={r.name} shas={r.coverage.cancelled} />
-                    <ShaList label="backfilling" repo={r.name} shas={r.coverage.backfilling} />
-                    <ShaList label="running" repo={r.name} shas={r.coverage.pending} />
+                    <EntryList label="missing" repo={r.name} entries={r.coverage.missing} />
+                    <EntryList label="cancelled" repo={r.name} entries={r.coverage.cancelled} />
+                    <EntryList label="backfilling" repo={r.name} entries={r.coverage.backfilling} />
+                    <EntryList label="running" repo={r.name} entries={r.coverage.pending} />
                   </>
                 ) : (
                   <Unknown reason={r.tree.state === "unknown" ? r.tree.text : "the status file has no coverage"} url={r.statusUrl} />
@@ -177,7 +177,7 @@ export default async function GardenerPage() {
         <h2 id="reporting" className="text-lg">
           Why is it only reporting?
         </h2>
-        <p className="text-sm text-muted-foreground">Live reverts wait on all three of these.</p>
+        <p className="text-sm text-muted-foreground">A proposed revert waits on the App and the ledger; a revert lands on its own only in a repo listed in auto_land_repos.</p>
         <Card className="grid gap-4 rounded-xl px-4 py-4 shadow-none sm:grid-cols-3">
           {view.readiness.map((item) => (
             <CellView key={item.label} title={item.label} cell={item.cell} now={now} />
@@ -188,9 +188,9 @@ export default async function GardenerPage() {
           {policy.ok ? (
             <>
               <p>
-                Caps: at most {policy.value.dailyCap} reverts created per {policy.value.windowHours} h across all repos. Build breaks: created at most {policy.value.build.create} a day, landed on their own at most{" "}
-                {policy.value.build.submit} a day, culprits under {policy.value.build.maxCulpritAgeHours} h old. Test failures: created at most {policy.value.test.create} a day,{" "}
-                {policy.value.test.submit === 0 ? "never landed on their own" : `landed on their own at most ${policy.value.test.submit} a day`}.
+                Caps: at most {policy.value.dailyCap} reverts created per {policy.value.windowHours} h across all repos. Build breaks: at most {policy.value.build.create} created a day; in a repo listed in auto_land_repos, at
+                most {policy.value.build.submit} a day land on their own, and only when the culprit is under {policy.value.build.maxCulpritAgeHours} h old. Test failures: at most {policy.value.test.create} created a day,{" "}
+                {policy.value.test.submit === 0 ? "never landed on their own" : `and in a repo listed in auto_land_repos at most ${policy.value.test.submit} a day land on their own`}.
                 {policy.value.verification ? " A culprit is verified with and without it first." : ""}
               </p>
               <SourceLink source={`infra-config auto_revert.toml at the gardener's pin ${policy.value.pin.slice(0, 7)}`} url={policy.url} now={now} />
@@ -257,6 +257,23 @@ function ShaList({ label, repo, shas }: { label: string; repo: string; shas: str
       {shas.map((sha) => (
         <Sha key={sha} sha={sha} url={web.commit(repo, sha)} />
       ))}
+    </span>
+  );
+}
+
+function EntryList({ label, repo, entries }: { label: string; repo: string; entries: CoverageEntry[] }) {
+  if (!entries.length) return null;
+  return (
+    <span className="flex flex-col gap-1 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <ul className="flex flex-col gap-1">
+        {entries.map((e) => (
+          <li key={`${e.sha}-${e.builder}`} className="flex flex-wrap items-center gap-1.5">
+            <Sha sha={e.sha} url={web.commit(repo, e.sha)} />
+            {e.builder ? <span className="font-mono text-xs wrap-anywhere text-muted-foreground">{e.builder}</span> : null}
+          </li>
+        ))}
+      </ul>
     </span>
   );
 }

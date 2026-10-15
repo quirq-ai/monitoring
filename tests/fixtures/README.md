@@ -48,6 +48,7 @@ in the real shape; synthetic files never stand in for a check that the real data
 | `raw/gardener/tree-status/status/README.md` | captured from gardener `tree-status` at 6c9652e1684b3daab253852f011657bcf16f7341 |
 | `raw/infra-config/bf3ad29834d85489c49aa6d41ec3c7e59474b746/config/auto_revert.toml` | captured from infra-config at bf3ad29834d85489c49aa6d41ec3c7e59474b746 (the gardener's pin); the fixture server serves `raw/<repo>/<commit>/` for a raw read at a commit |
 | `raw/gardener/main/pins.toml` | captured from gardener `main` at 1eb981e22e33bd76fca376dcd1f107e655be8e81 |
+| `captured/gardener-tree-status-d78ccf3-xo-space.json` | captured from gardener `tree-status` at d78ccf33253da41458fd09b0d4af381e90905017 (`status/xo-space.json`): a coverage list with one running commit, in the gardener's `"<sha> <builder>"` entry shape; read by `tests/model/gardener.test.ts`, never served by default |
 | `raw/release/main/pins.toml` | captured from release `main` at b3f6ee5622fa3dc60745fcd71c9a790501146147 |
 | `raw/installer/main/pins.toml` | captured from installer `main` at ca288255da24fa4477aa459c2110d10f5278374c |
 | `raw/test-pipelines/main/pins.toml` | captured from test-pipelines `main` at 0ad06a230fabf7c2d85ee4bdb5e03e0f9c828a6e |

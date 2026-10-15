@@ -39,12 +39,17 @@ export type RedRange = {
   rerunning: boolean;
 };
 
+/** One coverage entry: the gardener writes each as "<sha> <builder>" (postsubmit.py). */
+export type CoverageEntry = { sha: string; builder: string };
+
 export type Coverage = {
   cell: Cell;
-  missing: string[];
-  cancelled: string[];
-  pending: string[];
-  backfilling: string[];
+  missing: CoverageEntry[];
+  cancelled: CoverageEntry[];
+  pending: CoverageEntry[];
+  backfilling: CoverageEntry[];
+  /** Entries that are not "<sha> <builder>": still counted in the cell, never shown. */
+  unread: number;
 };
 
 export type RepoTree = {
@@ -103,7 +108,7 @@ export async function buildGardener(options: { now?: Date } = {}): Promise<Garde
     generatedAt: now.toISOString(),
     api: apiState(sources),
     writer,
-    cadence: cadenceCell(runs),
+    cadence: cadenceCell(runs, now),
     repos,
     history: historyView(history),
     ledger: ledgerCell(ledger),
@@ -158,17 +163,30 @@ function repoTree(name: string, signal: Signal<TreeStatus>, writer: WriterHealth
 }
 
 function coverage(c: NonNullable<TreeStatus["coverage"]>, url: string, source: string, gate: (cell: Cell) => Cell): Coverage {
-  const missing = c.missing.filter(isSha);
-  const cancelled = c.cancelled.filter(isSha);
-  const pending = c.pending.filter(isSha);
-  const backfilling = c.backfilling.filter(isSha);
-  const holes = missing.length + cancelled.length;
-  const checked = c.commits !== undefined ? `${c.commits} commits checked` : "commits checked";
+  const missing = c.missing.map(coverageEntry);
+  const cancelled = c.cancelled.map(coverageEntry);
+  const pending = c.pending.map(coverageEntry);
+  const backfilling = c.backfilling.map(coverageEntry);
+  const all = [...missing, ...cancelled, ...pending, ...backfilling];
+  const unread = all.filter((e) => e === null).length;
+  // Counted from the file's own lists, so an entry that does not parse still counts (fail closed).
+  const holes = c.missing.length + c.cancelled.length;
+  const waiting = c.pending.length + c.backfilling.length;
+  const checked = `${c.commits} ${c.commits === 1 ? "commit" : "commits"} checked`;
+  const unreadNote = unread ? `; ${unread} ${unread === 1 ? "entry" : "entries"} could not be read` : "";
   let cell: Cell;
-  if (holes) cell = { state: "red", text: `${holes} ${holes === 1 ? "commit has" : "commits have"} no post-submit result: a culprit can hide there`, url, source };
-  else if (backfilling.length || pending.length) cell = { state: "pending", text: `${backfilling.length} backfilling, ${pending.length} running; ${checked}`, url, source };
+  if (holes) cell = { state: "red", text: `${holes} ${holes === 1 ? "commit has" : "commits have"} no post-submit result: a culprit can hide there${unreadNote}`, url, source };
+  else if (waiting) cell = { state: "pending", text: `${c.backfilling.length} backfilling, ${c.pending.length} running${c.commits ? `; ${checked}` : ""}${unreadNote}`, url, source };
+  else if (!c.commits) cell = { state: "unknown", text: "no commit checked yet: no push-triggered post-submit run is in view, as for a repo not onboarded yet", url, source };
   else cell = { state: "green", text: `every commit has a result; ${checked}`, url, source };
-  return { cell: gate(cell), missing, cancelled, pending, backfilling };
+  const shown = (list: (CoverageEntry | null)[]) => list.filter((e): e is CoverageEntry => e !== null);
+  return { cell: gate(cell), missing: shown(missing), cancelled: shown(cancelled), pending: shown(pending), backfilling: shown(backfilling), unread };
+}
+
+/** "<sha> <builder>", as the gardener writes it; a bare sha has no builder. Anything else is null. */
+function coverageEntry(value: string): CoverageEntry | null {
+  const m = /^([0-9a-f]{7,40})(?: ([A-Za-z0-9][A-Za-z0-9._-]{0,99}))?$/.exec(value);
+  return m ? { sha: m[1], builder: m[2] ?? "" } : null;
 }
 
 /**
@@ -176,11 +194,16 @@ function coverage(c: NonNullable<TreeStatus["coverage"]>, url: string, source: s
  * (cancelled ones are already dropped: the queue replaces them routinely). The writer's own
  * window says whether it ran at all; this says whether it runs as often as it should.
  */
-export function cadenceCell(runs: Signal<WorkflowRun[]>): Cell {
+export function cadenceCell(runs: Signal<WorkflowRun[]>, now: Date = new Date()): Cell {
   const url = runs.sourceUrl;
   const source = runs.source;
   if (!runs.ok) return { state: "unknown", text: runs.reason, url, source };
   const times = runs.value.map((r) => parseTime(r.completedAt)).filter((t): t is number => t !== null).sort((a, b) => b - a);
+  // The time since the newest run is a gap too: a stopped chain has no new gaps to measure.
+  const quiet = (now.getTime() - (times[0] ?? 0)) / 60_000;
+  if (times.length && quiet > GARDENER_WRITER.windowMinutes) {
+    return { state: "stale", text: `no run has finished in ${Math.round(quiet)} min, longer than the ${GARDENER_WRITER.windowMinutes}-minute window: the chain has stopped`, url, source };
+  }
   if (times.length < 3) return { state: "unknown", text: `${times.length} completed ${times.length === 1 ? "run" : "runs"}: too few to tell the pace`, url, source };
   const gaps = times.slice(1).map((t, i) => (times[i] - t) / 60_000).sort((a, b) => a - b);
   const median = gaps[Math.floor(gaps.length / 2)];
@@ -197,7 +220,7 @@ function historyView(signal: Signal<TreeChange[]>): GardenerView["history"] {
   for (const change of signal.value) {
     for (const repo of change.changed) {
       const state = change.states[repo];
-      if (state === "open" || state === "closed" || state === "unknown") events.push({ repo, state, at: change.at, url: change.url });
+      if (state === "open" || state === "closed" || state === "unknown") events.push({ repo, state, at: change.at, url: githubUrl(change.url) ?? signal.sourceUrl });
     }
   }
   return {
@@ -257,6 +280,6 @@ function isSha(value: string | undefined): value is string {
 }
 
 /** A link from a fetched file is kept only when it points at github.com. */
-function githubUrl(value: string | undefined): string | undefined {
+export function githubUrl(value: string | undefined): string | undefined {
   return value && /^https:\/\/github\.com\//.test(value) ? value : undefined;
 }

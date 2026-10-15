@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { isCommitId, rawCommitUrl } from "@/lib/fetch";
 import { readRevertPolicy } from "@/lib/sources/revert-policy";
 import { withFixtures } from "../helpers/fixtures";
 
@@ -29,6 +30,20 @@ describe("revert policy", () => {
     const signal = await readRevertPolicy();
     expect(signal).toMatchObject({ ok: false, reason: "gardener: pins.toml [infra-config] commit is not a full commit id" });
     expect(fixtures.log.requests).toBe(1);
+  });
+
+  it("takes only a full, lower-case, 40-character commit id as a pin", async () => {
+    const bad = [PIN.slice(0, 39), `${PIN}0`, PIN.toUpperCase(), PIN.slice(0, 7), `../${PIN}`, `${PIN}/../../x`, `x${PIN}`, `${PIN}\n`, ` ${PIN}`, "main", ""];
+    for (const pin of bad) {
+      expect(isCommitId(pin), JSON.stringify(pin)).toBe(false);
+      expect(() => rawCommitUrl("infra-config", pin, "config/auto_revert.toml")).toThrow();
+    }
+    expect(isCommitId(PIN)).toBe(true);
+    for (const pin of [PIN.slice(0, 39), `${PIN}0`, PIN.toUpperCase(), `../${PIN}`]) {
+      const fixtures = await withFixtures([{ raw: "gardener/main/pins.toml", body: `[infra-config]\ncommit = ${JSON.stringify(pin)}\n` }]);
+      expect((await readRevertPolicy()).ok, pin).toBe(false);
+      expect(fixtures.log.requests).toBe(1);
+    }
   });
 
   it("is unknown when the file is missing or does not match", async () => {
