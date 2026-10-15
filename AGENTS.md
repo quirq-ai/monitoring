@@ -119,6 +119,7 @@ app/
   board/page.tsx         Board
   release/page.tsx       Release
   health/page.tsx        Health
+  gardener/page.tsx      Gardener (model in lib/model/gardener.ts)
   repos/[repo]/page.tsx  Repo page
   api/snapshot/route.ts  GET only: the model as JSON
   settings/page.tsx      the settings editor; settings/actions.ts its server functions
@@ -314,7 +315,9 @@ cloud session, and REST with the issue search covers the same questions in a han
   answers 404 for the rest, which Next never caches). Without a token the days are probed one by
   one instead; a refused or malformed listing is a source failure on Health
   (`release/canary-listing/<repo>`, with "days read one by one" in its reason) and the days are
-  probed. The gardener `tree-status` commit log is `commits?sha=tree-status`, cached 300 s.
+  probed. The gardener `tree-status` commit log is `commits?sha=tree-status&per_page=100`, cached 300 s:
+  still one request, about a month of commits at today's rate; only a commit whose message names a
+  changed repo state is an open/close event.
 - The perf `perf-data` listing per product, cached 1 h, and each metric file read raw, cached
   600 s: on the repo page, and on Health so a refused or malformed file is seen. Perf decides on
   its own which products it measures, so a product with no directory there (a plain "Not Found"
@@ -347,6 +350,8 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | infra-config `repos` | `config/repos.toml` | products: kinds, channels, deploy target |
 | infra-config `channels` | `config/channels.toml` | channel order, cadence, canary schedule |
 | infra-config `health` | `config/health.toml` | probes and v0 signals (not read yet: no module in `lib/sources/` reads it) |
+| gardener `pins` | `pins.toml` | the infra-config commit the gardener runs with |
+| infra-config `auto_revert` at that pin | `config/auto_revert.toml`, raw at the pinned commit (`fetchRawAtCommit`), never main | the revert caps and `auto_land_repos` the Gardener page shows |
 | gate `settings` | `settings/github.toml` | `[[repo]]`: 13 infra repos plus the products xo-space, innernet and website (file as of gate 2a73334, 2026-10-06; website merged there, not yet applied) |
 
 **State branches (raw):**
@@ -359,6 +364,7 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | release `holds` | `release-state`: `canary/<repo>/held/<commit>.json` | hold record (none exist yet) |
 | release `reports` | `release-state`: `reports/<date>.md` | Markdown, rendered as text |
 | gardener `tree-status` | `tree-status`: `status/<repo>.json` | `qq-tree-status/1`: open, closed or unknown; red ranges; coverage |
+| gardener `tree-status` index | `tree-status`: `status/README.md` | the repos the gardener watches (the table's first column); the Gardener page lists exactly these |
 | gardener `ledger` | `ledger`: `reverts/<id>.json`, `landed/<id>.json`, `failures/` | branch absent today: return `unknown: ledger not started` on 404 |
 | test-pipelines `scorecard` | `results`: `scorecard.json` | no schema id; keep `not_measured` and `collect` visible |
 | test-pipelines `failures` | `results`: `failures/` | `quirq-results/1` |

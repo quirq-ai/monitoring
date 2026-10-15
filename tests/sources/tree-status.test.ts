@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readTreeStatus } from "@/lib/sources/tree-status";
+import { parseIndex, readTreeIndex, readTreeStatus } from "@/lib/sources/tree-status";
 import { withFixtures } from "../helpers/fixtures";
 
 describe("tree status", () => {
@@ -39,5 +39,21 @@ describe("tree status", () => {
     const wrong = await readTreeStatus("xo-space");
     expect(wrong.ok).toBe(false);
     if (!wrong.ok) expect(wrong.reason).toContain("qq-tree-status/3 is not qq-tree-status/1");
+  });
+
+  it("lists the watched repos from the gardener's status index", async () => {
+    await withFixtures();
+    expect(await readTreeIndex()).toMatchObject({ ok: true, value: ["xo-space", "innernet"] });
+  });
+
+  it("keeps only plain repo names from the index, once each", () => {
+    const text = "# Tree status\n\n| Repo | Tree |\n|---|---|\n| xo-space | **open** |\n| ../etc | open |\n| xo-space | open |\n| a b | open |\n";
+    expect(parseIndex(text)).toEqual(["xo-space"]);
+    expect(parseIndex("# nothing here\n")).toBeNull();
+  });
+
+  it("is unknown when the index is missing", async () => {
+    await withFixtures([{ raw: "gardener/tree-status/status/README.md", status: 404, body: "404: Not Found" }]);
+    expect(await readTreeIndex()).toMatchObject({ ok: false, reason: "tree-status: the tree-status branch has no status/README.md" });
   });
 });

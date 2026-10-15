@@ -3,12 +3,18 @@ import { parseValue } from "@/lib/fetch";
 import { ghGet, repoPath, web } from "@/lib/github";
 import { failSignal, okSignal, type Signal } from "@/lib/signal";
 
-// gardener commits the tree-status branch only when a state changes, with a message like
-// `tree-status: innernet open, xo-space closed`. The last 20 commits are the open/close log.
+// gardener commits the tree-status branch only when a status file changes (a state, a head, a
+// coverage hole), with a message like `tree-status: innernet open, xo-space closed`, so most
+// commits change no state. The last 100 commits (one request, about a month at today's rate) are
+// read, and an open/close event is a commit whose message names a state that differs from the
+// commit before it. Any other message (a planned `groups: 2 red ranges`) names no state and is
+// never an event.
 
 const REPO = "gardener";
 const BRANCH = "tree-status";
 const REVALIDATE = 300;
+/** GitHub's largest page: one request either way. */
+export const HISTORY_COMMITS = 100;
 
 const CommitSchema = z
   .object({
@@ -37,7 +43,7 @@ export async function readTreeHistory(): Promise<Signal<TreeChange[]>> {
   const sourceUrl = web.commits(REPO, BRANCH);
   const api = await ghGet<unknown>(repoPath(REPO, "commits"), {
     revalidate: REVALIDATE,
-    params: { sha: BRANCH, per_page: 20 },
+    params: { sha: BRANCH, per_page: HISTORY_COMMITS },
   });
   if (!api.ok) {
     const why = api.status === 404 ? "tree-status branch not found" : api.reason;

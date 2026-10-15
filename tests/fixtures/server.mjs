@@ -5,7 +5,8 @@
 //
 //   node tests/fixtures/server.mjs 3011      # serve on 127.0.0.1:3011
 //
-// Request layout: `/raw/<org>/<repo>/refs/heads/<branch>/<path>` reads `raw/<repo>/<branch>/<path>`;
+// Request layout: `/raw/<org>/<repo>/refs/heads/<branch>/<path>` reads `raw/<repo>/<branch>/<path>`,
+// and `/raw/<org>/<repo>/<40-hex commit>/<path>` reads `raw/<repo>/<commit>/<path>`;
 // `/api/<path>` is matched against routes.json (first match wins). `{{now}}`, `{{now-5m}}`,
 // `{{today}}` and `{{yesterday}}` in file names and file contents are replaced per request.
 
@@ -117,9 +118,17 @@ export function createFixtureServer(options = {}) {
       if (req.headers.authorization) log.authorizationOnRaw += 1;
       const prefix = `/raw/${org}/`;
       if (!pathname.startsWith(prefix)) return respond(res, 404, "404: Not Found", "text/plain");
-      const [repo, refs, heads, branch, ...rest] = pathname.slice(prefix.length).split("/");
-      if (refs !== "refs" || heads !== "heads" || !repo || !branch) return respond(res, 404, "404: Not Found", "text/plain");
-      const rawPath = `${repo}/${branch}/${rest.join("/")}`;
+      const segments = pathname.slice(prefix.length).split("/");
+      let rawPath;
+      if (/^[0-9a-f]{40}$/.test(segments[1] ?? "")) {
+        // A file at a pinned commit: `raw/<repo>/<commit>/<path>`.
+        const [repo, commit, ...rest] = segments;
+        rawPath = `${repo}/${commit}/${rest.join("/")}`;
+      } else {
+        const [repo, refs, heads, branch, ...rest] = segments;
+        if (refs !== "refs" || heads !== "heads" || !repo || !branch) return respond(res, 404, "404: Not Found", "text/plain");
+        rawPath = `${repo}/${branch}/${rest.join("/")}`;
+      }
       const route = routes.find((r) => r.raw && matchPath(renderTokens(r.raw, now), rawPath));
       if (route) {
         const body = route.body ?? (route.file ? readFileSync(join(root, route.file), "utf8") : "");

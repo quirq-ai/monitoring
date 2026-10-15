@@ -13,6 +13,7 @@ const pages = [
   { path: "/board", slug: "board", heading: "Board" },
   { path: "/release", slug: "release", heading: "Release" },
   { path: "/health", slug: "health", heading: "Health" },
+  { path: "/gardener", slug: "gardener", heading: "Gardener" },
   { path: "/repos/xo-space", slug: "repo-xo-space", heading: "xo-space" },
   { path: "/settings", slug: "settings", heading: "Settings" },
 ] as const;
@@ -367,6 +368,7 @@ test.describe("content from the fixtures", () => {
       { path: "/board", what: "Board product name", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first() },
       { path: "/board", what: "Board product description", find: (p) => p.locator('main a[href="/repos/xo-space"]:visible').first().locator("xpath=following-sibling::span[1]") },
       { path: "/release", what: "Release heading", find: (p) => p.locator("main h2 a").first() },
+      { path: "/gardener", what: "Gardener repo name", find: (p) => p.locator("main h3").first() },
       { path: "/repos/website", what: "page title", find: (p) => p.getByRole("heading", { level: 1 }) },
       { path: "/repos/website", what: "page lead", find: (p) => p.getByRole("heading", { level: 1 }).locator("xpath=following-sibling::p[1]") },
       { path: "/repos/website", what: "a reason next to an unknown badge", find: (p) => p.locator("main p", { has: p.locator(".state-badge") }).first(), append: true },
@@ -385,6 +387,19 @@ test.describe("content from the fixtures", () => {
       expect.soft(fit.right, `${spot.what}: nothing drawn past the viewport`).toBeLessThanOrEqual(390);
       expect.soft(fit.own, `${spot.what}: wraps inside its own box`).toBeLessThanOrEqual(0);
     }
+  });
+
+  test("Gardener answers from the gardener's own files, read-only, with nothing assumed done", async ({ page }) => {
+    await page.goto("/gardener");
+    const trees = page.locator("section", { has: page.getByRole("heading", { name: "Is the tree open?" }) });
+    await expect(trees.getByRole("heading", { level: 3 })).toHaveText(["xo-space", "innernet"]);
+    await expect(trees.getByText("website")).toHaveCount(0);
+    const reporting = page.locator("section", { has: page.getByRole("heading", { name: "Why is it only reporting?" }) });
+    await expect(reporting.locator(".state-badge[data-state=green]")).toHaveCount(0);
+    await expect(reporting.getByText(/at the gardener's pin bf3ad29/)).toBeVisible();
+    await expect(page.getByText("innernet closed").first()).toBeVisible();
+    // Nothing on the page acts: no buttons and no forms.
+    await expect(page.locator("main button, main form")).toHaveCount(0);
   });
 
   test("an unknown repo is a 404", async ({ page }) => {

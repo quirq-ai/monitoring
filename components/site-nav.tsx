@@ -9,6 +9,7 @@ const pages = [
   { href: "/blockers", label: "Blockers" },
   { href: "/board", label: "Board" },
   { href: "/release", label: "Release" },
+  { href: "/gardener", label: "Gardener" },
   { href: "/health", label: "Health" },
 ] as const;
 
@@ -22,7 +23,7 @@ export function SiteNav() {
   const pathname = usePathname();
   return (
     <nav aria-label="Pages" className="-mb-px">
-      <ul className="flex flex-wrap justify-center gap-x-1 md:gap-x-2">
+      <ul className="flex flex-wrap justify-center min-[400px]:gap-x-1 md:gap-x-2">
         {pages.map((p) => {
           const current = p.href === "/" ? pathname === "/" : pathname.startsWith(p.href);
           return (
@@ -31,7 +32,7 @@ export function SiteNav() {
                 href={p.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-1 text-sm min-[400px]:px-2 -outline-offset-2 md:min-h-14 md:px-3",
+                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-[3px] text-[13px] min-[400px]:px-2 min-[400px]:text-sm -outline-offset-2 md:min-h-14 md:px-3",
                   current ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >

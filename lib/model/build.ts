@@ -53,7 +53,8 @@ export function tidy(reason: string): string {
   return reason.replace(/\s*sha256:[0-9a-f]{8,}/g, "").replace(/\s+/g, " ").trim();
 }
 
-function status<T>(signal: Signal<T>): SourceStatus {
+/** The Sources list line for a signal. */
+export function sourceStatus<T>(signal: Signal<T>): SourceStatus {
   return {
     source: signal.source,
     sourceUrl: signal.sourceUrl,
@@ -187,7 +188,7 @@ export async function buildSnapshot(options: BuildOptions = {}): Promise<Snapsho
   const hours = WINDOWS[window];
   const sources: SourceStatus[] = [];
   const track = <T,>(signal: Signal<T>): Signal<T> => {
-    sources.push(status(signal));
+    sources.push(sourceStatus(signal));
     return signal;
   };
 

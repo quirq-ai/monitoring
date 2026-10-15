@@ -16,7 +16,8 @@ import { readGateRepos, readOrgRepos, readProducts } from "@/lib/sources/registr
 import { readReleaseChannels } from "@/lib/sources/release-channels";
 import { readScorecard } from "@/lib/sources/scorecard";
 import { readTreeHistory } from "@/lib/sources/tree-history";
-import { readTreeStatus } from "@/lib/sources/tree-status";
+import { readTreeIndex, readTreeStatus } from "@/lib/sources/tree-status";
+import { readRevertPolicy } from "@/lib/sources/revert-policy";
 import { readWriterRuns } from "@/lib/sources/writer-runs";
 import type { Signal } from "@/lib/signal";
 
@@ -64,6 +65,8 @@ describe("live sources", () => {
     line("github/org-repos", await readOrgRepos(), (v) => `${v.length} repos`);
     line("gardener/tree-history", await readTreeHistory(), (v) => `${v.length} commits, ${v.filter((c) => c.changed.length).length} changes`);
     line("gardener/ledger", await readLedger(), (v) => `${v.reverts} reverts, ${v.landed} landed`);
+    line("gardener/tree-status/index", await readTreeIndex(), (v) => v.join(", "));
+    line("gardener/revert-policy", await readRevertPolicy(), (v) => `pin ${v.pin.slice(0, 7)}, cap ${v.dailyCap}/${v.windowHours} h, auto_land_repos [${v.autoLandRepos.join(", ")}]`);
     line("test-pipelines/failures", await readFailures(), (v) => `${v.length} records, ${v.filter((f) => f.demo).length} demo`);
     for (const repo of ["monitoring", "innernet", "xo-space"]) {
       line(`github/checks/${repo}`, await readBranchChecks(repo, "main"), (v) => `${v.state}: ${v.summary}`);
