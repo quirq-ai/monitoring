@@ -365,6 +365,7 @@ Verified on 2026-10-05 against the public branches. "raw" means the raw URL form
 | release `reports` | `release-state`: `reports/<date>.md` | Markdown, rendered as text |
 | gardener `tree-status` | `tree-status`: `status/<repo>.json` | `qq-tree-status/1`: open, closed or unknown; red ranges; coverage |
 | gardener `tree-status` index | `tree-status`: `status/README.md` | the repos the gardener watches (the table's first column); the Gardener page lists exactly these |
+| gardener `tree-status` groups | `tree-status`: `groups/groups.json` | `qq-gardener-groups/1`: per red range its builders, first red runs, `kind` (infra, build, test, unknown) and `failed_steps`; written after the status files, so a range with no matching entry is unknown |
 | gardener `ledger` | `ledger`: `reverts/<id>.json`, `landed/<id>.json`, `failures/` | branch absent today: return `unknown: ledger not started` on 404 |
 | test-pipelines `scorecard` | `results`: `scorecard.json` | no schema id; keep `not_measured` and `collect` visible |
 | test-pipelines `failures` | `results`: `failures/` | `quirq-results/1` |
@@ -465,9 +466,11 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   UI"), on shadcn components. Near-monochrome surfaces and text, hairline dividers, color only for
   the six states; a compact sticky header with the wordmark and the theme toggle at the edges and
   the underlined tabs centered between them (their own centered row below 900 px, where six tabs
-  and the wordmark do not fit one row, wrapping at a large text size: never a scroll container, since a tab row one pixel taller than its box used
-  to scroll on phones); stat tiles with the label above a large tabular number. The sticky header needs
-  `scroll-padding-top` on `<html>`, or a focused element can land under it (WCAG 2.4.11). Before
+  and the wordmark do not fit one row, wrapping at a large text size: never a scroll container,
+  since a tab row one pixel taller than its box used to scroll on phones); stat tiles with the
+  label above a large tabular number. The sticky header needs `scroll-padding-top` on `<html>`
+  (and `scroll-mt` on in-page targets, switching at the same 900 px), or a focused element can
+  land under it (WCAG 2.4.11). Before
   2026-10-07 the palette was mapped from xo-space's `quirq` and `linen` themes
   (`space_ui/css/themes.css`); see this file at e148ad9 for that mapping.
 - **Colors.** The tokens live in `app/globals.css`, in three blocks the contrast test parses:

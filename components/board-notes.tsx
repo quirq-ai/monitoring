@@ -71,7 +71,7 @@ function StateTally({ rows, className }: { rows: readonly BoardRow[]; className?
 /** Every repo by group as a small tinted chip: the index of the boards below, one tap to a note. */
 export function BoardOverview({ shown, total }: { shown: ShownGroup[]; total: readonly BoardRow[] }) {
   return (
-    <section id="overview" aria-labelledby="overview-title" className="flex scroll-mt-28 flex-col gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground sm:p-5 md:scroll-mt-16">
+    <section id="overview" aria-labelledby="overview-title" className="flex scroll-mt-28 flex-col gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground sm:p-5 min-[900px]:scroll-mt-16">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <h2 id="overview-title" className="text-base">
           Overview <span className="text-sm font-normal text-muted-foreground">{total.length} repos</span>
@@ -124,7 +124,7 @@ export function Board({ group, rows, wide, apiOk }: ShownGroup & { apiOk: boolea
     <section
       id={`board-${group.id}`}
       aria-labelledby={`board-${group.id}-title`}
-      className="board-surface flex min-w-0 scroll-mt-28 flex-col gap-4 rounded-2xl border border-line px-3 pt-3.5 pb-5 sm:px-5 sm:pt-4 sm:pb-6 md:scroll-mt-16"
+      className="board-surface flex min-w-0 scroll-mt-28 flex-col gap-4 rounded-2xl border border-line px-3 pt-3.5 pb-5 sm:px-5 sm:pt-4 sm:pb-6 min-[900px]:scroll-mt-16"
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <h2 id={`board-${group.id}-title`} className="flex items-baseline gap-2 text-base">
@@ -173,7 +173,7 @@ function BoardNote({ row, full, tilt, span }: { row: BoardRow; full: boolean; ti
         id={noteId(row.name)}
         data-note-state={state}
         className={cn(
-          "note relative flex min-h-12 min-w-0 scroll-mt-32 flex-col items-center justify-center gap-1 rounded-[2px_2px_8px_2px] px-1.5 pt-3 pb-2 text-center sm:items-start sm:justify-start sm:rounded-[3px_3px_10px_3px] sm:px-3 sm:pt-4 sm:pb-3 sm:text-left md:scroll-mt-20",
+          "note relative flex min-h-12 min-w-0 scroll-mt-32 flex-col items-center justify-center gap-1 rounded-[2px_2px_8px_2px] px-1.5 pt-3 pb-2 text-center sm:items-start sm:justify-start sm:rounded-[3px_3px_10px_3px] sm:px-3 sm:pt-4 sm:pb-3 sm:text-left min-[900px]:scroll-mt-20",
           tint[state],
           tilt,
         )}
@@ -196,7 +196,7 @@ function BoardNote({ row, full, tilt, span }: { row: BoardRow; full: boolean; ti
     <li
       id={noteId(row.name)}
       data-note-state={state}
-      className={cn("note relative flex min-w-0 scroll-mt-32 flex-col gap-2.5 rounded-[3px_3px_10px_3px] px-3.5 pt-4.5 pb-3.5 md:scroll-mt-20", tint[state], tilt, span)}
+      className={cn("note relative flex min-w-0 scroll-mt-32 flex-col gap-2.5 rounded-[3px_3px_10px_3px] px-3.5 pt-4.5 pb-3.5 min-[900px]:scroll-mt-20", tint[state], tilt, span)}
     >
       <span aria-hidden="true" className={cn("note-pin absolute -top-1.5 left-1/2 size-3.5 -translate-x-1/2 rounded-full", pin[state])} />
       <div className="flex items-start justify-between gap-2">

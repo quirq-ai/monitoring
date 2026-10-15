@@ -54,7 +54,7 @@ export default async function BlockersPage() {
         </p>
       ) : null}
 
-      <section id="waiting" aria-labelledby="waiting-title" className="flex scroll-mt-28 flex-col gap-2 md:scroll-mt-16">
+      <section id="waiting" aria-labelledby="waiting-title" className="flex scroll-mt-28 flex-col gap-2 min-[900px]:scroll-mt-16">
         <h2 id="waiting-title" className="flex items-baseline gap-2 text-lg">
           Waiting on you <span className="text-sm font-normal tabular-nums text-muted-foreground">{snapshot.waiting.length}</span>
         </h2>
@@ -90,7 +90,7 @@ export default async function BlockersPage() {
         )}
       </section>
 
-      <section id="broken" aria-labelledby="broken-title" className="flex scroll-mt-28 flex-col gap-2 md:scroll-mt-16">
+      <section id="broken" aria-labelledby="broken-title" className="flex scroll-mt-28 flex-col gap-2 min-[900px]:scroll-mt-16">
         <div className="flex flex-col gap-0.5">
           <h2 id="broken-title" className="flex items-baseline gap-2 text-lg">
             Broken right now <span className="text-sm font-normal tabular-nums text-muted-foreground">{broken.length}</span>
