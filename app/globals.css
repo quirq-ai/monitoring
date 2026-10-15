@@ -55,6 +55,19 @@
   --state-pending: #0070f3;
   --state-unknown: #666666;
   --state-stale: #6d28d9;
+  --board: #f0f0f0;
+  --board-dot: #d6d6d6;
+  --note-paper: #ffffff;
+  --note-green: #e6f4ea;
+  --note-red: #fdeceb;
+  --note-held: #fdf0e1;
+  --note-pending: #e9f2fe;
+  --note-stale: #f2ecfd;
+  --note-edge: 0px;
+  --note-shadow: 0 1px 2px rgb(0 0 0 / 0.08), 0 4px 10px rgb(0 0 0 / 0.06);
+  --chip-edge: transparent;
+  --pin-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  --pin-glow: 0px;
 }
 
 /* token-block: dark */
@@ -91,6 +104,19 @@
   --state-pending: #52a8ff;
   --state-unknown: #a1a1a1;
   --state-stale: #b48cff;
+  --board: #070707;
+  --board-dot: #1c1c1c;
+  --note-paper: #121212;
+  --note-green: #141e19;
+  --note-red: #211617;
+  --note-held: #201b13;
+  --note-pending: #151c23;
+  --note-stale: #1c1a23;
+  --note-edge: 2px;
+  --note-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 24px -10px rgb(0 0 0 / 0.9);
+  --chip-edge: rgb(255 255 255 / 0.06);
+  --pin-shadow: 0 0 0 3px rgb(0 0 0 / 0.55);
+  --pin-glow: 12px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -128,6 +154,19 @@
     --state-pending: #52a8ff;
     --state-unknown: #a1a1a1;
     --state-stale: #b48cff;
+    --board: #070707;
+    --board-dot: #1c1c1c;
+    --note-paper: #121212;
+    --note-green: #141e19;
+    --note-red: #211617;
+    --note-held: #201b13;
+    --note-pending: #151c23;
+    --note-stale: #1c1a23;
+    --note-edge: 2px;
+    --note-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.06), 0 12px 24px -10px rgb(0 0 0 / 0.9);
+    --chip-edge: rgb(255 255 255 / 0.06);
+    --pin-shadow: 0 0 0 3px rgb(0 0 0 / 0.55);
+    --pin-glow: 12px;
   }
 }
 
@@ -169,6 +208,13 @@
   --color-state-pending: var(--state-pending);
   --color-state-unknown: var(--state-unknown);
   --color-state-stale: var(--state-stale);
+  --color-board: var(--board);
+  --color-note-paper: var(--note-paper);
+  --color-note-green: var(--note-green);
+  --color-note-red: var(--note-red);
+  --color-note-held: var(--note-held);
+  --color-note-pending: var(--note-pending);
+  --color-note-stale: var(--note-stale);
 }
 
 @layer base {
@@ -205,6 +251,56 @@
 
 :root[data-theme="light"] .brand-wordmark {
   filter: brightness(0);
+}
+
+/*
+ * The Board's post-it notes (components/board-notes.tsx). A board is a dotted surface; a note is
+ * tinted by its repo's worst state (unknown stays plain paper with a dashed edge, so a missing
+ * value never reads as a quiet one). In light the notes lift off the board with a soft shadow; in
+ * dark they sit flat with a hairline edge, and the state shows as a thin strip along the top and a
+ * glow round the pin (`--note-edge`, `--pin-glow`), so the tints can stay near black.
+ */
+.board-surface {
+  background-color: var(--board);
+  background-image: radial-gradient(var(--board-dot) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+[data-note-state="green"] {
+  --note-accent: var(--state-green);
+}
+[data-note-state="red"] {
+  --note-accent: var(--state-red);
+}
+[data-note-state="held"] {
+  --note-accent: var(--state-held);
+}
+[data-note-state="pending"] {
+  --note-accent: var(--state-pending);
+}
+[data-note-state="stale"] {
+  --note-accent: var(--state-stale);
+}
+.note {
+  box-shadow:
+    inset 0 var(--note-edge) 0 color-mix(in srgb, var(--note-accent, transparent) 48%, transparent),
+    var(--note-shadow);
+}
+.note:target {
+  box-shadow:
+    inset 0 var(--note-edge) 0 color-mix(in srgb, var(--note-accent, transparent) 48%, transparent),
+    0 0 0 2px var(--ring),
+    var(--note-shadow);
+}
+.note-pin {
+  box-shadow:
+    var(--pin-shadow),
+    0 0 var(--pin-glow) color-mix(in srgb, var(--note-accent, transparent) 50%, transparent);
+}
+.note-chip {
+  box-shadow: inset 0 0 0 1px var(--chip-edge);
+}
+.note-chip:hover {
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 /* Fetched Markdown (the canary report), rendered by react-markdown as text only. */
