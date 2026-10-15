@@ -127,6 +127,7 @@ components/
   ui/                    shadcn, unmodified where possible
   state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
   change-matrix.tsx      Today's "what changed": one row per tracked repo, a dot per change
+  board-notes.tsx        the Board's overview index, boards and post-it notes
   new-tab.tsx            the two attributes every link that leaves the dashboard carries
   api-banner.tsx         one Alert when the GitHub API as a whole is out
   markdown.tsx           react-markdown with raw HTML off, for the canary report
@@ -232,8 +233,9 @@ ago", and it reads a time or window it cannot judge as stale.
   does not repeat its title, and API cells then say just `unknown: no token` or `rate limited`,
   carrying `because: "api"` (`isApiOutageReason`: no token, rate limit, rejected token, a wait
   after a 5xx; never a 404, a bad body or a refused name, which are the row's own). A Board row
-  whose only unknowns are that cause is `quiet`, and the phone Board folds it to one line while
-  the banner is up, so a token outage reads as one line, not thirty open cards.
+  whose only unknowns are that cause is `quiet`, and the Board shows it as a small note (its name
+  only, like a green one) while the banner is up, so a token outage reads as one line, not thirty
+  full notes (`needsLook` in `lib/model/board-view.ts`).
 - **GitHub API.** Always go through `lib/github.ts`. It sends the token only to `api.github.com`,
   reads the rate-limit headers, counts requests per hour, and returns
   `ok: false, reason: "GitHub API rate limit, resets at <time>"` instead of throwing. With no token
@@ -410,9 +412,21 @@ demo subjects in one constant; demo records never count toward "waiting on you".
   tracked repos with no change fold into one line that opens into their names, so "nothing
   changed" is said rather than hidden; the alarms in "Needs a look" also count in their rows, so a
   row's count is whole.
-- Phone first: what needs a look comes first (Today's "Needs a look", the Board's row order by
-  worst state), and a green or quiet non-product repo on the Board is one line that opens on tap
-  (Collapsible), a run of such lines sharing one card. Every page segment has a `loading.tsx`
+- The Board is post-it notes (`components/board-notes.tsx`, suraj's design of 2026-10-15): an
+  overview that indexes every repo as a small chip tinted by its state, each a `#repo-<name>` link
+  to its note, then one dotted board per registry group (products and any group of more than seven
+  repos across the page, the smaller ones three to a row). A note is tinted by its repo's worst
+  state (`--note-*`), pinned with a dot in that color and slightly tilted; `unknown` is plain
+  paper with a dashed `--border` edge, never a tint, so a missing value does not look quiet.
+  Products and repos that need a look are full notes: their health fields with the ones that need
+  a look first (`byConcern`), each state other than green said in words (green is the dot, with
+  the word for screen readers), then open PRs and the last merge. A green or quiet non-product
+  repo is a small note with its name (and one line of CI and PRs from `sm` up). `?show=look`
+  keeps only the notes that need a look; a board left empty says so. In dark the notes sit flat
+  with a hairline edge and show their state as a thin top strip and a glow round the pin
+  (`--note-edge`, `--pin-glow`), so the tints stay near black.
+- Phone first: what needs a look comes first (Today's "Needs a look", the Board's notes ordered by
+  worst state). Every page segment has a `loading.tsx`
   (Skeleton) except the repo page, where a Suspense boundary would stream a 200 before
   `notFound()` can answer 404; `app/error.tsx` shows
   one fixed sentence and the digest (production replaces the message with a minified one) and
@@ -456,6 +470,9 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 | `--ring` | `#0070f3` | `#52a8ff` | |
 | `--state-green`, `-red`, `-held`, `-pending`, `-unknown`, `-stale` | `#0f7a3e`, `#cc1f1a`, `#b45309`, `#0070f3`, `#666666`, `#6d28d9` | `#3ecf8e`, `#ff6166`, `#f5a623`, `#52a8ff`, `#a1a1a1`, `#b48cff` | markers, at least 3:1 on every surface |
 | `--chart-1` to `--chart-5` | pending, green, held, stale, red | the same | |
+| `--board` / `--board-dot` | `#f0f0f0` / `#d6d6d6` | `#070707` / `#1c1c1c` | the Board's dotted surface; the dots are decoration |
+| `--note-paper` | `#ffffff` | `#121212` | an unknown note, and the pin's paper |
+| `--note-green`, `-red`, `-held`, `-pending`, `-stale` | `#e6f4ea`, `#fdeceb`, `#fdf0e1`, `#e9f2fe`, `#f2ecfd` | `#141e19`, `#211617`, `#201b13`, `#151c23`, `#1c1a23` | note tints; text at least 4.5:1 and every state marker at least 3:1 on each |
 
 Use `--line` only for purely decorative dividers that carry no meaning (list rows, the header
 rule, table rows); anything that outlines a control, a card edge you rely on, or a state uses

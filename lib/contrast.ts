@@ -39,6 +39,20 @@ export const MARKER_PAIRS = [
   ["--state-stale", "--muted"],
 ] as const;
 
+/** The Board's surfaces: the dotted board and the note tints. Text and every state marker sit on each. */
+export const NOTE_SURFACES = ["--board", "--note-paper", "--note-green", "--note-red", "--note-held", "--note-pending", "--note-stale"] as const;
+
+const STATE_TOKENS = ["--state-green", "--state-red", "--state-held", "--state-pending", "--state-unknown", "--state-stale"] as const;
+
+export const NOTE_TEXT_PAIRS = NOTE_SURFACES.flatMap((bg) => [["--foreground", bg] as const, ["--muted-foreground", bg] as const]);
+
+// The unknown note's dashed edge is `--border`, against the paper inside it and the board around it.
+export const NOTE_MARKER_PAIRS = [
+  ...NOTE_SURFACES.flatMap((bg) => STATE_TOKENS.map((fg) => [fg, bg] as const)),
+  ["--border", "--note-paper"] as const,
+  ["--border", "--board"] as const,
+];
+
 const TEXT_MIN = 4.5;
 const MARKER_MIN = 3;
 
@@ -138,5 +152,7 @@ export function themeContrastFailures(tokens: TokenBlock): string[] {
   return [
     ...contrastFailures(tokens, TEXT_PAIRS, TEXT_MIN),
     ...contrastFailures(tokens, MARKER_PAIRS, MARKER_MIN),
+    ...contrastFailures(tokens, NOTE_TEXT_PAIRS, TEXT_MIN),
+    ...contrastFailures(tokens, NOTE_MARKER_PAIRS, MARKER_MIN),
   ];
 }

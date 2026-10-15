@@ -158,20 +158,47 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByText(/Planted/)).toHaveCount(0);
   });
 
-  test("Board lists every registry repo once with the planted red CI and failed deploy", async ({ page }) => {
+  test("Board pins every registry repo once as a note, with the planted red CI and failed deploy", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/board");
+    const notes = page.locator("main li[id^='repo-']");
     for (const repo of ["innernet", "xo-space", "website", "gate", "release", "gardener", "monitoring", "wiki", "euler"]) {
+      // The overview chips are named "<repo>, <state>", so the note's own link is the only exact match.
       await expect(page.getByRole("link", { name: repo, exact: true })).toHaveCount(1);
+      await expect(notes.filter({ has: page.getByRole("link", { name: repo, exact: true }) })).toHaveCount(1);
     }
-    const xo = page.getByRole("row").filter({ has: page.getByRole("link", { name: "xo-space", exact: true }) });
+    const xo = page.locator("#repo-xo-space");
     await expect(xo.getByText("1 of 2 failed: presubmit")).toBeVisible();
-    const website = page.getByRole("row").filter({ has: page.getByRole("link", { name: "website", exact: true }) });
-    await expect(website.getByText(/failure 7f3b1a2/)).toBeVisible();
     await expect(xo.getByText(/held: held at verify/)).toBeVisible();
-    // Every column is in view: no table hides columns behind its wrapper's horizontal scroll.
-    const hidden = await page.locator("[data-slot=table-container]").evaluateAll((els) => els.map((el) => el.scrollWidth - el.clientWidth));
-    expect(hidden, "table columns hidden behind a scroll").toEqual(hidden.map(() => 0));
+    await expect(page.locator("#repo-website").getByText(/failure 7f3b1a2/)).toBeVisible();
+    // A note is tinted by its repo's worst state; unknown stays paper with a dashed edge.
+    await expect(xo).toHaveAttribute("data-note-state", "red");
+    await expect(page.locator("#repo-gate")).toHaveAttribute("data-note-state", "pending");
+    expect(await page.locator("#repo-wiki").evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("dashed");
+    // The overview indexes every note once, by state, and a chip jumps to its note, clear of the
+    // sticky header.
+    const chips = page.locator("#overview").getByRole("link", { name: /^\S+, (green|red|held|pending|unknown|stale)$/ });
+    await expect(chips).toHaveCount(await notes.count());
+    await page.locator("#overview").getByRole("link", { name: "gate, pending" }).click();
+    await expect(page).toHaveURL(/#repo-gate$/);
+    const gate = page.locator("#repo-gate");
+    await expect(gate).toBeInViewport();
+    expect(await gate.evaluate((el) => el.matches(":target")), "the jumped-to note is the target").toBe(true);
+    const below = await gate.evaluate((el) => el.getBoundingClientRect().top - document.querySelector("header")!.getBoundingClientRect().bottom);
+    expect(below, "the note is not under the sticky header").toBeGreaterThanOrEqual(0);
+  });
+
+  test("Board's needs-a-look filter keeps only the notes that need a look", async ({ page }) => {
+    await page.goto("/board?show=look");
+    await expect(page.getByRole("link", { name: "needs a look" })).toHaveAttribute("aria-current", "page");
+    const ids = await page.locator("main li[id^='repo-']").evaluateAll((els) => els.map((el) => el.id).sort());
+    expect(ids).toEqual(["repo-gate", "repo-website", "repo-wiki", "repo-xo-space"]);
+    await expect(page.locator("#overview").getByRole("link", { name: /, / })).toHaveCount(4);
+    // A board with nothing to look at says so rather than vanishing; its tally still counts its repos.
+    await expect(page.getByText("Nothing on this board needs a look.")).toHaveCount(2);
+    await expect(page.locator("#board-other")).toContainText("7 green");
+    await page.getByRole("link", { name: "all notes" }).click();
+    await expect(page.locator("#repo-depot")).toBeVisible();
   });
 
   test("Release shows the channels in file order and a held canary with its hold", async ({ page }) => {
@@ -274,38 +301,29 @@ test.describe("content from the fixtures", () => {
     expect(colors.pill).toEqual({ color: colors.foreground, background: colors.muted });
   });
 
-  test("on a phone the Board folds green repos into one line each and stays short", async ({ page }) => {
+  test("on a phone the Board's green repos are small notes and the page stays short", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/board");
-    // A green infra repo is a collapsed row: its fields are hidden until the chevron is tapped.
-    const details = page.getByRole("button", { name: "Details for depot" });
-    await expect(details).toBeVisible();
-    const fields = page.getByText("CI on main", { exact: true });
-    const before = await fields.count();
-    expect(before, "the products and the repos that need a look are open cards").toBeGreaterThanOrEqual(4);
-    await details.click();
-    await expect(fields).toHaveCount(before + 1);
-    // A repo name at GitHub's 100-character limit wraps inside its folded row: the badge and the
-    // chevron stay in the card and the page does not scroll sideways.
-    const row = details.locator("xpath=parent::*");
-    const link = row.locator('a[href="/repos/depot"]');
-    await link.locator("span").evaluate((el) => (el.textContent = "d".repeat(100)));
-    const card = row.locator("xpath=ancestor::*[@data-slot='card'][1]");
-    const cardBox = await card.boundingBox();
-    const badgeBox = await row.locator(".state-badge").boundingBox();
-    const chevronBox = await details.boundingBox();
-    expect(cardBox && badgeBox && chevronBox, "the row, its badge and its chevron are on the page").toBeTruthy();
-    expect(badgeBox!.x + badgeBox!.width, "the badge stays inside the card").toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
-    expect(chevronBox!.x + chevronBox!.width, "the chevron stays inside the card").toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
-    expect(await link.evaluate((el) => el.scrollWidth - el.clientWidth), "the name wraps inside its link rather than running under the badge").toBeLessThanOrEqual(0);
+    // The products and the repos that need a look are full notes with their fields; a green repo
+    // is a small note with its name, its state said to screen readers.
+    await expect(page.getByText("CI on main", { exact: true })).toHaveCount(5);
+    const depot = page.locator("#repo-depot");
+    const link = depot.getByRole("link", { name: "depot", exact: true });
+    await expect(link).toBeVisible();
+    await expect(depot.getByText(/checks passed/)).toBeHidden();
+    await expect(depot.locator(".sr-only")).toHaveText("green");
+    // A repo name at GitHub's 100-character limit wraps inside its small note, and the page does
+    // not scroll sideways.
+    await link.evaluate((el) => (el.textContent = "d".repeat(100)));
+    expect(await depot.evaluate((el) => el.scrollWidth - el.clientWidth), "the name wraps inside its note").toBeLessThanOrEqual(0);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(sideways, "no horizontal page scroll with a long name").toBeLessThanOrEqual(0);
     const height = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(height, "under five phone screens, down from ten").toBeLessThan(4200);
-    // The rows that need a look come first in each group.
-    const names = await page.locator("main a[href^='/repos/']").evaluateAll((els) => els.map((e) => e.textContent?.trim()));
-    expect(names.indexOf("xo-space")).toBeLessThan(names.indexOf("innernet"));
-    expect(names.indexOf("gate")).toBeLessThan(names.indexOf("depot"));
+    expect(height, "under five phone screens").toBeLessThan(4200);
+    // The notes that need a look come first on each board (by id: depot's name was just replaced).
+    const ids = await page.locator("main li[id^='repo-']").evaluateAll((els) => els.map((e) => e.id));
+    expect(ids.indexOf("repo-xo-space")).toBeLessThan(ids.indexOf("repo-innernet"));
+    expect(ids.indexOf("repo-gate")).toBeLessThan(ids.indexOf("repo-depot"));
   });
 
   test("a repo name at GitHub's 100-character limit wraps wherever one is shown", async ({ page }) => {
