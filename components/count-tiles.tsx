@@ -5,7 +5,7 @@ import { ago } from "@/lib/model/time";
 import type { Snapshot } from "@/lib/model/types";
 
 /**
- * The three numbers at the top of Today, each a link to where the items are. A count whose
+ * The three numbers at the top of Blockers, each a link to where the items are. A count whose
  * sources were not all read is a floor ("3+"), and a zero built from no data is "?", never a
  * green zero. A count whose sources were read long past their window is shown stale, with when.
  * The number is the text color; the state dot next to the label carries the tone (the outlined
@@ -13,7 +13,7 @@ import type { Snapshot } from "@/lib/model/types";
  */
 export function CountTiles({ counts, reads, now }: { counts: Snapshot["counts"]; reads: Snapshot["reads"]; now: Date }) {
   const tiles: { label: string; value: number; href: string; complete: boolean; read: Snapshot["reads"]["waiting"] | undefined; tone: State }[] = [
-    { label: "waiting on you", value: counts.waiting, href: "/waiting", complete: counts.waitingComplete, read: reads.waiting, tone: counts.waiting ? "pending" : "green" },
+    { label: "waiting on you", value: counts.waiting, href: "#waiting", complete: counts.waitingComplete, read: reads.waiting, tone: counts.waiting ? "pending" : "green" },
     { label: "red or held", value: counts.redOrHeld, href: "/board", complete: counts.redOrHeldComplete, read: reads.board, tone: counts.redOrHeld ? "red" : "green" },
     { label: "unknown, stale or failing", value: counts.unknownOrStale, href: "/health", complete: true, read: undefined, tone: counts.unknownOrStale ? "unknown" : "green" },
   ];

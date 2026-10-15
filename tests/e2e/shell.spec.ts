@@ -54,7 +54,7 @@ test.describe("theme and contrast", () => {
       test(`${viewport.name} ${theme}`, async ({ page }) => {
         await page.setViewportSize({ width: viewport.width, height: viewport.height });
         await openThemed(page, theme);
-        await expect(page.getByRole("heading", { name: "Today" })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1, name: "Calendar" })).toBeVisible();
         await expect(page.getByRole("img", { name: "quirq" })).toBeVisible();
 
         const tokens = await computedTokens(page);

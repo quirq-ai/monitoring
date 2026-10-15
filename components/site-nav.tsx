@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 const pages = [
-  { href: "/", label: "Today" },
-  { href: "/waiting", label: "Waiting" },
+  { href: "/", label: "Calendar" },
+  { href: "/blockers", label: "Blockers" },
   { href: "/board", label: "Board" },
   { href: "/release", label: "Release" },
   { href: "/health", label: "Health" },
@@ -31,7 +31,7 @@ export function SiteNav() {
                 href={p.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-2 text-sm -outline-offset-2 md:min-h-14 md:px-3",
+                  "inline-flex min-h-11 items-center whitespace-nowrap border-b-2 px-1 text-sm min-[400px]:px-2 -outline-offset-2 md:min-h-14 md:px-3",
                   current ? "border-foreground font-medium text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >

@@ -79,25 +79,7 @@ export function ChangeMatrix({ changed, quiet, now }: { changed: MatrixRow[]; qu
         })}
         {quiet.length ? (
           <li>
-            <Collapsible>
-              <CollapsibleTrigger className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-sm text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180">
-                <span className="min-w-0 flex-1 wrap-anywhere">
-                  {quiet.length} tracked {quiet.length === 1 ? "repo" : "repos"} with no change
-                </span>
-                <ChevronDown className="size-5 shrink-0 transition-transform" aria-hidden="true" />
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <ul className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-3 text-sm">
-                  {quiet.map((name) => (
-                    <li key={name}>
-                      <Link href={`/repos/${name}`} className="inline-flex min-h-8 items-center wrap-anywhere underline-offset-2 hover:underline">
-                        {name}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </CollapsibleContent>
-            </Collapsible>
+            <QuietRepos quiet={quiet} />
           </li>
         ) : null}
       </ul>
@@ -114,5 +96,33 @@ export function ChangeMatrix({ changed, quiet, now }: { changed: MatrixRow[]; qu
         </p>
       ) : null}
     </Card>
+  );
+}
+
+/**
+ * The tracked repos with no change, folded into one line that opens into their names, so
+ * "nothing changed" is said rather than hidden. Shared by the matrix and the Calendar's day list.
+ */
+export function QuietRepos({ quiet }: { quiet: string[] }) {
+  return (
+    <Collapsible>
+      <CollapsibleTrigger className="flex min-h-11 w-full items-center gap-3 px-4 py-2 text-left text-sm text-muted-foreground hover:bg-muted [&[data-state=open]>svg]:rotate-180">
+        <span className="min-w-0 flex-1 wrap-anywhere">
+          {quiet.length} tracked {quiet.length === 1 ? "repo" : "repos"} with no change
+        </span>
+        <ChevronDown className="size-5 shrink-0 transition-transform" aria-hidden="true" />
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 px-4 pb-3 text-sm">
+          {quiet.map((name) => (
+            <li key={name}>
+              <Link href={`/repos/${name}`} className="inline-flex min-h-8 items-center wrap-anywhere underline-offset-2 hover:underline">
+                {name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
