@@ -19,6 +19,16 @@ describe("tree history", () => {
   it("parses a status message and ignores anything else", () => {
     expect(parseMessage("tree-status: innernet open, xo-space closed\n\nbody")).toEqual({ innernet: "open", "xo-space": "closed" });
     expect(parseMessage("Merge pull request")).toEqual({});
+    // The groups commit the gardener will push next to the status files names no repo state.
+    expect(parseMessage("groups: 2 red ranges")).toEqual({});
+    expect(parseMessage("groups: 0 red ranges 6c9652e1684b3daab253852f011657bcf16f7341\n\nbody")).toEqual({});
+    expect(parseMessage("groups: 1 red ranges\n\ntree-status: innernet open")).toEqual({});
+  });
+
+  it("reads 100 commits in one request", async () => {
+    const fixtures = await withFixtures([{ path: "/repos/quirq-ai/gardener/commits", query: { sha: "tree-status", per_page: "100" }, body: "[]" }]);
+    expect(await readTreeHistory()).toMatchObject({ ok: true, value: [] });
+    expect(fixtures.log.api).toBe(1);
   });
 
   it("is unknown on a malformed log and without a token", async () => {

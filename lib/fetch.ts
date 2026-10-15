@@ -22,6 +22,16 @@ export function rawUrl(repo: string, branch: string, path: string): string {
   return `${rawBase()}/${ORG}/${repo}/refs/heads/${branch}/${path}`;
 }
 
+/** A file at one commit, for a pin (`pins.toml`): a full 40-character id, never a branch or a tag. */
+export function rawCommitUrl(repo: string, commit: string, path: string): string {
+  if (!isCommitId(commit)) throw new Error(`not a commit id: ${commit}`);
+  return `${rawBase()}/${ORG}/${repo}/${commit}/${path}`;
+}
+
+export function isCommitId(value: string): boolean {
+  return /^[0-9a-f]{40}$/.test(value);
+}
+
 /** The link a person opens: the file on GitHub. */
 export function blobUrl(repo: string, branch: string, path: string): string {
   return `https://github.com/${ORG}/${repo}/blob/${branch}/${path}`;
@@ -74,10 +84,18 @@ export async function fetchRaw(
   path: string,
   revalidate: number,
 ): Promise<RawResult> {
-  const url = rawUrl(repo, branch, path);
+  return readRawUrl(rawUrl(repo, branch, path), `${repo}:${branch} ${path}`, revalidate);
+}
+
+/** Read a file at a pinned commit. A commit's files never change, so only a 404 is remembered. */
+export async function fetchRawAtCommit(repo: string, commit: string, path: string, revalidate: number): Promise<RawResult> {
+  return readRawUrl(rawCommitUrl(repo, commit, path), `${repo}@${commit.slice(0, 7)} ${path}`, revalidate);
+}
+
+async function readRawUrl(url: string, what: string, revalidate: number): Promise<RawResult> {
   const maxAge = revalidate;
   if (isRememberedMissing(url)) {
-    return { ok: false, status: 404, reason: `${repo}:${branch} ${path} returned 404`, fetchedAt: new Date().toISOString(), maxAge };
+    return { ok: false, status: 404, reason: `${what} returned 404`, fetchedAt: new Date().toISOString(), maxAge };
   }
   try {
     const res = await fetch(url, {
@@ -88,11 +106,11 @@ export async function fetchRaw(
     const fetchedAt = readAt(res.headers);
     if (!res.ok) {
       if (res.status === 404) rememberMissing(url, revalidate);
-      return { ok: false, status: res.status, reason: `${repo}:${branch} ${path} returned ${res.status}`, fetchedAt, maxAge };
+      return { ok: false, status: res.status, reason: `${what} returned ${res.status}`, fetchedAt, maxAge };
     }
     return { ok: true, text: await res.text(), status: res.status, fetchedAt, maxAge };
   } catch (error) {
-    return { ok: false, reason: `${repo}:${branch} ${path}: ${describeError(error)}`, fetchedAt: new Date().toISOString(), maxAge };
+    return { ok: false, reason: `${what}: ${describeError(error)}`, fetchedAt: new Date().toISOString(), maxAge };
   }
 }
 

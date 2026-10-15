@@ -7,14 +7,15 @@ import { SiteNav } from "@/components/site-nav";
 /**
  * Sticky header: the wordmark and the settings and theme buttons at the edges, the page tabs
  * centered between them (a three-column grid, so the tabs sit in the middle of the header whatever
- * the edges measure). On a phone the tabs are their own centered row under the wordmark.
+ * the edges measure). Below 900 px, where six tabs and the wordmark do not fit one row, the tabs
+ * are their own centered row under the wordmark.
  */
 export function SiteHeader() {
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 md:px-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-col md:grid md:grid-cols-[1fr_auto_1fr] md:items-center md:gap-4">
+      <div className="mx-auto flex w-full max-w-6xl flex-col min-[900px]:grid min-[900px]:grid-cols-[1fr_auto_1fr] min-[900px]:items-center min-[900px]:gap-4">
         <div className="flex h-14 items-center gap-3">
-          <Link href="/" aria-label="quirq" className="flex items-center">
+          <Link href="/" aria-label="quirq" className="flex shrink-0 items-center">
             {/* White artwork from innernet public/brand/quirq. Light theme recolors it in CSS. */}
             <Image src="/brand/quirq/wordmark.svg" alt="quirq" width={307} height={159} priority unoptimized className="brand-wordmark" />
           </Link>
@@ -22,13 +23,13 @@ export function SiteHeader() {
             /
           </span>
           <span className="text-sm font-medium text-muted-foreground">Monitoring</span>
-          <div className="ml-auto flex md:hidden">
+          <div className="ml-auto flex min-[900px]:hidden">
             <SettingsLink />
             <ThemeToggle />
           </div>
         </div>
         <SiteNav />
-        <div className="hidden justify-self-end md:flex">
+        <div className="hidden justify-self-end min-[900px]:flex">
           <SettingsLink />
           <ThemeToggle />
         </div>

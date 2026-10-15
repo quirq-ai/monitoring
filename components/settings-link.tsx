@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export function SettingsLink() {
   const current = usePathname().startsWith("/settings");
   return (
-    <Button asChild variant="ghost" size="icon" className={cn("size-11 md:size-9", current ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>
+    <Button asChild variant="ghost" size="icon" className={cn("size-11 min-[900px]:size-9", current ? "text-foreground" : "text-muted-foreground hover:text-foreground")}>
       <Link href="/settings" aria-label="Settings" title="Settings" aria-current={current ? "page" : undefined}>
         <Settings aria-hidden="true" />
       </Link>
