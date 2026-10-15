@@ -170,6 +170,14 @@ describe("coverage", () => {
     expect(JSON.stringify(odd)).not.toContain("<b>");
   });
 
+  it("is pending for a running entry it cannot read, and shows only a safe builder name", async () => {
+    const odd = await read({ ...empty, pending: ["???"] });
+    expect(odd?.cell).toMatchObject({ state: "pending", text: expect.stringContaining("1 entry could not be read") });
+    const named = await read({ ...empty, pending: [`${A} <img src=x>`, `${B} innernet-postsubmit`] });
+    expect(named?.pending).toEqual([{ sha: B, builder: "innernet-postsubmit" }]);
+    expect(named?.unread).toBe(1);
+  });
+
   it("is unknown, not green, when no commit was checked yet", async () => {
     expect((await read({ ...empty, commits: 0, since: "" }))?.cell.state).toBe("unknown");
     expect((await read(empty))?.cell).toMatchObject({ state: "green", text: "every commit has a result; 6 commits checked" });
@@ -195,6 +203,12 @@ describe("history", () => {
     await withFixtures([{ path: "/repos/quirq-ai/gardener/commits", body: JSON.stringify(commits) }]);
     const view = await buildGardener();
     expect(view.history).toMatchObject({ ok: true, commits: HISTORY_COMMITS, full: true });
+    // A history link that does not point at github.com falls back to the branch's commit list.
+    const bad = commits.slice(0, 3).map((c, i) => ({ ...c, html_url: "javascript:alert(1)", commit: { ...c.commit, message: `tree-status: innernet ${i % 2 ? "closed" : "open"}` } }));
+    await withFixtures([{ path: "/repos/quirq-ai/gardener/commits", body: JSON.stringify(bad) }]);
+    const odd = await buildGardener();
+    expect(odd.history.ok && odd.history.events.length).toBeGreaterThanOrEqual(2);
+    for (const e of odd.history.ok ? odd.history.events : []) expect(e.url).toMatch(/^https:\/\/github\.com\//);
     await withFixtures();
     const short = await buildGardener();
     expect(short.history.ok && short.history.full).toBe(false);

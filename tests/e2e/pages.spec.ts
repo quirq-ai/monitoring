@@ -142,22 +142,45 @@ test.describe("content from the fixtures", () => {
     await expect(page.getByRole("link", { name: "Settings" })).toHaveAttribute("aria-current", "page");
   });
 
-  test("the tabs keep one row at every phone width from 334 px up", async ({ page }) => {
-    // 412 (common Android) and 414 to 430 (larger iPhones) used to wrap; 320 wraps, as it always has.
-    await page.setViewportSize({ width: 334, height: 800 });
-    await page.goto("/board");
-    const wrapped: number[] = [];
-    for (let width = 334; width <= 900; width++) {
-      await page.setViewportSize({ width, height: 800 });
-      const rows = await page.getByRole("navigation", { name: "Pages" }).evaluate((el) => {
-        const tops = [...el.querySelectorAll("a")].map((a) => Math.round(a.getBoundingClientRect().top));
-        return new Set(tops).size;
-      });
-      const header = await page.locator("header").evaluate((h) => h.getBoundingClientRect().height);
-      const scrolls = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-      if (rows !== 1 || header > 101 || scrolls) wrapped.push(width);
+  test("the header keeps the full wordmark, centered tabs and one row of tabs at every width", async ({ page }) => {
+    // Every width from 300 to 1000 px, and every 5 px up to 1280, on four pages. Below 334 px the tabs may wrap (as they always
+    // have at 320); from 334 px up they keep one row. The wordmark (the home link) never shrinks, and
+    // each row of tabs stays centered: six tabs once crushed it at 768-884 px.
+    test.setTimeout(300_000);
+    const problems: string[] = [];
+    for (const path of ["/board", "/gardener", "/health", "/settings"]) {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.goto(path);
+      for (let width = 300; width <= 1280; width += width < 1000 ? 1 : 5) {
+        await page.setViewportSize({ width, height: 800 });
+        const m = await page.evaluate(() => {
+          const header = document.querySelector("header")!.getBoundingClientRect();
+          const mark = document.querySelector("header img.brand-wordmark")!.getBoundingClientRect();
+          const tabs = [...document.querySelectorAll('nav[aria-label="Pages"] a')].map((a) => a.getBoundingClientRect());
+          const rows = new Map<number, DOMRect[]>();
+          for (const t of tabs) rows.set(Math.round(t.top), [...(rows.get(Math.round(t.top)) ?? []), t]);
+          const offCenter = Math.max(...[...rows.values()].map((r) => Math.abs((Math.min(...r.map((t) => t.left)) + Math.max(...r.map((t) => t.right))) / 2 - (header.left + header.right) / 2)));
+          return {
+            mark: mark.width,
+            rows: rows.size,
+            offCenter,
+            height: header.height,
+            edge: Math.min(...tabs.map((t) => t.left), ...tabs.map((t) => window.innerWidth - t.right)),
+            scrolls: document.documentElement.scrollWidth > window.innerWidth,
+          };
+        });
+        const bad = [
+          m.mark < 46 && `wordmark ${m.mark.toFixed(1)} px`,
+          m.offCenter > 1 && `tabs ${m.offCenter.toFixed(1)} px off center`,
+          width >= 334 && m.rows !== 1 && `${m.rows} rows of tabs`,
+          width >= 334 && m.height > 101 && `header ${m.height} px`,
+          m.edge < 4 && `a tab ${m.edge.toFixed(1)} px from the edge`,
+          m.scrolls && "sideways scroll",
+        ].filter(Boolean);
+        if (bad.length) problems.push(`${path} at ${width}: ${bad.join(", ")}`);
+      }
     }
-    expect(wrapped, "widths where the tabs wrap, the header grows or the page scrolls sideways").toEqual([]);
+    expect(problems.slice(0, 20), `${problems.length} problems`).toEqual([]);
   });
 
   test("links that leave the dashboard open in a new tab; page links stay in this one", async ({ page }) => {

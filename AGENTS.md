@@ -464,8 +464,8 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - **Look.** Vercel's: suraj asked for it on 2026-10-07 ("sleek, professional, modern Vercel-type
   UI"), on shadcn components. Near-monochrome surfaces and text, hairline dividers, color only for
   the six states; a compact sticky header with the wordmark and the theme toggle at the edges and
-  the underlined tabs centered between them (their own centered row on a phone, wrapping at a
-  large text size: never a scroll container, since a tab row one pixel taller than its box used
+  the underlined tabs centered between them (their own centered row below 900 px, where six tabs
+  and the wordmark do not fit one row, wrapping at a large text size: never a scroll container, since a tab row one pixel taller than its box used
   to scroll on phones); stat tiles with the label above a large tabular number. The sticky header needs
   `scroll-padding-top` on `<html>`, or a focused element can land under it (WCAG 2.4.11). Before
   2026-10-07 the palette was mapped from xo-space's `quirq` and `linen` themes
