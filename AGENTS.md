@@ -149,6 +149,7 @@ config/
   freshness.ts           window per writer job
   owner.ts               whose "waiting on you" it is (MONITORING_OWNER)
   demo.ts                planted records that are never counted
+  checks.ts              check runs on a head that are not that repo's own CI (test-pipelines' compat jobs)
   settings.ts            the files the settings editor edits, and what a merged edit does
 tests/
   live-check.ts          `pnpm live`: every source once against GitHub
@@ -305,7 +306,10 @@ cloud session, and REST with the issue search covers the same questions in a han
   `qq-failure` issues are filed in more than one repo (release and test-pipelines today), so
   search the org, not one repo. About 24 an hour.
 - One `commits/<branch>/check-runs` call per board repo, cached 600 s: about 180 an hour for 30
-  repos. Deployments (`deployments` and the latest status) are read for products only.
+  repos. A head with more than 50 runs is read further, up to 4 pages (test-pipelines' compat
+  check puts one run per org repo on its head, so it takes a second page there); the rollup then
+  leaves out the runs `config/checks.ts` says are not the repo's own (test-pipelines'
+  `compat (<repo>)` jobs, each another repo's verdict). Deployments (`deployments` and the latest status) are read for products only.
 - One `actions/workflows/<file>/runs` call per writer workflow (9), cached 300 s: about 108 an
   hour.
 - Directory listings through the contents API, cached 300 s: test-pipelines `results` failures/
@@ -330,14 +334,15 @@ cloud session, and REST with the issue search covers the same questions in a han
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
 Lists are cut at their page size and say so: an open-PR count is a floor ("3+") when the search
-had more than 100 results, and a head with more than 50 check runs rolls up `unknown`.
+had more than 100 results, and a head with more than 200 check runs (4 pages), or a later page
+that cannot be read, rolls up `unknown`.
 
 `lib/github.ts` counts the client's calls per hour (`requestsThisHour`, per server process, and a
 call the Data Cache answers is counted too) and the Health page shows the count. A model test
 asserts that one cold render of every page makes at most 70 API requests against the fixture
 server, so a new per-repo call cannot slip in unnoticed. Every request carries `per_page`; nothing
-paginates, so a list longer than a page is cut, which is fine for a dashboard that shows the newest
-items.
+paginates but a head's check runs (above), so a list longer than a page is cut, which is fine for a
+dashboard that shows the newest items.
 
 ## Sources
 

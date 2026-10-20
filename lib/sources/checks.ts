@@ -2,12 +2,16 @@ import { z } from "zod";
 import { parseValue } from "@/lib/fetch";
 import { ghGet, repoPath, web } from "@/lib/github";
 import { failSignal, okSignal, type Signal, type State, unreadAt } from "@/lib/signal";
+import { isOwnCheck } from "@/config/checks";
 
 // The check runs on a branch's head commit, rolled up into one state. Branch names come from
 // the registry, never from a visitor.
 
 const REVALIDATE = 600;
 const PER_PAGE = 50;
+// A head with more runs than one page is read further, up to this many pages: test-pipelines'
+// compatibility check adds one run per org repo to its head (config/checks.ts).
+const MAX_PAGES = 4;
 
 const CheckSchema = z
   .object({
@@ -38,33 +42,45 @@ export async function readBranchChecks(repo: string, branch: string): Promise<Si
   // so for the rest instead of throwing out of the page (one failing source never breaks a page).
   if (!/^[A-Za-z0-9_.\/-]{1,200}$/.test(branch)) return failSignal(source, web.repo(repo), `not a usable branch name: ${JSON.stringify(branch).slice(0, 60)}`, unreadAt(REVALIDATE));
   const sourceUrl = web.commits(repo, branch);
-  const api = await ghGet<unknown>(repoPath(repo, `commits/${encodeURIComponent(branch)}/check-runs`), {
-    revalidate: REVALIDATE,
-    params: { per_page: PER_PAGE },
-  });
-  if (!api.ok) {
-    const why = api.status === 404 ? `no branch ${branch}` : api.reason;
-    return failSignal(source, sourceUrl, why, api);
+  const path = repoPath(repo, `commits/${encodeURIComponent(branch)}/check-runs`);
+  const first = await ghGet<unknown>(path, { revalidate: REVALIDATE, params: { per_page: PER_PAGE } });
+  if (!first.ok) {
+    const why = first.status === 404 ? `no branch ${branch}` : first.reason;
+    return failSignal(source, sourceUrl, why, first);
   }
-  const parsed = parseValue(ResponseSchema, api.data, `${repo} check runs`);
-  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, api);
-  const checks: CheckRun[] = parsed.value.check_runs.map((c) => ({
+  const parsed = parseValue(ResponseSchema, first.data, `${repo} check runs`);
+  if (!parsed.ok) return failSignal(source, sourceUrl, parsed.reason, first);
+  const total = parsed.value.total_count;
+  const runs = [...parsed.value.check_runs];
+  // A later page that fails or does not parse leaves the runs it held unread, which the rollup
+  // below reports as it does a head with more runs than it reads.
+  for (let page = 2; page <= MAX_PAGES && runs.length < total; page++) {
+    const next = await ghGet<unknown>(path, { revalidate: REVALIDATE, params: { per_page: PER_PAGE, page } });
+    if (!next.ok) break;
+    const more = parseValue(ResponseSchema, next.data, `${repo} check runs`);
+    if (!more.ok || more.value.check_runs.length === 0) break;
+    runs.push(...more.value.check_runs);
+  }
+  const headSha = runs[0]?.head_sha ?? "";
+  const own = runs.filter((c) => isOwnCheck(repo, c.name));
+  const unread = Math.max(0, total - runs.length);
+  const checks: CheckRun[] = own.map((c) => ({
     name: c.name,
     status: c.status,
     conclusion: c.conclusion ?? "",
     url: c.html_url ?? sourceUrl,
     completedAt: c.completed_at,
   }));
-  const headSha = parsed.value.check_runs[0]?.head_sha ?? "";
   // A failure among the runs read is red whatever was not read; anything else is unknown.
   const full = rollup(checks);
+  const counted = checks.length + unread;
   const verdict =
-    parsed.value.total_count > checks.length && full.state !== "red"
-      ? { state: "unknown" as const, summary: `more than ${PER_PAGE} check runs on the head commit (${parsed.value.total_count}); only ${checks.length} read` }
-      : parsed.value.total_count > checks.length
-        ? { ...full, summary: `${full.summary} (${checks.length} of ${parsed.value.total_count} read)` }
+    unread > 0 && full.state !== "red"
+      ? { state: "unknown" as const, summary: `${total} check runs on the head commit; only ${runs.length} read` }
+      : unread > 0
+        ? { ...full, summary: `${full.summary} (${checks.length} of ${counted} read)` }
         : full;
-  return okSignal(source, sourceUrl, { headSha, ...verdict, checks }, newest(checks), api);
+  return okSignal(source, sourceUrl, { headSha, ...verdict, checks }, newest(checks), first);
 }
 
 function newest(checks: CheckRun[]): string | undefined {

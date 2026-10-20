@@ -470,12 +470,13 @@ describe("snapshot", () => {
     const open = { ...search, total_count: 250 };
     await withFixtures([
       { path: "/search/issues", query: { q: "org:quirq-ai is:pr is:open" }, body: JSON.stringify(open) },
+      { path: "/repos/quirq-ai/monitoring/commits/main/check-runs", query: { page: "*" }, body: JSON.stringify({ total_count: 80, check_runs: [] }) },
       { path: "/repos/quirq-ai/monitoring/commits/main/check-runs", body: JSON.stringify({ ...JSON.parse(fixture("api/monitoring_check-runs.json")), total_count: 80 }) },
     ]);
     const { board } = await buildSnapshot();
     const monitoring = board.flatMap((g) => g.repos).find((r) => r.name === "monitoring");
     expect(monitoring?.openPullsLowerBound).toBe(true);
-    expect(monitoring?.ci).toMatchObject({ state: "unknown", text: expect.stringContaining("more than 50 check runs") });
+    expect(monitoring?.ci).toMatchObject({ state: "unknown", text: expect.stringContaining("80 check runs on the head commit; only 1 read") });
   });
 
   it("says why the product list is empty when infra-config cannot be read", async () => {
