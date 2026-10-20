@@ -15,6 +15,7 @@ const MAX_PAGES = 4;
 
 const CheckSchema = z
   .object({
+    id: z.number().optional(),
     name: z.string(),
     status: z.string(),
     conclusion: z.string().nullable(),
@@ -54,15 +55,23 @@ export async function readBranchChecks(repo: string, branch: string): Promise<Si
   const runs = [...parsed.value.check_runs];
   // A later page that fails or does not parse leaves the runs it held unread, which the rollup
   // below reports as it does a head with more runs than it reads.
+  // Each page is its own request, cached on its own, and the path names the branch, not the
+  // commit: two pages can come from different moments, or from two head commits once the branch
+  // moves. Pages that disagree (another total, another head commit, or a run read twice) mean the
+  // listing changed while it was read, so their sum can miss a failure: never green.
+  let changed = false;
   for (let page = 2; page <= MAX_PAGES && runs.length < total; page++) {
     const next = await ghGet<unknown>(path, { revalidate: REVALIDATE, params: { per_page: PER_PAGE, page } });
     if (!next.ok) break;
     const more = parseValue(ResponseSchema, next.data, `${repo} check runs`);
     if (!more.ok || more.value.check_runs.length === 0) break;
+    if (more.value.total_count !== total) changed = true;
     runs.push(...more.value.check_runs);
   }
+  const ids = runs.flatMap((c) => (typeof c.id === "number" ? [c.id] : []));
+  if (new Set(runs.map((c) => c.head_sha)).size > 1 || new Set(ids).size < ids.length) changed = true;
   const headSha = runs[0]?.head_sha ?? "";
-  const own = runs.filter((c) => isOwnCheck(repo, c.name));
+  const own = runs.filter((c) => isOwnCheck(repo, c.name, c.app?.slug ?? ""));
   const unread = Math.max(0, total - runs.length);
   const checks: CheckRun[] = own.map((c) => ({
     name: c.name,
@@ -75,11 +84,15 @@ export async function readBranchChecks(repo: string, branch: string): Promise<Si
   const full = rollup(checks);
   const counted = checks.length + unread;
   const verdict =
-    unread > 0 && full.state !== "red"
-      ? { state: "unknown" as const, summary: `${total} check runs on the head commit; only ${runs.length} read` }
-      : unread > 0
-        ? { ...full, summary: `${full.summary} (${checks.length} of ${counted} read)` }
-        : full;
+    changed && full.state !== "red"
+      ? { state: "unknown" as const, summary: `check runs on the head commit changed between pages; ${runs.length} read` }
+      : changed
+        ? { ...full, summary: `${full.summary} (read while the runs changed)` }
+        : unread > 0 && full.state !== "red"
+          ? { state: "unknown" as const, summary: `${total} check runs on the head commit; only ${runs.length} read` }
+          : unread > 0
+            ? { ...full, summary: `${full.summary} (${checks.length} of ${counted} read)` }
+            : full;
   return okSignal(source, sourceUrl, { headSha, ...verdict, checks }, newest(checks), first);
 }
 

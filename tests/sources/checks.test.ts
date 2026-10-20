@@ -52,7 +52,7 @@ describe("checks", () => {
     expect(signal.ok && signal.value).toMatchObject({ state: "red", summary: "1 of 1 failed: presubmit (1 of 80 read)" });
   });
 
-  const run = (name: string, conclusion = "success") => ({ name, status: "completed", conclusion, html_url: null, head_sha: "b".repeat(40), completed_at: "2026-10-21T06:00:00Z" });
+  const run = (name: string, conclusion = "success") => ({ name, status: "completed", conclusion, html_url: null, head_sha: "b".repeat(40), completed_at: "2026-10-21T06:00:00Z", app: { slug: "github-actions" } });
   const tp = "/repos/quirq-ai/test-pipelines/commits/main/check-runs";
 
   it("leaves test-pipelines' per-repo compat runs out of its own rollup, and nothing else", async () => {
@@ -69,6 +69,11 @@ describe("checks", () => {
     // The same names on another repo are that repo's own checks.
     await withFixtures([{ path: "/repos/quirq-ai/innernet/commits/main/check-runs", body: JSON.stringify({ total_count: 1, check_runs: [run("compat (galileo)", "failure")] }) }]);
     expect(await readBranchChecks("innernet", "main")).toMatchObject({ value: { state: "red" } });
+
+    // Only GitHub Actions jobs are left out: the same name from another app is test-pipelines' own.
+    const other = [run("presubmit"), { ...run("compat (galileo)", "failure"), app: { slug: "some-ci" } }, { ...run("compat (qq)", "failure"), app: null }];
+    await withFixtures([{ path: tp, body: JSON.stringify({ total_count: other.length, check_runs: other }) }]);
+    expect(await readBranchChecks("test-pipelines", "main")).toMatchObject({ value: { state: "red", summary: "2 of 3 failed: compat (galileo), compat (qq)" } });
   });
 
   it("reads every page of a head with more than 50 runs before it drops the compat ones", async () => {
@@ -93,6 +98,47 @@ describe("checks", () => {
     const fixtures = await withFixtures([{ path: tp, body: JSON.stringify({ total_count: 500, check_runs: page }) }]);
     expect(await readBranchChecks("test-pipelines", "main")).toMatchObject({ value: { state: "unknown", summary: "500 check runs on the head commit; only 200 read" } });
     expect(fixtures.log.api).toBe(4);
+
+    await withFixtures([
+      { path: tp, query: { page: "2" }, body: JSON.stringify({ total_count: 60 }) },
+      { path: tp, body: JSON.stringify({ total_count: 60, check_runs: Array.from({ length: 50 }, () => run("presubmit")) }) },
+    ]);
+    expect(await readBranchChecks("test-pipelines", "main")).toMatchObject({ value: { state: "unknown", summary: "60 check runs on the head commit; only 50 read" } });
+  });
+
+  // Each page is cached on its own and the path names the branch, so two pages can come from
+  // different listings. Each case below summed to green before.
+  const byId = (ids: number[], sha = "a".repeat(40), failed = -1) => ids.map((id) => ({ ...run(`job-${id}`, id === failed ? "failure" : "success"), id, head_sha: sha }));
+  const range = (from: number, n: number) => Array.from({ length: n }, (_, i) => from - i);
+
+  it("is never green when the pages come from different listings", async () => {
+    // The listing grew between the reads: a failing run 99 is now first, so page 2 repeats run 2.
+    await withFixtures([
+      { path: tp, query: { page: "2" }, body: JSON.stringify({ total_count: 52, check_runs: byId([2, 1]) }) },
+      { path: tp, body: JSON.stringify({ total_count: 51, check_runs: byId(range(51, 50)) }) },
+    ]);
+    expect(await readBranchChecks("test-pipelines", "main")).toMatchObject({ value: { state: "unknown", summary: "check runs on the head commit changed between pages; 52 read" } });
+
+    // Page 1 is from the old head commit, page 2 from the new one.
+    await withFixtures([
+      { path: tp, query: { page: "2" }, body: JSON.stringify({ total_count: 60, check_runs: byId(range(210, 10), "c".repeat(40)) }) },
+      { path: tp, body: JSON.stringify({ total_count: 60, check_runs: byId(range(160, 50)) }) },
+    ]);
+    expect(await readBranchChecks("test-pipelines", "main")).toMatchObject({ value: { state: "unknown", headSha: "a".repeat(40) } });
+
+    // The same total and head, but a run read twice (so another one was not read at all).
+    await withFixtures([
+      { path: tp, query: { page: "2" }, body: JSON.stringify({ total_count: 60, check_runs: byId(range(11, 10)) }) },
+      { path: tp, body: JSON.stringify({ total_count: 60, check_runs: byId(range(60, 50)) }) },
+    ]);
+    expect(await readBranchChecks("test-pipelines", "main")).toMatchObject({ value: { state: "unknown" } });
+
+    // A failure among the runs read is still red.
+    await withFixtures([
+      { path: tp, query: { page: "2" }, body: JSON.stringify({ total_count: 52, check_runs: byId([2, 1]) }) },
+      { path: tp, body: JSON.stringify({ total_count: 51, check_runs: byId(range(51, 50), "a".repeat(40), 7) }) },
+    ]);
+    expect(await readBranchChecks("test-pipelines", "main")).toMatchObject({ value: { state: "red", summary: "1 of 52 failed: job-7 (read while the runs changed)" } });
   });
 
   it("rollup never calls skipped or neutral checks passed, and timed out or action required red", () => {

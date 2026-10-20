@@ -306,10 +306,11 @@ cloud session, and REST with the issue search covers the same questions in a han
   `qq-failure` issues are filed in more than one repo (release and test-pipelines today), so
   search the org, not one repo. About 24 an hour.
 - One `commits/<branch>/check-runs` call per board repo, cached 600 s: about 180 an hour for 30
-  repos. A head with more than 50 runs is read further, up to 4 pages (test-pipelines' compat
-  check puts one run per org repo on its head, so it takes a second page there); the rollup then
+  repos. A head with more than 50 runs is read further, up to 4 pages: at most 3 more calls per
+  such head every 600 s, 18 an hour (test-pipelines' compat check puts one run per org repo on
+  its head, so it takes a second page once that head carries more than 50); the rollup then
   leaves out the runs `config/checks.ts` says are not the repo's own (test-pipelines'
-  `compat (<repo>)` jobs, each another repo's verdict). Deployments (`deployments` and the latest status) are read for products only.
+  `compat (<repo>)` GitHub Actions jobs, each another repo's verdict). Deployments (`deployments` and the latest status) are read for products only.
 - One `actions/workflows/<file>/runs` call per writer workflow (9), cached 300 s: about 108 an
   hour.
 - Directory listings through the contents API, cached 300 s: test-pipelines `results` failures/
@@ -334,8 +335,9 @@ cloud session, and REST with the issue search covers the same questions in a han
   `https://raw.githubusercontent.com/quirq-ai/wiki/refs/heads/main/.quirq-wiki-manifest.json`.
 
 Lists are cut at their page size and say so: an open-PR count is a floor ("3+") when the search
-had more than 100 results, and a head with more than 200 check runs (4 pages), or a later page
-that cannot be read, rolls up `unknown`.
+had more than 100 results, and a head with more than 200 check runs (4 pages), a later page
+that cannot be read, or pages that disagree (another total, another head commit, or a run read
+twice: each page is cached on its own) rolls up `unknown`.
 
 `lib/github.ts` counts the client's calls per hour (`requestsThisHour`, per server process, and a
 call the Data Cache answers is counted too) and the Health page shows the count. A model test
