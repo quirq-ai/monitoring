@@ -173,6 +173,24 @@ show up in the repo's deployments and on the PR). The project needs one environm
 Rotate the token before it expires: an expired one shows a "GitHub token rejected" banner and
 breaks nothing else. `MONITORING_OWNER` and `MONITORING_ORG` can be set the same way.
 
+### Shown inside the website
+
+The quirq.dev website may show the dashboard in an iframe; no other site may. Every response sends
+`Content-Security-Policy: frame-ancestors 'self' https://quirq.dev https://www.quirq.dev`
+(`config/framing.ts`, set in `next.config.ts`) and no `X-Frame-Options`. The local settings editor
+(`pnpm editor`) sends `frame-ancestors 'none'` instead, so no page frames it. The website and the
+dashboard are the same site (quirq.dev), so the theme cookie works inside the frame; without one the
+frame follows the viewer's light or dark setting. Page links move the frame; links to GitHub and
+Vercel open a new tab, so the frame needs `allow-popups` if it is sandboxed:
+
+```html
+<iframe src="https://monitoring.quirq.dev/" title="quirq monitoring" loading="lazy"
+        style="border:0;width:100%;height:100%"></iframe>
+```
+
+To let another site frame it, add its exact `https://` origin to `config/framing.ts`; never a
+wildcard or a preview host.
+
 ## What is not built
 
 - Search, history charts, gate drift, push alerts, PostHog signals, a GitHub App in place of the

@@ -123,7 +123,8 @@ app/
   repos/[repo]/page.tsx  Repo page
   api/snapshot/route.ts  GET only: the model as JSON
   settings/page.tsx      the settings editor; settings/actions.ts its server functions
-proxy.ts                 only in the local editor's gh mode: 403 to a Host that is not loopback
+proxy.ts                 only in the local editor's gh mode: 403 to a Host that is not loopback,
+                         and frame-ancestors 'none' on every response
 components/
   ui/                    shadcn, unmodified where possible
   state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
@@ -151,6 +152,7 @@ config/
   demo.ts                planted records that are never counted
   checks.ts              check runs on a head that are not that repo's own CI (test-pipelines' compat jobs)
   settings.ts            the files the settings editor edits, and what a merged edit does
+  framing.ts             who may show the dashboard in an iframe (the quirq.dev website only)
 tests/
   live-check.ts          `pnpm live`: every source once against GitHub
   fixtures/              captured and synthetic files, with origin (README.md)
@@ -461,6 +463,13 @@ demo subjects in one constant; demo records never count toward "waiting on you".
 - Fetched Markdown: a table in the report sits in a scroll box with `tabIndex=0`, `role="region"`
   and a label, so a keyboard can reach it; images are not fetched (alt text only), so no outside
   host learns a viewer's address.
+- Only the quirq.dev website frames the dashboard (suraj's ask of 2026-10-21): `next.config.ts`
+  sends `frame-ancestors 'self' https://quirq.dev https://www.quirq.dev` from `config/framing.ts` on
+  every response, and nothing sends `X-Frame-Options`. Exact origins only, never a wildcard or a
+  `*.vercel.app` preview. A route that sets its own `Content-Security-Policy` must carry the same
+  `frame-ancestors`; `tests/e2e/framing.spec.ts` checks pages, the API, 404s and static files, and
+  renders the dashboard framed from www.quirq.dev at both widths in both themes. Nothing may read
+  or navigate `window.top`.
 - Tap targets are at least 44 px tall on a phone (nav links, the theme toggle, the window links).
 - Do not reuse PostHog's site design or assets (website was derived from it and its UI is being
   replaced). The look comes from the Brand and themes section below.
