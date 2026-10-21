@@ -15,6 +15,10 @@ const viewports = [
 // all, as the website would see it.
 const DASHBOARD = "https://monitoring.quirq.dev";
 
+// The header spelled out, not read from config/framing.ts, so letting one more site frame the
+// dashboard is a change to this test too.
+const WEBSITE_ONLY = "frame-ancestors 'self' https://quirq.dev https://www.quirq.dev";
+
 /** Serves `parent` as a page that frames the dashboard (answered by `local`), and returns that frame. */
 async function framedBy(page: Page, parent: string, local = origin, path = "/") {
   await page.route(`${DASHBOARD}/**`, async (route) => {
@@ -39,9 +43,10 @@ test.describe("framing", () => {
     const html = await (await request.get("/")).text();
     const css = html.match(/\/_next\/static\/[^"]+\.css/)?.[0];
     expect(css).toBeTruthy();
+    expect(FRAMING_CSP).toBe(WEBSITE_ONLY);
     for (const path of ["/", "/health", "/blockers", "/api/snapshot", "/repos/no-such-repo", "/no-such-page", "/brand/quirq/wordmark.svg", "/favicon.ico", css!]) {
       const res = await request.get(path, { maxRedirects: 0 });
-      expect.soft(res.headers()["content-security-policy"], path).toBe(FRAMING_CSP);
+      expect.soft(res.headers()["content-security-policy"], path).toBe(WEBSITE_ONLY);
       expect.soft(res.headers()["x-frame-options"], path).toBeUndefined();
     }
   });
@@ -69,7 +74,8 @@ test.describe("framing", () => {
     await expect(frame.getByRole("heading", { level: 1, name: "Calendar" })).toBeVisible();
   });
 
-  for (const parent of ["https://evil.example", "https://quirq.dev.evil.example", "https://monitoring-git-x.vercel.app"]) {
+  // evil.quirq.dev: another quirq.dev name is not the website either (no *.quirq.dev).
+  for (const parent of ["https://evil.example", "https://quirq.dev.evil.example", "https://evil.quirq.dev", "https://monitoring-git-x.vercel.app"]) {
     test(`${parent} cannot frame it`, async ({ page }) => {
       const refused = page.waitForEvent("console", (m) => m.text().includes("frame-ancestors"));
       await framedBy(page, parent);

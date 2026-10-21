@@ -124,7 +124,8 @@ app/
   api/snapshot/route.ts  GET only: the model as JSON
   settings/page.tsx      the settings editor; settings/actions.ts its server functions
 proxy.ts                 only in the local editor's gh mode: 403 to a Host that is not loopback,
-                         and frame-ancestors 'none' on every response
+                         and frame-ancestors 'none' on every response it sees (not _next/static,
+                         _next/image or favicon.ico, which keep the website's)
 components/
   ui/                    shadcn, unmodified where possible
   state-badge.tsx        the one way to show a state (a dot in the state color, then the word)
