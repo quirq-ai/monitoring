@@ -25,4 +25,14 @@ describe("proxy", () => {
     process.env.VERCEL = "1";
     expect(at("evil.example:3020").status).toBe(200);
   });
+
+  it("keeps every page from being framed in gh mode only, never on Vercel", () => {
+    const csp = (host: string) => at(host).headers.get("content-security-policy");
+    expect(csp("127.0.0.1:3020")).toBeNull();
+    process.env.MONITORING_EDITOR = "gh";
+    expect(csp("127.0.0.1:3020")).toBe("frame-ancestors 'none'");
+    expect(csp("evil.example:3020")).toBe("frame-ancestors 'none'");
+    process.env.VERCEL = "1";
+    expect(csp("127.0.0.1:3020")).toBeNull();
+  });
 });

@@ -181,11 +181,12 @@ The quirq.dev website may show the dashboard in an iframe; no other site may. Ev
 (`pnpm editor`) sends `frame-ancestors 'none'` instead, so no page frames it. The website and the
 dashboard are the same site (quirq.dev), so the theme cookie works inside the frame; without one the
 frame follows the viewer's light or dark setting. Page links move the frame; links to GitHub and
-Vercel open a new tab, so the frame needs `allow-popups` if it is sandboxed:
+Vercel open a new tab, so a sandboxed frame needs `allow-popups`, and `allow-same-origin` or it
+has no cookies. The settings page's Copy button needs `allow="clipboard-write"`:
 
 ```html
 <iframe src="https://monitoring.quirq.dev/" title="quirq monitoring" loading="lazy"
-        style="border:0;width:100%;height:100%"></iframe>
+        allow="clipboard-write" style="border:0;width:100%;height:100%"></iframe>
 ```
 
 To let another site frame it, add its exact `https://` origin to `config/framing.ts`; never a
